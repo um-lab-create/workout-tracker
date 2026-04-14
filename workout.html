@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="筋トレ記録">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>筋トレ記録</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #13131c;
+      --surface2: #1c1c2a;
+      --border:   #2a2a3d;
+      --text:     #f0f0ff;
+      --muted:    #8888aa;
+      --dim:      #555570;
+      --accent:   #6c63ff;
+      --accent2:  #a78bfa;
+      --green:    #10d98a;
+      --red:      #ff4d6a;
+      --yellow:   #fbbf24;
+    }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Hiragino Sans', 'Noto Sans JP', -apple-system, sans-serif;
+      padding-bottom: calc(40px + env(safe-area-inset-bottom));
+      min-height: 100vh;
+    }
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: calc(16px + env(safe-area-inset-top)) 20px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .date-badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+    .sync-status {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .sync-status.syncing { color: var(--yellow); border-color: var(--yellow); }
+    .sync-status.synced  { color: var(--green);  border-color: var(--green);  }
+    .sync-status.error   { color: var(--red);    border-color: var(--red);    }
+    .content { padding: 18px 14px 0; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+    .ex-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .ex-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 76px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.35;
+      cursor: pointer;
+      padding: 14px 8px;
+      transition: all 0.15s ease;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-appearance: none;
+      appearance: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .ex-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .ex-btn span { position: relative; z-index: 1; }
+    .ex-btn-icon { font-size: 18px; margin-bottom: 5px; position: relative; z-index: 1; font-style: normal; }
+    .ex-btn:active { transform: scale(0.94); }
+    .ex-btn.active { border-color: var(--accent); color: #fff; }
+    .ex-btn.active::before { opacity: 1; }
+    .ex-btn.full { grid-column: 1/-1; min-height: 64px; flex-direction: row; gap: 10px; }
+    .ex-btn.full .ex-btn-icon { margin-bottom: 0; }
+    .input-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px 16px 18px;
+      margin-bottom: 16px;
+      animation: fadeUp .2s ease;
+    }
+    .input-panel.show { display: block; }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(12px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .panel-title { font-size:18px; font-weight:900; margin-bottom:16px; color:var(--accent2); }
+    .prev-record {
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      display: none;
+    }
+    .prev-record.show { display: block; }
+    .prev-record strong { color: var(--accent2); font-weight: 700; }
+    .fields-row { display:flex; gap:8px; margin-bottom:14px; }
+    .field-col { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .field-lbl { font-size:11px; font-weight:700; color:var(--dim); text-transform:uppercase; letter-spacing:0.06em; align-self:flex-start; }
+    .field-inp {
+      width: 100%;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 6px;
+      color: var(--text);
+      font-size: 28px;
+      font-weight: 900;
+      text-align: center;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field-inp::placeholder { color:var(--border); }
+    .field-inp:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(108,99,255,0.15); }
+    .field-inp::-webkit-inner-spin-button,
+    .field-inp::-webkit-outer-spin-button { -webkit-appearance:none; }
+    .field-unit { font-size:12px; font-weight:700; color:var(--dim); }
+    .save-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--green) 0%, #06b86a 100%);
+      border: none;
+      border-radius: 16px;
+      padding: 18px;
+      color: #fff;
+      font-size: 17px;
+      font-weight: 900;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: transform 0.1s, filter 0.1s;
+    }
+    .save-btn:active { transform:scale(0.97); filter:brightness(0.9); }
+    .save-btn:disabled { background:var(--dim); cursor:not-allowed; }
+    .footer-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+    .foot-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: all 0.12s;
+    }
+    .foot-btn:active { background:var(--surface2); transform:scale(0.97); }
+    .foot-btn .ico { display:block; font-size:22px; margin-bottom:4px; }
+    .foot-btn.active-hist { color:var(--accent2); border-color:var(--accent); }
+    .pending-banner {
+      background: rgba(251,191,36,0.1);
+      border: 1px solid rgba(251,191,36,0.3);
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .pending-banner.show { display:flex; }
+    .pending-text { font-size:13px; color:var(--yellow); font-weight:700; }
+    .retry-btn {
+      background: var(--yellow);
+      border: none;
+      border-radius: 10px;
+      padding: 8px 14px;
+      color: #000;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .history-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 18px 16px;
+      animation: fadeUp .2s ease;
+      margin-bottom: 14px;
+    }
+    .history-panel.show { display:block; }
+    .hist-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .hist-head h2 { font-size:16px; font-weight:800; }
+    .del-btn {
+      background: none;
+      border: 1px solid rgba(255,77,106,.4);
+      border-radius: 8px;
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .rec-group { margin-bottom:14px; }
+    .rec-date-lbl { font-size:11px; font-weight:700; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.05em; }
+    .rec-card { background:var(--surface2); border-radius:14px; padding:12px 14px; margin-bottom:7px; }
+    .rec-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+    .rec-name { font-size:14px; font-weight:800; color:var(--accent2); }
+    .rec-synced { font-size:10px; color:var(--green); font-weight:700; }
+    .rec-local  { font-size:10px; color:var(--yellow); font-weight:700; }
+    .rec-tags { display:flex; flex-wrap:wrap; gap:5px; }
+    .rec-tag { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:600; color:var(--muted); }
+    .no-rec { text-align:center; color:var(--dim); padding:24px; font-size:14px; }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(28px + env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(70px);
+      background: var(--green);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 13px 26px;
+      border-radius: 999px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0;
+      box-shadow: 0 6px 24px rgba(0,0,0,.5);
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+    }
+    .toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>筋トレ記録</h1>
+  <div class="header-right">
+    <span class="sync-status" id="syncStatus">待機中</span>
+    <span class="date-badge" id="dateBadge"></span>
+  </div>
+</div>
+
+<div class="content">
+  <div class="section-label">種目を選択</div>
+  <div class="ex-grid">
+    <button class="ex-btn" id="btn-shoulder_press" onclick="selectEx('shoulder_press')">
+      <i class="ex-btn-icon">肩</i><span>ショルダー<br>プレス</span>
+    </button>
+    <button class="ex-btn" id="btn-chest_press" onclick="selectEx('chest_press')">
+      <i class="ex-btn-icon">胸</i><span>チェスト<br>プレス</span>
+    </button>
+    <button class="ex-btn" id="btn-lat_pulldown" onclick="selectEx('lat_pulldown')">
+      <i class="ex-btn-icon">背</i><span>ラットプル<br>ダウン</span>
+    </button>
+    <button class="ex-btn" id="btn-leg_press" onclick="selectEx('leg_press')">
+      <i class="ex-btn-icon">脚</i><span>レッグ<br>プレス</span>
+    </button>
+    <button class="ex-btn" id="btn-adduction" onclick="selectEx('adduction')">
+      <i class="ex-btn-icon">内</i><span>アダク<br>ション</span>
+    </button>
+    <button class="ex-btn" id="btn-abduction" onclick="selectEx('abduction')">
+      <i class="ex-btn-icon">外</i><span>アブダク<br>ション</span>
+    </button>
+    <button class="ex-btn" id="btn-ab_bench" onclick="selectEx('ab_bench')">
+      <i class="ex-btn-icon">腹</i><span>アブ<br>ベンチ</span>
+    </button>
+    <button class="ex-btn full" id="btn-treadmill" onclick="selectEx('treadmill')">
+      <i class="ex-btn-icon">走</i><span>トレッドミル</span>
+    </button>
+  </div>
+
+  <div class="pending-banner" id="pendingBanner">
+    <span class="pending-text" id="pendingText"></span>
+    <button class="retry-btn" onclick="retryPending()">今すぐ送信</button>
+  </div>
+
+  <div class="input-panel" id="inputPanel">
+    <div class="panel-title" id="panelTitle"></div>
+    <div class="prev-record" id="prevRecord"></div>
+    <div class="fields-row" id="fieldsRow"></div>
+    <button class="save-btn" id="saveBtn" onclick="saveRecord()">✓ 記録する</button>
+  </div>
+
+  <div class="footer-row">
+    <button class="foot-btn" onclick="downloadCSV()">
+      <span class="ico">↓</span>CSVダウンロード
+    </button>
+    <button class="foot-btn" id="histBtn" onclick="toggleHistory()">
+      <span class="ico">≡</span>記録を見る
+    </button>
+  </div>
+
+  <div class="history-panel" id="historyPanel">
+    <div class="hist-head">
+      <h2>記録履歴</h2>
+      <button class="del-btn" onclick="clearAll()">すべて削除</button>
+    </div>
+    <div id="recList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwLkNl4uKEKPD3HPESlNj7hUjULlXdVuBHIWVSazuPujPy_S63wrEYE_--hiHK9BYfT/exec';
+
+const EX = {
+  shoulder_press:{ name:'ショルダープレス', fields:[
+    {key:'weight',lbl:'重量',unit:'kg', mode:'decimal',step:'0.5'},
+    {key:'reps',  lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',  lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  chest_press:{ name:'チェストプレス', fields:[
+    {key:'weight',lbl:'重量',unit:'kg', mode:'decimal',step:'0.5'},
+    {key:'reps',  lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',  lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  lat_pulldown:{ name:'ラットプルダウン', fields:[
+    {key:'weight',lbl:'重量',unit:'kg', mode:'decimal',step:'0.5'},
+    {key:'reps',  lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',  lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  leg_press:{ name:'レッグプレス', fields:[
+    {key:'weight',lbl:'重量',unit:'kg', mode:'decimal',step:'0.5'},
+    {key:'reps',  lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',  lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  adduction:{ name:'アダクション', fields:[
+    {key:'weight',lbl:'重量',unit:'kg', mode:'decimal',step:'0.5'},
+    {key:'reps',  lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',  lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  abduction:{ name:'アブダクション', fields:[
+    {key:'weight',lbl:'重量',unit:'kg', mode:'decimal',step:'0.5'},
+    {key:'reps',  lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',  lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  ab_bench:{ name:'アブベンチ', fields:[
+    {key:'reps',lbl:'回数',unit:'回', mode:'numeric',step:'1'},
+    {key:'sets',lbl:'セット',unit:'set',mode:'numeric',step:'1'},
+  ]},
+  treadmill:{ name:'トレッドミル', fields:[
+    {key:'time',    lbl:'時間',unit:'分',  mode:'numeric',step:'1'},
+    {key:'distance',lbl:'距離',unit:'km', mode:'decimal',step:'0.1'},
+    {key:'speed',   lbl:'速さ',unit:'km/h',mode:'decimal',step:'0.1'},
+  ]},
+};
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtDate(s) {
+  const [y,m,d] = s.split('-');
+  return y+'年'+parseInt(m)+'月'+parseInt(d)+'日';
+}
+document.getElementById('dateBadge').textContent = fmtDate(todayStr());
+
+function getRecords()  { try { return JSON.parse(localStorage.getItem('wk_recs')||'[]'); } catch { return []; } }
+function saveRecords(l){ localStorage.setItem('wk_recs',JSON.stringify(l)); }
+function getPending()  { try { return JSON.parse(localStorage.getItem('wk_pending')||'[]'); } catch { return []; } }
+function savePending(l){ localStorage.setItem('wk_pending',JSON.stringify(l)); }
+
+function getLastRecord(exId) {
+  const recs = getRecords().filter(r=>r.exId===exId);
+  return recs.length ? recs[recs.length-1] : null;
+}
+
+function setSyncStatus(state, text) {
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-status '+state;
+  el.textContent = text;
+}
+
+async function sendToSheet(rec) {
+  setSyncStatus('syncing','送信中...');
+  try {
+    await fetch(GAS_URL,{
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(rec)
+    });
+    setSyncStatus('synced','同期済み ✓');
+    setTimeout(()=>setSyncStatus('','待機中'),3000);
+    return true;
+  } catch(e) {
+    setSyncStatus('error','送信失敗');
+    setTimeout(()=>setSyncStatus('','待機中'),3000);
+    return false;
+  }
+}
+
+async function retryPending() {
+  const pending = getPending();
+  if (!pending.length) return;
+  showToast('再送信中...');
+  const failed = [];
+  for (const rec of pending) {
+    const ok = await sendToSheet(rec);
+    if (!ok) failed.push(rec);
+  }
+  savePending(failed);
+  updatePendingBanner();
+  showToast(failed.length ? '一部の送信に失敗しました':'すべて送信しました！', !!failed.length);
+}
+
+function updatePendingBanner() {
+  const pending = getPending();
+  const banner = document.getElementById('pendingBanner');
+  document.getElementById('pendingText').textContent = `未送信の記録が${pending.length}件あります`;
+  banner.classList.toggle('show', pending.length>0);
+}
+
+let currentId = null;
+
+function selectEx(id) {
+  const ex = EX[id];
+  if (!ex) return;
+  document.querySelectorAll('.ex-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+id).classList.add('active');
+  currentId = id;
+  document.getElementById('panelTitle').textContent = ex.name;
+
+  const last = getLastRecord(id);
+  const prevEl = document.getElementById('prevRecord');
+  if (last) {
+    const LBL  = {weight:'重量',reps:'回数',sets:'セット',time:'時間',distance:'距離',speed:'速さ'};
+    const UNIT = {weight:'kg',reps:'回',sets:'set',time:'分',distance:'km',speed:'km/h'};
+    const parts = ex.fields.map(f=>last[f.key]?`${LBL[f.key]} <strong>${last[f.key]}${UNIT[f.key]}</strong>`:'').filter(Boolean);
+    prevEl.innerHTML = '前回: '+parts.join('　');
+    prevEl.classList.add('show');
+  } else {
+    prevEl.classList.remove('show');
+  }
+
+  const row = document.getElementById('fieldsRow');
+  row.innerHTML = '';
+  ex.fields.forEach(f=>{
+    const col = document.createElement('div'); col.className='field-col';
+    const lbl = document.createElement('span'); lbl.className='field-lbl'; lbl.textContent=f.lbl;
+    const inp = document.createElement('input');
+    inp.type='number'; inp.id='fi-'+f.key; inp.className='field-inp';
+    inp.inputMode=f.mode; inp.placeholder=last?(last[f.key]||'0'):'0';
+    inp.min='0'; inp.step=f.step;
+    inp.addEventListener('focus',()=>inp.select());
+    const unit = document.createElement('span'); unit.className='field-unit'; unit.textContent=f.unit;
+    col.appendChild(lbl); col.appendChild(inp); col.appendChild(unit);
+    row.appendChild(col);
+  });
+
+  const panel = document.getElementById('inputPanel');
+  panel.classList.add('show');
+  setTimeout(()=>{
+    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+    const first = row.querySelector('.field-inp');
+    if (first) first.focus();
+  },120);
+}
+
+async function saveRecord() {
+  if (!currentId) return;
+  const ex = EX[currentId];
+  const rec = {date:todayStr(), exId:currentId, exName:ex.name};
+
+  for (const f of ex.fields) {
+    const v = document.getElementById('fi-'+f.key).value.trim();
+    if (v===''||isNaN(Number(v))) { showToast('すべての項目を入力してください',true); return; }
+    rec[f.key] = v;
+  }
+
+  const list = getRecords();
+  rec.synced = false;
+  list.push(rec);
+  saveRecords(list);
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  const ok = await sendToSheet(rec);
+
+  if (ok) {
+    const updated = getRecords();
+    updated[updated.length-1].synced = true;
+    saveRecords(updated);
+    showToast('記録 & スプレッドシートに保存しました！');
+  } else {
+    const pending = getPending();
+    pending.push(rec);
+    savePending(pending);
+    showToast('ローカル保存済み（オフライン）', true);
+    updatePendingBanner();
+  }
+
+  btn.disabled = false;
+  btn.textContent = '✓ 記録する';
+  ex.fields.forEach(f=>{ document.getElementById('fi-'+f.key).value=''; });
+  selectEx(currentId);
+  if (document.getElementById('historyPanel').classList.contains('show')) renderHistory();
+}
+
+function downloadCSV() {
+  const recs = getRecords();
+  if (!recs.length) { showToast('記録がありません',true); return; }
+  const COLS = [
+    {k:'date',h:'日付'},{k:'exName',h:'種目'},{k:'weight',h:'重量(kg)'},
+    {k:'reps',h:'回数'},{k:'sets',h:'セット数'},{k:'time',h:'時間(分)'},
+    {k:'distance',h:'距離(km)'},{k:'speed',h:'速さ(km/h)'},
+  ];
+  let csv = '\uFEFF'+COLS.map(c=>c.h).join(',')+'\r\n';
+  recs.forEach(r=>{ csv+=COLS.map(c=>{ const v=r[c.k]??''; return String(v).includes(',')? '"'+v+'"':v; }).join(',')+'\r\n'; });
+  const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  const a = Object.assign(document.createElement('a'),{href:url,download:'workout_'+todayStr()+'.csv'});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast('CSVをダウンロードしました');
+}
+
+const FMETA = {
+  weight:{lbl:'重量',unit:'kg'},reps:{lbl:'回数',unit:'回'},sets:{lbl:'セット',unit:''},
+  time:{lbl:'時間',unit:'分'},distance:{lbl:'距離',unit:'km'},speed:{lbl:'速さ',unit:'km/h'},
+};
+let histOpen = false;
+
+function toggleHistory() {
+  histOpen = !histOpen;
+  const panel = document.getElementById('historyPanel');
+  const btn   = document.getElementById('histBtn');
+  if (histOpen) {
+    renderHistory();
+    panel.classList.add('show');
+    btn.classList.add('active-hist');
+    setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),80);
+  } else {
+    panel.classList.remove('show');
+    btn.classList.remove('active-hist');
+  }
+}
+
+function renderHistory() {
+  const recs = getRecords();
+  const el   = document.getElementById('recList');
+  if (!recs.length) { el.innerHTML='<div class="no-rec">まだ記録がありません</div>'; return; }
+  const byDate = {};
+  [...recs].reverse().forEach(r=>{ (byDate[r.date]=byDate[r.date]||[]).push(r); });
+  el.innerHTML = Object.entries(byDate).map(([date,rs])=>
+    `<div class="rec-group">
+       <div class="rec-date-lbl">${fmtDate(date)}</div>
+       ${rs.map(r=>{
+         const tags = Object.entries(r).filter(([k])=>FMETA[k])
+           .map(([k,v])=>`<span class="rec-tag">${FMETA[k].lbl} ${v}${FMETA[k].unit}</span>`).join('');
+         const badge = r.synced
+           ? '<span class="rec-synced">● 同期済み</span>'
+           : '<span class="rec-local">● ローカル</span>';
+         return `<div class="rec-card">
+           <div class="rec-card-head"><div class="rec-name">${r.exName}</div>${badge}</div>
+           <div class="rec-tags">${tags}</div>
+         </div>`;
+       }).join('')}
+     </div>`
+  ).join('');
+}
+
+function clearAll() {
+  if (!confirm('すべての記録を削除しますか？\nこの操作は元に戻せません。')) return;
+  localStorage.removeItem('wk_recs');
+  localStorage.removeItem('wk_pending');
+  renderHistory();
+  updatePendingBanner();
+  showToast('削除しました');
+}
+
+let toastTmr;
+function showToast(msg, isErr) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isErr ? 'var(--red)' : 'var(--green)';
+  el.classList.add('show');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+document.getElementById('inputPanel').addEventListener('keydown', e=>{
+  if (e.key!=='Enter') return;
+  const inputs = [...document.querySelectorAll('.field-inp')];
+  const i = inputs.indexOf(document.activeElement);
+  if (i>=0&&i<inputs.length-1) inputs[i+1].focus();
+  else saveRecord();
+});
+
+updatePendingBanner();
+</script>
+</body>
+</html>
