@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="食事記録">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>食事記録</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --bg:      #0a0a0f;
+      --surface: #13131c;
+      --surface2:#1c1c2a;
+      --border:  #2a2a3d;
+      --text:    #f0f0ff;
+      --muted:   #8888aa;
+      --dim:     #555570;
+      --accent:  #f59e0b;
+      --accent2: #fcd34d;
+      --green:   #10d98a;
+      --red:     #ff4d6a;
+      --blue:    #6c63ff;
+    }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Hiragino Sans', 'Noto Sans JP', -apple-system, sans-serif;
+      padding-bottom: calc(40px + env(safe-area-inset-bottom));
+      min-height: 100vh;
+    }
+
+    /* ヘッダー */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: calc(16px + env(safe-area-inset-top)) 20px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .date-badge {
+      background: var(--accent);
+      color: #000;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+    .sync-status {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    .sync-status.syncing { color: var(--accent); border-color: var(--accent); }
+    .sync-status.synced  { color: var(--green);  border-color: var(--green);  }
+    .sync-status.error   { color: var(--red);    border-color: var(--red);    }
+
+    .content { padding: 18px 14px 0; }
+
+    /* タイミング選択 */
+    .timing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .timing-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 72px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 12px 8px;
+      transition: all 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .timing-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .timing-btn span { position: relative; z-index: 1; }
+    .timing-icon { font-size: 22px; margin-bottom: 5px; position: relative; z-index: 1; }
+    .timing-btn:active { transform: scale(0.94); }
+    .timing-btn.active { border-color: var(--accent); color: #000; }
+    .timing-btn.active::before { opacity: 1; }
+
+    /* パネル共通 */
+    .panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px 16px 18px;
+      margin-bottom: 16px;
+      animation: fadeUp .2s ease;
+    }
+    .panel.show { display: block; }
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(12px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .panel-title {
+      font-size: 17px;
+      font-weight: 900;
+      color: var(--accent2);
+      margin-bottom: 16px;
+    }
+
+    /* セクションラベル */
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    /* ── 朝ごはんパネル ── */
+    .morning-base {
+      background: var(--surface2);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .morning-base-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .base-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0; }
+    .base-tag {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    /* オプション選択 */
+    .option-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .option-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: all 0.15s;
+    }
+    .option-btn.selected {
+      border-color: var(--accent);
+      color: var(--accent2);
+      background: rgba(245,158,11,0.1);
+    }
+    .option-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .option-btn.selected .option-check {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+
+    /* ── 昼ごはんパネル ── */
+    .ingredient-list { margin-bottom: 14px; }
+    .ingredient-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    .ing-input {
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .ing-input:focus { border-color: var(--accent); }
+    .ing-name { flex: 1; }
+    .ing-amount { width: 80px; text-align: center; }
+    .ing-unit {
+      font-size: 12px;
+      color: var(--dim);
+      font-weight: 700;
+      width: 24px;
+      flex-shrink: 0;
+    }
+    .del-ing-btn {
+      background: none;
+      border: none;
+      color: var(--red);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 6px;
+      flex-shrink: 0;
+    }
+    .add-ing-btn {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px dashed var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      color: var(--dim);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: all 0.15s;
+      margin-bottom: 14px;
+    }
+    .add-ing-btn:active { background: var(--border); }
+
+    /* 人前設定 */
+    .serving-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface2);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .serving-label { font-size: 13px; font-weight: 700; color: var(--muted); flex: 1; }
+    .serving-input {
+      width: 70px;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 900;
+      text-align: center;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .serving-input:focus { border-color: var(--accent); }
+    .serving-input::-webkit-inner-spin-button,
+    .serving-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .serving-unit { font-size: 13px; color: var(--dim); font-weight: 700; }
+
+    /* ── 夜ごはんパネル ── */
+    .free-input-area {
+      width: 100%;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+      min-height: 100px;
+      transition: border-color 0.15s;
+      font-family: 'Hiragino Sans', -apple-system, sans-serif;
+      margin-bottom: 14px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .free-input-area:focus { border-color: var(--accent); }
+    .free-input-area::placeholder { color: var(--dim); }
+
+    /* テンプレート */
+    .template-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .template-btn {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: all 0.15s;
+    }
+    .template-btn:active { background: var(--border); }
+    .template-btn-name { color: var(--text); font-size: 13px; margin-bottom: 2px; }
+
+    /* PFCプレビュー */
+    .pfc-preview {
+      background: var(--surface2);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .pfc-preview.show { display: block; }
+    .pfc-title { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+    .pfc-row { display: flex; gap: 8px; }
+    .pfc-item {
+      flex: 1;
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .pfc-val { font-size: 20px; font-weight: 900; color: var(--accent2); }
+    .pfc-lbl { font-size: 10px; font-weight: 700; color: var(--dim); margin-top: 2px; }
+
+    /* 記録ボタン */
+    .save-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--green) 0%, #06b86a 100%);
+      border: none;
+      border-radius: 16px;
+      padding: 18px;
+      color: #fff;
+      font-size: 17px;
+      font-weight: 900;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: transform 0.1s, filter 0.1s;
+    }
+    .save-btn:active { transform: scale(0.97); filter: brightness(0.9); }
+    .save-btn:disabled { background: var(--dim); cursor: not-allowed; }
+
+    /* 履歴 */
+    .footer-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .foot-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: all 0.12s;
+    }
+    .foot-btn:active { background: var(--surface2); transform: scale(0.97); }
+    .foot-btn .ico { display: block; font-size: 20px; margin-bottom: 4px; }
+    .foot-btn.active-hist { color: var(--accent2); border-color: var(--accent); }
+
+    .history-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 18px 16px;
+      animation: fadeUp .2s ease;
+      margin-bottom: 14px;
+    }
+    .history-panel.show { display: block; }
+    .hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .hist-head h2 { font-size: 16px; font-weight: 800; }
+    .del-btn { background: none; border: 1px solid rgba(255,77,106,.4); border-radius: 8px; color: var(--red); font-size: 11px; font-weight: 700; padding: 5px 10px; cursor: pointer; }
+    .rec-group { margin-bottom: 14px; }
+    .rec-date-lbl { font-size: 11px; font-weight: 700; color: var(--dim); margin-bottom: 8px; text-transform: uppercase; }
+    .rec-card { background: var(--surface2); border-radius: 14px; padding: 12px 14px; margin-bottom: 7px; }
+    .rec-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .rec-name { font-size: 14px; font-weight: 800; color: var(--accent2); }
+    .rec-synced { font-size: 10px; color: var(--green); font-weight: 700; }
+    .rec-detail { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .no-rec { text-align: center; color: var(--dim); padding: 24px; font-size: 14px; }
+
+    /* トースト */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(28px + env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(70px);
+      background: var(--green);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 13px 26px;
+      border-radius: 999px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0;
+      box-shadow: 0 6px 24px rgba(0,0,0,.5);
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>食事記録</h1>
+  <div class="header-right">
+    <span class="sync-status" id="syncStatus">待機中</span>
+    <span class="date-badge" id="dateBadge"></span>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="section-label">食事のタイミングを選択</div>
+
+  <div class="timing-grid">
+    <button class="timing-btn" id="btn-morning" onclick="selectTiming('morning')">
+      <span class="timing-icon">朝</span>
+      <span>朝ごはん</span>
+    </button>
+    <button class="timing-btn" id="btn-lunch" onclick="selectTiming('lunch')">
+      <span class="timing-icon">昼</span>
+      <span>昼ごはん</span>
+    </button>
+    <button class="timing-btn" id="btn-dinner" onclick="selectTiming('dinner')">
+      <span class="timing-icon">夜</span>
+      <span>夜ごはん</span>
+    </button>
+  </div>
+
+  <!-- 朝ごはんパネル -->
+  <div class="panel" id="panel-morning">
+    <div class="panel-title">朝ごはん</div>
+
+    <div class="morning-base">
+      <div class="morning-base-title">固定セット（毎日）</div>
+      <div class="base-items">
+        <span class="base-tag">ビヒダスヨーグルト 大さじ3</span>
+        <span class="base-tag">バナナ 1本</span>
+        <span class="base-tag">ソイプロテイン 1食分</span>
+        <span class="base-tag">ミックスナッツ 10粒</span>
+        <span class="base-tag">レーズン 10粒</span>
+      </div>
+    </div>
+
+    <div class="section-label">追加オプション</div>
+    <div class="option-grid">
+      <button class="option-btn" id="opt-coffee" onclick="toggleOption('coffee')">
+        <span class="option-check" id="chk-coffee"></span>
+        <span>コーヒー</span>
+      </button>
+      <button class="option-btn" id="opt-bread" onclick="toggleOption('bread')">
+        <span class="option-check" id="chk-bread"></span>
+        <span>食パン 1枚</span>
+      </button>
+      <button class="option-btn" id="opt-rice" onclick="toggleOption('rice')">
+        <span class="option-check" id="chk-rice"></span>
+        <span>ご飯</span>
+      </button>
+      <button class="option-btn" id="opt-other" onclick="toggleOption('other')">
+        <span class="option-check" id="chk-other"></span>
+        <span>その他</span>
+      </button>
+    </div>
+
+    <div class="pfc-preview show" id="pfc-morning">
+      <div class="pfc-title">概算PFC</div>
+      <div class="pfc-row">
+        <div class="pfc-item"><div class="pfc-val" id="m-kcal">-</div><div class="pfc-lbl">kcal</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="m-p">-</div><div class="pfc-lbl">タンパク質g</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="m-f">-</div><div class="pfc-lbl">脂質g</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="m-c">-</div><div class="pfc-lbl">炭水化物g</div></div>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveBtn-morning" onclick="saveMorning()">✓ 記録する</button>
+  </div>
+
+  <!-- 昼ごはんパネル -->
+  <div class="panel" id="panel-lunch">
+    <div class="panel-title">昼ごはん（作り置き計算）</div>
+
+    <div class="section-label">使った食材を入力</div>
+    <div class="ingredient-list" id="ingredientList">
+      <!-- 食材行はJSで追加 -->
+    </div>
+    <button class="add-ing-btn" onclick="addIngredient()">＋ 食材を追加</button>
+
+    <div class="serving-row">
+      <span class="serving-label">全部で何人前に分けましたか？</span>
+      <input type="number" class="serving-input" id="servingCount" inputmode="numeric" value="1" min="1" max="20">
+      <span class="serving-unit">人前</span>
+    </div>
+
+    <div class="pfc-preview" id="pfc-lunch">
+      <div class="pfc-title">1食分の概算PFC</div>
+      <div class="pfc-row">
+        <div class="pfc-item"><div class="pfc-val" id="l-kcal">-</div><div class="pfc-lbl">kcal</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="l-p">-</div><div class="pfc-lbl">タンパク質g</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="l-f">-</div><div class="pfc-lbl">脂質g</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="l-c">-</div><div class="pfc-lbl">炭水化物g</div></div>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveBtn-lunch" onclick="saveLunch()">✓ 記録する</button>
+  </div>
+
+  <!-- 夜ごはんパネル -->
+  <div class="panel" id="panel-dinner">
+    <div class="panel-title">夜ごはん</div>
+
+    <div class="section-label">テンプレートから選ぶ</div>
+    <div class="template-grid" id="templateGrid">
+      <!-- テンプレートはJSで生成 -->
+    </div>
+
+    <div class="section-label">または自由に入力</div>
+    <textarea
+      class="free-input-area"
+      id="dinnerInput"
+      placeholder="例：鶏胸肉200g、白米150g、ブロッコリー100g"
+      rows="4"
+    ></textarea>
+
+    <div class="pfc-preview" id="pfc-dinner">
+      <div class="pfc-title">概算PFC（AI推定）</div>
+      <div class="pfc-row">
+        <div class="pfc-item"><div class="pfc-val" id="d-kcal">-</div><div class="pfc-lbl">kcal</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="d-p">-</div><div class="pfc-lbl">タンパク質g</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="d-f">-</div><div class="pfc-lbl">脂質g</div></div>
+        <div class="pfc-item"><div class="pfc-val" id="d-c">-</div><div class="pfc-lbl">炭水化物g</div></div>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveBtn-dinner" onclick="saveDinner()">✓ 記録する</button>
+  </div>
+
+  <!-- フッター -->
+  <div class="footer-row">
+    <button class="foot-btn" onclick="toggleHistory()">
+      <span class="ico">≡</span>記録を見る
+    </button>
+    <button class="foot-btn" onclick="downloadCSV()">
+      <span class="ico">↓</span>CSVダウンロード
+    </button>
+  </div>
+
+  <div class="history-panel" id="historyPanel">
+    <div class="hist-head">
+      <h2>食事履歴</h2>
+      <button class="del-btn" onclick="clearAll()">すべて削除</button>
+    </div>
+    <div id="recList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── 設定 ── */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwLkNl4uKEKPD3HPESlNj7hUjULlXdVuBHIWVSazuPujPy_S63wrEYE_--hiHK9BYfT/exec';
+
+/* ── 食品PFCデータベース（100gあたり）── */
+const FOOD_DB = {
+  // タンパク質系
+  '鶏胸肉':    {kcal:108, p:22.3, f:1.5,  c:0},
+  '鶏もも肉':  {kcal:190, p:16.6, f:14.2, c:0},
+  '豚ロース':  {kcal:263, p:19.3, f:19.2, c:0.2},
+  '豚ひき肉':  {kcal:236, p:17.7, f:17.2, c:0.1},
+  '牛ひき肉':  {kcal:272, p:17.1, f:21.1, c:0.3},
+  'ツナ缶':    {kcal:71,  p:16.0, f:0.7,  c:0.1},
+  'サーモン':  {kcal:138, p:20.1, f:4.1,  c:0.3},
+  '卵':        {kcal:151, p:12.3, f:10.3, c:0.3},
+  '豆腐':      {kcal:56,  p:4.9,  f:3.0,  c:1.6},
+  'サラダチキン':{kcal:105,p:22.3,f:1.1,  c:2.2},
+  // 炭水化物系
+  '白米':      {kcal:168, p:2.5,  f:0.3,  c:37.1},
+  '玄米':      {kcal:165, p:2.8,  f:1.0,  c:35.6},
+  'パスタ':    {kcal:150, p:5.2,  f:0.9,  c:30.3},
+  'うどん':    {kcal:105, p:2.6,  f:0.4,  c:21.6},
+  'そば':      {kcal:132, p:4.8,  f:1.0,  c:26.0},
+  'オートミール':{kcal:350,p:13.7, f:5.7,  c:69.1},
+  'じゃがいも':{kcal:76,  p:1.6,  f:0.1,  c:17.3},
+  'さつまいも':{kcal:126, p:1.2,  f:0.2,  c:29.7},
+  'パン':      {kcal:264, p:9.3,  f:4.4,  c:46.7},
+  // 野菜系
+  'ブロッコリー':{kcal:33, p:4.3,  f:0.5,  c:5.2},
+  'ほうれん草':{kcal:20,  p:2.2,  f:0.4,  c:3.1},
+  'キャベツ':  {kcal:23,  p:1.3,  f:0.2,  c:5.2},
+  'トマト':    {kcal:19,  p:0.7,  f:0.1,  c:4.7},
+  'にんじん':  {kcal:39,  p:0.7,  f:0.1,  c:9.3},
+  'たまねぎ':  {kcal:37,  p:1.0,  f:0.1,  c:8.8},
+  'きのこ':    {kcal:18,  p:2.0,  f:0.3,  c:4.3},
+  'ひじき':    {kcal:15,  p:1.4,  f:0.2,  c:5.6},
+  '大豆':      {kcal:180, p:14.8, f:9.8,  c:11.1},
+  // 調味料・その他
+  'バナナ':    {kcal:86,  p:1.1,  f:0.2,  c:22.5},
+  'ヨーグルト':{kcal:62,  p:3.6,  f:3.0,  c:4.9},
+  'プロテイン':{kcal:120, p:24.0, f:2.0,  c:4.0},
+  'ナッツ':    {kcal:599, p:20.0, f:54.0, c:12.0},
+  'レーズン':  {kcal:301, p:2.7,  f:0.2,  c:80.3},
+  'オリーブ油':{kcal:921, p:0,    f:100,  c:0},
+  'ごま油':    {kcal:921, p:0,    f:100,  c:0},
+};
+
+/* 朝ごはん固定セットのPFC */
+const MORNING_BASE = {kcal:320, p:28, f:12, c:30};
+const MORNING_OPTIONS = {
+  coffee: {label:'コーヒー',        kcal:5,   p:0.3, f:0,   c:0.7},
+  bread:  {label:'食パン 1枚',      kcal:158, p:5.6, f:2.6, c:28.0},
+  rice:   {label:'ご飯',            kcal:168, p:2.5, f:0.3, c:37.1},
+  other:  {label:'その他',          kcal:0,   p:0,   f:0,   c:0},
+};
+
+/* 夜ごはんテンプレート */
+const DINNER_TEMPLATES = [
+  {name:'鶏胸肉定食',   items:'鶏胸肉200g、白米150g、ブロッコリー100g',    kcal:420, p:54, f:5,  c:42},
+  {name:'サーモン定食', items:'サーモン150g、白米150g、サラダ',             kcal:460, p:37, f:10, c:48},
+  {name:'豚ロース定食', items:'豚ロース150g、白米150g、キャベツ',           kcal:610, p:39, f:34, c:42},
+  {name:'パスタ',       items:'パスタ100g、ツナ缶1缶、トマトソース',        kcal:430, p:22, f:5,  c:72},
+  {name:'そば',         items:'そば200g、卵1個、ほうれん草',               kcal:360, p:16, f:5,  c:62},
+  {name:'オートミール', items:'オートミール80g、プロテイン1杯、バナナ',     kcal:520, p:38, f:8,  c:78},
+];
+
+/* ── 日付 ── */
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function fmtDate(s) {
+  const [y,m,d] = s.split('-');
+  return y+'年'+parseInt(m)+'月'+parseInt(d)+'日';
+}
+document.getElementById('dateBadge').textContent = fmtDate(todayStr());
+
+/* ── LocalStorage ── */
+function getRecords() { try { return JSON.parse(localStorage.getItem('meal_recs')||'[]'); } catch { return []; } }
+function saveRecords(l){ localStorage.setItem('meal_recs', JSON.stringify(l)); }
+
+/* ── 同期ステータス ── */
+function setSyncStatus(state, text) {
+  const el = document.getElementById('syncStatus');
+  el.className = 'sync-status '+state;
+  el.textContent = text;
+}
+
+/* ── スプレッドシートへ送信 ── */
+async function sendToSheet(rec) {
+  setSyncStatus('syncing','送信中...');
+  try {
+    await fetch(GAS_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sheet:'食事ログ', ...rec})
+    });
+    setSyncStatus('synced','同期済み ✓');
+    setTimeout(()=>setSyncStatus('','待機中'),3000);
+    return true;
+  } catch(e) {
+    setSyncStatus('error','送信失敗');
+    setTimeout(()=>setSyncStatus('','待機中'),3000);
+    return false;
+  }
+}
+
+/* ── タイミング選択 ── */
+let currentTiming = null;
+
+function selectTiming(timing) {
+  document.querySelectorAll('.timing-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+timing).classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('show'));
+  document.getElementById('panel-'+timing).classList.add('show');
+  currentTiming = timing;
+  setTimeout(()=>{
+    document.getElementById('panel-'+timing).scrollIntoView({behavior:'smooth',block:'nearest'});
+  },120);
+}
+
+/* ── 朝ごはん ── */
+const selectedOptions = new Set();
+
+function toggleOption(key) {
+  const btn = document.getElementById('opt-'+key);
+  const chk = document.getElementById('chk-'+key);
+  if (selectedOptions.has(key)) {
+    selectedOptions.delete(key);
+    btn.classList.remove('selected');
+    chk.textContent = '';
+  } else {
+    selectedOptions.add(key);
+    btn.classList.add('selected');
+    chk.textContent = '✓';
+  }
+  calcMorningPFC();
+}
+
+function calcMorningPFC() {
+  let {kcal,p,f,c} = {...MORNING_BASE};
+  selectedOptions.forEach(key => {
+    const opt = MORNING_OPTIONS[key];
+    kcal += opt.kcal; p += opt.p; f += opt.f; c += opt.c;
+  });
+  document.getElementById('m-kcal').textContent = Math.round(kcal);
+  document.getElementById('m-p').textContent = Math.round(p);
+  document.getElementById('m-f').textContent = Math.round(f);
+  document.getElementById('m-c').textContent = Math.round(c);
+  return {kcal,p,f,c};
+}
+calcMorningPFC();
+
+async function saveMorning() {
+  const {kcal,p,f,c} = calcMorningPFC();
+  const options = [...selectedOptions].map(k=>MORNING_OPTIONS[k].label).join('、');
+  const memo = options ? `固定セット＋${options}` : '固定セット';
+  const rec = {
+    date: todayStr(),
+    timing: '朝',
+    memo,
+    kcal: Math.round(kcal),
+    protein: Math.round(p),
+    fat: Math.round(f),
+    carb: Math.round(c),
+    synced: false,
+  };
+  const list = getRecords();
+  list.push(rec);
+  saveRecords(list);
+  const ok = await sendToSheet(rec);
+  if (ok) { list[list.length-1].synced=true; saveRecords(list); }
+  showToast('朝ごはんを記録しました！');
+  if (document.getElementById('historyPanel').classList.contains('show')) renderHistory();
+}
+
+/* ── 昼ごはん（食材入力） ── */
+let ingredients = [];
+
+function addIngredient(name='', amount='') {
+  const id = Date.now();
+  ingredients.push({id, name, amount});
+  renderIngredients();
+}
+
+function renderIngredients() {
+  const list = document.getElementById('ingredientList');
+  list.innerHTML = ingredients.map(ing => `
+    <div class="ingredient-row" id="ing-row-${ing.id}">
+      <input
+        type="text"
+        class="ing-input ing-name"
+        placeholder="食材名（例：鶏胸肉）"
+        value="${ing.name}"
+        oninput="updateIngredient(${ing.id},'name',this.value)"
+        list="food-suggestions"
+      >
+      <input
+        type="number"
+        class="ing-input ing-amount"
+        placeholder="量"
+        inputmode="numeric"
+        value="${ing.amount}"
+        oninput="updateIngredient(${ing.id},'amount',this.value)"
+      >
+      <span class="ing-unit">g</span>
+      <button class="del-ing-btn" onclick="removeIngredient(${ing.id})">×</button>
+    </div>
+  `).join('');
+
+  // サジェストリスト
+  if (!document.getElementById('food-suggestions')) {
+    const dl = document.createElement('datalist');
+    dl.id = 'food-suggestions';
+    Object.keys(FOOD_DB).forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      dl.appendChild(opt);
+    });
+    document.body.appendChild(dl);
+  }
+  calcLunchPFC();
+}
+
+function updateIngredient(id, field, value) {
+  const ing = ingredients.find(i=>i.id===id);
+  if (ing) { ing[field] = value; calcLunchPFC(); }
+}
+
+function removeIngredient(id) {
+  ingredients = ingredients.filter(i=>i.id!==id);
+  renderIngredients();
+}
+
+function calcLunchPFC() {
+  const servings = parseInt(document.getElementById('servingCount').value)||1;
+  let kcal=0, p=0, f=0, c=0;
+  let hasData = false;
+
+  ingredients.forEach(ing => {
+    const amount = parseFloat(ing.amount)||0;
+    if (!amount) return;
+    // 食品DBから検索（部分一致）
+    const key = Object.keys(FOOD_DB).find(k => ing.name.includes(k) || k.includes(ing.name));
+    if (key && FOOD_DB[key]) {
+      const ratio = amount / 100;
+      kcal += FOOD_DB[key].kcal * ratio;
+      p    += FOOD_DB[key].p    * ratio;
+      f    += FOOD_DB[key].f    * ratio;
+      c    += FOOD_DB[key].c    * ratio;
+      hasData = true;
+    }
+  });
+
+  if (hasData) {
+    document.getElementById('pfc-lunch').classList.add('show');
+    document.getElementById('l-kcal').textContent = Math.round(kcal/servings);
+    document.getElementById('l-p').textContent    = Math.round(p/servings);
+    document.getElementById('l-f').textContent    = Math.round(f/servings);
+    document.getElementById('l-c').textContent    = Math.round(c/servings);
+  }
+  return {kcal:kcal/servings, p:p/servings, f:f/servings, c:c/servings};
+}
+
+document.getElementById('servingCount').addEventListener('input', calcLunchPFC);
+
+async function saveLunch() {
+  if (!ingredients.length || ingredients.every(i=>!i.name)) {
+    showToast('食材を入力してください',true); return;
+  }
+  const servings = parseInt(document.getElementById('servingCount').value)||1;
+  const {kcal,p,f,c} = calcLunchPFC();
+  const memo = ingredients.filter(i=>i.name).map(i=>`${i.name}${i.amount?i.amount+'g':''}`).join('、')+`（${servings}人前の1食分）`;
+  const rec = {
+    date: todayStr(),
+    timing: '昼',
+    memo,
+    kcal: Math.round(kcal),
+    protein: Math.round(p),
+    fat: Math.round(f),
+    carb: Math.round(c),
+    synced: false,
+  };
+  const list = getRecords();
+  list.push(rec);
+  saveRecords(list);
+  const ok = await sendToSheet(rec);
+  if (ok) { list[list.length-1].synced=true; saveRecords(list); }
+  showToast('昼ごはんを記録しました！');
+  ingredients = [];
+  renderIngredients();
+  if (document.getElementById('historyPanel').classList.contains('show')) renderHistory();
+}
+
+/* ── 夜ごはん（テンプレート＋フリー入力） ── */
+function initTemplates() {
+  const grid = document.getElementById('templateGrid');
+  grid.innerHTML = DINNER_TEMPLATES.map((t,i) => `
+    <button class="template-btn" onclick="selectTemplate(${i})">
+      <div class="template-btn-name">${t.name}</div>
+      <div style="font-size:11px;color:var(--dim)">${t.kcal}kcal / P${t.p}g</div>
+    </button>
+  `).join('');
+}
+initTemplates();
+
+let selectedTemplate = null;
+
+function selectTemplate(idx) {
+  selectedTemplate = DINNER_TEMPLATES[idx];
+  document.getElementById('dinnerInput').value = selectedTemplate.items;
+  document.getElementById('pfc-dinner').classList.add('show');
+  document.getElementById('d-kcal').textContent = selectedTemplate.kcal;
+  document.getElementById('d-p').textContent    = selectedTemplate.p;
+  document.getElementById('d-f').textContent    = selectedTemplate.f;
+  document.getElementById('d-c').textContent    = selectedTemplate.c;
+}
+
+// フリー入力時にPFC推定
+document.getElementById('dinnerInput').addEventListener('input', function() {
+  selectedTemplate = null;
+  const text = this.value;
+  let kcal=0, p=0, f=0, c=0;
+  let found = false;
+
+  Object.keys(FOOD_DB).forEach(name => {
+    const regex = new RegExp(name+'\\s*(\\d+)\\s*g', 'g');
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const amount = parseFloat(match[1]);
+      const ratio = amount/100;
+      kcal += FOOD_DB[name].kcal * ratio;
+      p    += FOOD_DB[name].p    * ratio;
+      f    += FOOD_DB[name].f    * ratio;
+      c    += FOOD_DB[name].c    * ratio;
+      found = true;
+    }
+  });
+
+  if (found) {
+    document.getElementById('pfc-dinner').classList.add('show');
+    document.getElementById('d-kcal').textContent = Math.round(kcal);
+    document.getElementById('d-p').textContent    = Math.round(p);
+    document.getElementById('d-f').textContent    = Math.round(f);
+    document.getElementById('d-c').textContent    = Math.round(c);
+  }
+});
+
+async function saveDinner() {
+  const text = document.getElementById('dinnerInput').value.trim();
+  if (!text) { showToast('内容を入力してください',true); return; }
+
+  let kcal=0, p=0, f=0, c=0;
+  if (selectedTemplate) {
+    kcal=selectedTemplate.kcal; p=selectedTemplate.p;
+    f=selectedTemplate.f; c=selectedTemplate.c;
+  } else {
+    Object.keys(FOOD_DB).forEach(name => {
+      const regex = new RegExp(name+'\\s*(\\d+)\\s*g','g');
+      let match;
+      while ((match=regex.exec(text))!==null) {
+        const ratio=parseFloat(match[1])/100;
+        kcal+=FOOD_DB[name].kcal*ratio; p+=FOOD_DB[name].p*ratio;
+        f+=FOOD_DB[name].f*ratio; c+=FOOD_DB[name].c*ratio;
+      }
+    });
+  }
+
+  const rec = {
+    date: todayStr(),
+    timing: '夜',
+    memo: text,
+    kcal: Math.round(kcal)||0,
+    protein: Math.round(p)||0,
+    fat: Math.round(f)||0,
+    carb: Math.round(c)||0,
+    synced: false,
+  };
+  const list = getRecords();
+  list.push(rec);
+  saveRecords(list);
+  const ok = await sendToSheet(rec);
+  if (ok) { list[list.length-1].synced=true; saveRecords(list); }
+  showToast('夜ごはんを記録しました！');
+  document.getElementById('dinnerInput').value='';
+  selectedTemplate=null;
+  document.getElementById('pfc-dinner').classList.remove('show');
+  if (document.getElementById('historyPanel').classList.contains('show')) renderHistory();
+}
+
+/* ── 履歴 ── */
+let histOpen = false;
+function toggleHistory() {
+  histOpen = !histOpen;
+  const panel = document.getElementById('historyPanel');
+  if (histOpen) { renderHistory(); panel.classList.add('show'); setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),80); }
+  else panel.classList.remove('show');
+}
+
+function renderHistory() {
+  const recs = getRecords();
+  const el   = document.getElementById('recList');
+  if (!recs.length) { el.innerHTML='<div class="no-rec">まだ記録がありません</div>'; return; }
+  const byDate = {};
+  [...recs].reverse().forEach(r=>{ (byDate[r.date]=byDate[r.date]||[]).push(r); });
+  el.innerHTML = Object.entries(byDate).map(([date,rs])=>
+    `<div class="rec-group">
+       <div class="rec-date-lbl">${fmtDate(date)}</div>
+       ${rs.map(r=>`<div class="rec-card">
+         <div class="rec-card-head">
+           <div class="rec-name">${r.timing}ごはん</div>
+           ${r.synced?'<span class="rec-synced">● 同期済み</span>':''}
+         </div>
+         <div class="rec-detail">${r.memo}</div>
+         <div class="rec-detail" style="margin-top:5px;color:var(--accent2)">
+           ${r.kcal}kcal / P${r.protein}g / F${r.fat}g / C${r.carb}g
+         </div>
+       </div>`).join('')}
+     </div>`
+  ).join('');
+}
+
+function clearAll() {
+  if (!confirm('すべての記録を削除しますか？')) return;
+  localStorage.removeItem('meal_recs');
+  renderHistory();
+  showToast('削除しました');
+}
+
+/* ── CSV ── */
+function downloadCSV() {
+  const recs = getRecords();
+  if (!recs.length) { showToast('記録がありません',true); return; }
+  const COLS = [{k:'date',h:'日付'},{k:'timing',h:'食事タイミング'},{k:'memo',h:'食材・メニュー'},
+    {k:'kcal',h:'カロリー(kcal)'},{k:'protein',h:'タンパク質(g)'},{k:'fat',h:'脂質(g)'},{k:'carb',h:'炭水化物(g)'}];
+  let csv = '\uFEFF'+COLS.map(c=>c.h).join(',')+'\r\n';
+  recs.forEach(r=>{ csv+=COLS.map(c=>{ const v=r[c.k]??''; return String(v).includes(',')? '"'+v+'"':v; }).join(',')+'\r\n'; });
+  const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  const a = Object.assign(document.createElement('a'),{href:url,download:'meal_'+todayStr()+'.csv'});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  showToast('CSVをダウンロードしました');
+}
+
+/* ── トースト ── */
+let toastTmr;
+function showToast(msg,isErr) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isErr?'var(--red)':'var(--green)';
+  el.classList.add('show');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+/* ── 初期化：食材行を1つ追加 ── */
+addIngredient();
+</script>
+</body>
+</html>
