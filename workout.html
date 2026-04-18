@@ -502,7 +502,8 @@ function selectEx(id) {
     const lbl = document.createElement('span'); lbl.className='field-lbl'; lbl.textContent=f.lbl;
     const inp = document.createElement('input');
     inp.type='number'; inp.id='fi-'+f.key; inp.className='field-inp';
-    inp.inputMode=f.mode; inp.placeholder=last?(last[f.key]||'0'):'0';
+    inp.inputMode=f.mode; inp.placeholder='0';
+    if (last && last[f.key]) inp.value = last[f.key]; // 前回の値を自動入力
     inp.min='0'; inp.step=f.step;
     inp.addEventListener('focus',()=>inp.select());
     const unit = document.createElement('span'); unit.className='field-unit'; unit.textContent=f.unit;
