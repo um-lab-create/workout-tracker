@@ -882,7 +882,7 @@ const EXERCISES = [
   { id: 'inner', kanji: '内', name: 'アダクション', short: 'アダク', color: '#ff8bc7', fields: ['weight','reps','sets'], defaults: { weight: 30, reps: 12, sets: 3 } },
   { id: 'outer', kanji: '外', name: 'アブダクション', short: 'アブダク', color: '#58d8ff', fields: ['weight','reps','sets'], defaults: { weight: 30, reps: 12, sets: 3 } },
   { id: 'abs', kanji: '腹', name: 'アブベンチ', short: 'アブ', color: '#ffd15a', fields: ['reps','sets'], defaults: { reps: 20, sets: 3 } },
-  { id: 'run', kanji: '走', name: 'トレッドミル', short: 'ラン', color: '#6ba7ff', fields: ['minutes','distance','speed'], defaults: { minutes: 20, distance: 2, speed: 6 } }
+  { id: 'run', kanji: '走', name: 'トレッドミル', short: 'ラン', color: '#6ba7ff', fields: ['minutes','distance','intensity'], defaults: { minutes: 20, distance: 2, intensity: 12 } }
 ];
 
 const FIELD = {
@@ -891,7 +891,7 @@ const FIELD = {
   sets: { label: 'セット', unit: 'set', step: 1, min: 1, max: 12, decimals: 0 },
   minutes: { label: '時間', unit: '分', step: 1, min: 0, max: 180, decimals: 0 },
   distance: { label: '距離', unit: 'km', step: .1, min: 0, max: 50, decimals: 1 },
-  speed: { label: '速さ', unit: 'km/h', step: .5, min: 0, max: 25, decimals: 1 }
+  intensity: { label: '強度', unit: '/20', step: 1, min: 1, max: 20, decimals: 0 }
 };
 
 const $ = selector => document.querySelector(selector);
@@ -1097,8 +1097,11 @@ function summarizeValues(exercise, values, withUnits = false) {
   if (exercise.id === 'run') {
     const minutes = values.minutes ?? '-';
     const distance = values.distance ?? '-';
-    const speed = values.speed ?? '-';
-    return withUnits ? `${minutes}分 / ${distance}km / ${speed}km/h` : `${minutes}分 ${distance}km`;
+    const intensity = values.intensity ?? '-';
+    const speed = calculateSpeed(values);
+    return withUnits
+      ? `${minutes}分 / ${distance}km / 強度${intensity}/20 / 推定${speed}km/h`
+      : `${minutes}分 ${distance}km 強度${intensity}`;
   }
   if (exercise.id === 'abs') {
     return `${values.reps ?? '-'}回 × ${values.sets ?? '-'}セット`;
@@ -1109,10 +1112,17 @@ function summarizeValues(exercise, values, withUnits = false) {
 }
 
 function volumeSummary(exercise, values) {
-  if (exercise.id === 'run') return `${values.distance || 0}km`;
+  if (exercise.id === 'run') return `推定 ${calculateSpeed(values)}km/h`;
   if (exercise.id === 'abs') return `${(Number(values.reps) || 0) * (Number(values.sets) || 0)}回`;
   const volume = (Number(values.weight) || 0) * (Number(values.reps) || 0) * (Number(values.sets) || 0);
   return `${Math.round(volume).toLocaleString('ja-JP')}kg`;
+}
+
+function calculateSpeed(values) {
+  const minutes = Number(values.minutes) || 0;
+  const distance = Number(values.distance) || 0;
+  if (minutes <= 0 || distance <= 0) return '0.0';
+  return (distance / minutes * 60).toFixed(1);
 }
 
 async function submitRecord() {
@@ -1152,7 +1162,8 @@ function buildRecord(exercise) {
     セット数: state.values.sets ?? '',
     時間: state.values.minutes ?? '',
     距離: state.values.distance ?? '',
-    速さ: state.values.speed ?? ''
+    速さ: exercise.id === 'run' ? calculateSpeed(state.values) : '',
+    _intensity: exercise.id === 'run' ? state.values.intensity ?? '' : ''
   };
 }
 
@@ -1161,8 +1172,12 @@ function postRecord(record) {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(record)
+    body: JSON.stringify(publicRecord(record))
   });
+}
+
+function publicRecord(record) {
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith('_')));
 }
 
 function rememberRecord(exercise, record, options = {}) {
@@ -1222,11 +1237,15 @@ function renderStats() {
   const weekDates = new Set();
   state.history.forEach(item => {
     const date = parseLocalDate(item.日付);
-    if (date >= monday) weekDates.add(item.日付);
+    if (date >= monday && isWeightedExerciseName(item.種目)) weekDates.add(item.日付);
   });
   $('#weekDays').textContent = `${weekDates.size}/3`;
   $('#weekDays').classList.toggle('hot', weekDates.size >= 3);
   $('#todayLabel').textContent = formatJapaneseDate(new Date());
+}
+
+function isWeightedExerciseName(name) {
+  return name !== 'トレッドミル' && name !== 'アブベンチ';
 }
 
 function toDateString(date) {
@@ -1269,7 +1288,7 @@ function historyItemHtml(item) {
   const hhmm = time ? `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}` : '';
   const exercise = EXERCISES.find(ex => ex.name === item.種目) || {};
   const sub = item.種目 === 'トレッドミル'
-    ? `${item.時間 || '-'}分 / ${item.距離 || '-'}km / ${item.速さ || '-'}km/h`
+    ? `${item.時間 || '-'}分 / ${item.距離 || '-'}km / 強度${item._intensity || '-'}/20 / 推定${item.速さ || '-'}km/h`
     : item.種目 === 'アブベンチ'
       ? `${item.回数 || '-'}回 × ${item.セット数 || '-'}セット`
       : `${item.重量 || '-'}kg × ${item.回数 || '-'}回 × ${item.セット数 || '-'}セット`;
@@ -1304,7 +1323,7 @@ function renderQueue() {
 }
 
 function queueSummary(item) {
-  if (item.種目 === 'トレッドミル') return `${item.時間 || '-'}分 ${item.距離 || '-'}km`;
+  if (item.種目 === 'トレッドミル') return `${item.時間 || '-'}分 ${item.距離 || '-'}km 強度${item._intensity || '-'}/20`;
   if (item.種目 === 'アブベンチ') return `${item.回数 || '-'}回 × ${item.セット数 || '-'}`;
   return `${item.重量 || '-'}kg × ${item.回数 || '-'} × ${item.セット数 || '-'}`;
 }
