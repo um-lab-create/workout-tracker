@@ -628,6 +628,135 @@ button:active {
 .toast.warn { color: var(--warn); }
 .toast.bad { color: var(--bad); }
 
+/* Compact cockpit: keep the full record flow inside one iPhone Safari screen. */
+body {
+  min-height: 100dvh;
+  padding: calc(var(--safe-top) + 6px) 12px calc(var(--safe-bottom) + 86px);
+}
+
+.topbar { margin: 2px 0 8px; }
+.brand-main { font-size: 20px; }
+.brand-sub { font-size: 11px; }
+.net-pill {
+  min-width: 82px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.hero {
+  border-radius: 22px;
+  padding: 10px;
+}
+
+.hero-head {
+  grid-template-columns: 58px 1fr;
+  gap: 10px;
+}
+
+.glyph {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  font-size: 31px;
+}
+
+.exercise-title { font-size: 22px; }
+.exercise-meta {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.quick-stats {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stat {
+  min-height: 36px;
+  border: 0;
+  border-radius: 13px;
+  padding: 6px 7px;
+}
+
+.stat-value { font-size: 17px; }
+.stat-label {
+  margin-top: 2px;
+  font-size: 9px;
+}
+
+.rail-wrap {
+  margin: 8px -12px 0;
+  padding: 0 12px 1px;
+}
+
+.rail { gap: 8px; }
+
+.exo-chip {
+  width: 64px;
+  min-height: 62px;
+  grid-template-rows: 28px auto;
+  gap: 2px;
+  padding: 7px 6px;
+  border-radius: 18px;
+}
+
+.exo-kanji { font-size: 26px; }
+.exo-label { font-size: 9px; }
+.exo-prev { display: none; }
+
+.editor {
+  margin-top: 8px;
+  gap: 7px;
+}
+
+.field-card { border-radius: 18px; }
+.field-head { padding: 8px 10px 0; }
+.field-name { font-size: 11px; }
+.field-last { font-size: 10px; }
+
+.control {
+  grid-template-columns: 48px 1fr 48px;
+  gap: 7px;
+  padding: 6px 9px 9px;
+}
+
+.step {
+  height: 46px;
+  border-radius: 15px;
+  font-size: 25px;
+}
+
+.value-input {
+  height: 39px;
+  font-size: 31px;
+}
+
+.unit { font-size: 9px; }
+
+.summary-line {
+  min-height: 40px;
+  margin-top: 8px;
+  border-radius: 17px;
+  padding: 8px 10px;
+}
+
+.summary-label { font-size: 10px; }
+.summary-value { font-size: 14px; }
+
+.action-bar { padding: 8px 12px calc(var(--safe-bottom) + 8px); }
+.action-inner {
+  grid-template-columns: 48px 1fr 48px;
+  gap: 8px;
+}
+
+.icon-btn,
+.primary-btn {
+  height: 50px;
+  border-radius: 17px;
+}
+
+.primary-btn { font-size: 16px; }
+
 @media (max-width: 370px) {
   body { padding-left: 10px; padding-right: 10px; }
   .exercise-title { font-size: 24px; }
