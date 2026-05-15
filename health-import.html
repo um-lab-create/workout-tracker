@@ -973,10 +973,15 @@ function selectedMetricSource(day, metric) {
 }
 
 function selectedSleep(day) {
+  let fallback = null;
   for (const key of SOURCE_PRIORITY.sleep) {
-    if (day.sleep[key]) return day.sleep[key];
+    if (!day.sleep[key]) continue;
+    if (!fallback) fallback = day.sleep[key];
+    const source = day.sleep[key];
+    const asleepSeconds = (source._core || 0) + (source._deep || 0) + (source._rem || 0) + (source._unspec || 0);
+    if (asleepSeconds > 0) return source;
   }
-  return null;
+  return fallback;
 }
 
 function datePart(value) {
