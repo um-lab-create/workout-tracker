@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ヘルスケア取込">
+<meta name="theme-color" content="#090a0f">
+<title>ヘルスケア取込</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root {
+  --bg: #090a0f;
+  --ink: #f7f4ea;
+  --muted: #aaa79d;
+  --dim: #6f6d67;
+  --line: rgba(255,255,255,.095);
+  --panel: rgba(23,24,27,.84);
+  --panel-strong: rgba(35,36,40,.95);
+  --accent: #c8ff42;
+  --blue: #58d8ff;
+  --ok: #42e79b;
+  --warn: #ffd15a;
+  --bad: #ff5f7f;
+  --shadow: 0 24px 80px rgba(0,0,0,.50);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  min-height: 100vh;
+  padding: calc(var(--safe-top) + 14px) 15px calc(var(--safe-bottom) + 28px);
+  background:
+    radial-gradient(780px 420px at 18% -10%, rgba(200,255,66,.13), transparent 58%),
+    radial-gradient(680px 440px at 105% 20%, rgba(88,216,255,.13), transparent 60%),
+    linear-gradient(145deg, #08090d 0%, #111218 58%, #08090d 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.app {
+  width: min(100%, 520px);
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 16px;
+}
+
+.brand-main {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.brand-sub {
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.055);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  padding: 18px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.025)),
+    rgba(20,21,25,.82);
+  box-shadow: var(--shadow);
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -90px -80px auto auto;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200,255,66,.20), transparent 68%);
+  pointer-events: none;
+}
+
+.hero h1 {
+  position: relative;
+  margin: 0;
+  font-size: 31px;
+  line-height: 1.04;
+  font-weight: 950;
+  letter-spacing: -.02em;
+}
+
+.hero p {
+  position: relative;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  font-weight: 650;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.step {
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 18px;
+  background: rgba(0,0,0,.22);
+}
+
+.step-num {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.step-text {
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 850;
+}
+
+.panel {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 15px;
+  background: var(--panel);
+  box-shadow: 0 18px 56px rgba(0,0,0,.30);
+}
+
+.file-box {
+  display: grid;
+  gap: 10px;
+}
+
+.file-label {
+  display: grid;
+  place-items: center;
+  min-height: 130px;
+  padding: 18px;
+  border: 1.5px dashed rgba(200,255,66,.40);
+  border-radius: 22px;
+  background: rgba(200,255,66,.08);
+  text-align: center;
+}
+
+.file-label strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.file-label span {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.selected-file {
+  min-height: 22px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.action {
+  width: 100%;
+  min-height: 58px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--accent), #eefc78);
+  color: #08090d;
+  font-size: 17px;
+  font-weight: 950;
+  box-shadow: 0 18px 46px rgba(200,255,66,.20);
+}
+
+.action.secondary {
+  background: rgba(255,255,255,.07);
+  color: var(--ink);
+  box-shadow: none;
+  border: 1px solid var(--line);
+}
+
+.progress-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.progress-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+}
+
+.progress-title {
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.progress-percent {
+  color: var(--accent);
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  overflow: hidden;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+}
+
+.bar-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), var(--accent));
+  transition: width .2s ease;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.metric {
+  min-height: 66px;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 17px;
+  background: rgba(0,0,0,.20);
+}
+
+.metric-value {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-label {
+  margin-top: 7px;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.preview {
+  display: none;
+}
+
+.preview.show {
+  display: block;
+}
+
+.preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.preview-title {
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.preview-range {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.row-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.health-row {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 16px;
+  background: rgba(0,0,0,.20);
+}
+
+.health-date {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.health-values {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 720;
+}
+
+.note {
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.55;
+  font-weight: 700;
+}
+
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--safe-bottom) + 18px);
+  z-index: 50;
+  transform: translateY(24px);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(16,17,20,.94);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 60px rgba(0,0,0,.45);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 850;
+  transition: opacity .22s ease, transform .22s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.ok { border-color: rgba(66,231,155,.38); }
+.toast.warn { border-color: rgba(255,209,90,.44); }
+.toast.bad { border-color: rgba(255,95,127,.46); }
+
+@media (max-width: 370px) {
+  body { padding-left: 10px; padding-right: 10px; }
+  .hero h1 { font-size: 27px; }
+  .steps { grid-template-columns: 1fr; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="topbar">
+    <div>
+      <div class="brand-main">Health Import</div>
+      <div class="brand-sub">Apple Health zip → ヘルスケアログ</div>
+    </div>
+    <div class="pill" id="netPill">オンライン</div>
+  </header>
+
+  <section class="hero">
+    <h1>iPhoneだけで<br>ヘルスケアを同期</h1>
+    <p>ヘルスケアアプリの「書き出したデータ.zip」をこの画面で選ぶと、Safari の中だけで必要な日次データに集計してスプレッドシートへ送ります。</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">STEP 1</div>
+        <div class="step-text">ヘルスケアでデータを書き出す</div>
+      </div>
+      <div class="step">
+        <div class="step-num">STEP 2</div>
+        <div class="step-text">zipをこの画面で選ぶ</div>
+      </div>
+      <div class="step">
+        <div class="step-num">STEP 3</div>
+        <div class="step-text">集計後に送信する</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel file-box">
+    <label class="file-label" for="zipInput">
+      <span>
+        <strong>書き出したデータ.zipを選択</strong>
+        <span>端末内で解析します。zip本体はアップロードしません。</span>
+      </span>
+    </label>
+    <input id="zipInput" type="file" accept=".zip,application/zip,application/x-zip-compressed">
+    <div class="selected-file" id="selectedFile">未選択</div>
+    <button class="action" id="parseBtn" disabled>解析する</button>
+  </section>
+
+  <section class="panel progress-wrap">
+    <div class="progress-top">
+      <div>
+        <div class="progress-title" id="progressTitle">待機中</div>
+        <div class="note" id="progressNote">zipを選ぶと解析を開始できます。</div>
+      </div>
+      <div class="progress-percent" id="progressPercent">0%</div>
+    </div>
+    <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-value" id="recordCount">0</div>
+        <div class="metric-label">対象Record</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value" id="dayCount">0</div>
+        <div class="metric-label">集計日数</div>
+      </div>
+      <div class="metric">
+        <div class="metric-value" id="sendCount">0</div>
+        <div class="metric-label">送信予定</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel preview" id="preview">
+    <div class="preview-head">
+      <div>
+        <div class="preview-title">送信プレビュー</div>
+        <div class="preview-range" id="previewRange"></div>
+      </div>
+      <button class="action secondary" id="resetBtn" type="button">やり直す</button>
+    </div>
+    <div class="row-list" id="rowList"></div>
+    <div style="height:12px"></div>
+    <button class="action" id="sendBtn" type="button">スプレッドシートへ送信</button>
+    <p class="note">送信は `no-cors` のため、画面上では「送信リクエストを出した」ことまでを表示します。結果はスプレッドシートのヘルスケアログで確認してください。</p>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
+const ZIP_ENTRY = 'apple_health_export/export.xml';
+
+const HEALTH_COLUMNS = [
+  '日付', '手首温度(℃)', 'VO2Max', 'アクティブエネルギー(kJ)', 'ステップ数',
+  '安静時心拍数', '心拍変動(ms)', '歩行速度(km/h)', '登ったフロア数',
+  '睡眠合計(hr)', '睡眠中(hr)', 'ベッド時間(hr)', 'コア睡眠(hr)',
+  '深い睡眠(hr)', 'REM睡眠(hr)', '覚醒時間(hr)'
+];
+
+const TYPE = {
+  wristTemp: 'HKQuantityTypeIdentifierAppleSleepingWristTemperature',
+  vo2: 'HKQuantityTypeIdentifierVO2Max',
+  activeEnergy: 'HKQuantityTypeIdentifierActiveEnergyBurned',
+  steps: 'HKQuantityTypeIdentifierStepCount',
+  rhr: 'HKQuantityTypeIdentifierRestingHeartRate',
+  hrv: 'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
+  walkingSpeed: 'HKQuantityTypeIdentifierWalkingSpeed',
+  flights: 'HKQuantityTypeIdentifierFlightsClimbed',
+  sleep: 'HKCategoryTypeIdentifierSleepAnalysis'
+};
+
+const METRIC_BY_TYPE = {
+  [TYPE.wristTemp]: 'wristTemp',
+  [TYPE.vo2]: 'vo2',
+  [TYPE.activeEnergy]: 'activeEnergy',
+  [TYPE.steps]: 'steps',
+  [TYPE.rhr]: 'rhr',
+  [TYPE.hrv]: 'hrv',
+  [TYPE.walkingSpeed]: 'walkingSpeed',
+  [TYPE.flights]: 'flights'
+};
+
+const SOURCE_PRIORITY = {
+  steps: ['watch', 'iphone', 'zepp'],
+  activeEnergy: ['watch', 'iphone', 'zepp'],
+  flights: ['watch', 'iphone'],
+  walkingSpeed: ['iphone'],
+  wristTemp: ['watch'],
+  vo2: ['watch'],
+  rhr: ['watch'],
+  hrv: ['watch'],
+  sleep: ['watchSleep', 'sleepCycle', 'zepp']
+};
+
+const SLEEP_MAP = {
+  HKCategoryValueSleepAnalysisAsleepCore: '_core',
+  HKCategoryValueSleepAnalysisAsleepDeep: '_deep',
+  HKCategoryValueSleepAnalysisAsleepREM: '_rem',
+  HKCategoryValueSleepAnalysisAsleepUnspecified: '_unspec',
+  HKCategoryValueSleepAnalysisAwake: '_awake',
+  HKCategoryValueSleepAnalysisInBed: '_inbed',
+  AsleepCore: '_core',
+  AsleepDeep: '_deep',
+  AsleepREM: '_rem',
+  AsleepUnspecified: '_unspec',
+  Awake: '_awake',
+  InBed: '_inbed'
+};
+
+const $ = selector => document.querySelector(selector);
+
+const state = {
+  file: null,
+  rows: [],
+  recordCount: 0,
+  parsedBytes: 0
+};
+
+boot();
+
+function boot() {
+  renderNetwork();
+  window.addEventListener('online', renderNetwork);
+  window.addEventListener('offline', renderNetwork);
+
+  $('#zipInput').addEventListener('change', event => {
+    const file = event.target.files && event.target.files[0];
+    state.file = file || null;
+    $('#selectedFile').textContent = file ? `${file.name} / ${formatBytes(file.size)}` : '未選択';
+    $('#parseBtn').disabled = !file;
+    resetResult();
+  });
+
+  $('#parseBtn').addEventListener('click', parseSelectedZip);
+  $('#sendBtn').addEventListener('click', sendRows);
+  $('#resetBtn').addEventListener('click', () => {
+    $('#zipInput').value = '';
+    state.file = null;
+    $('#selectedFile').textContent = '未選択';
+    $('#parseBtn').disabled = true;
+    resetResult();
+    setProgress(0, '待機中', 'zipを選ぶと解析を開始できます。');
+  });
+}
+
+function renderNetwork() {
+  $('#netPill').textContent = navigator.onLine ? 'オンライン' : 'オフライン';
+}
+
+async function parseSelectedZip() {
+  if (!state.file) return;
+  if (!window.JSZip) {
+    showToast('JSZipを読み込めませんでした。通信状況を確認してください。', 'bad');
+    return;
+  }
+
+  $('#parseBtn').disabled = true;
+  $('#sendBtn').disabled = true;
+  resetResult();
+  setProgress(2, 'zipを開いています', 'Apple Health の export.xml を探しています。');
+
+  try {
+    const zip = await JSZip.loadAsync(state.file);
+    const entry = zip.file(ZIP_ENTRY);
+    if (!entry) throw new Error(`${ZIP_ENTRY} が見つかりません`);
+
+    const aggregate = createAggregate();
+    await streamExportXml(entry, aggregate);
+    const rows = finalizeRows(aggregate);
+    state.rows = rows;
+
+    setProgress(100, '解析完了', `${rows.length}日分の軽量データを作成しました。`);
+    renderRows(rows);
+    showToast('解析できました。内容を確認して送信してください。', 'ok');
+  } catch (error) {
+    console.error(error);
+    setProgress(0, '解析エラー', error.message || String(error));
+    showToast(`解析できませんでした: ${error.message || error}`, 'bad');
+  } finally {
+    $('#parseBtn').disabled = !state.file;
+    $('#sendBtn').disabled = state.rows.length === 0;
+  }
+}
+
+function resetResult() {
+  state.rows = [];
+  state.recordCount = 0;
+  state.parsedBytes = 0;
+  $('#recordCount').textContent = '0';
+  $('#dayCount').textContent = '0';
+  $('#sendCount').textContent = '0';
+  $('#preview').classList.remove('show');
+  $('#rowList').innerHTML = '';
+}
+
+async function streamExportXml(entry, aggregate) {
+  const decoder = new TextDecoder('utf-8');
+  const total = entry._data && entry._data.uncompressedSize ? entry._data.uncompressedSize : 0;
+  const stream = entry.internalStream('uint8array');
+  let buffer = '';
+  let lastPaint = 0;
+
+  return new Promise((resolve, reject) => {
+    stream.on('data', chunk => {
+      try {
+        state.parsedBytes += chunk.length;
+        buffer += decoder.decode(chunk, { stream: true });
+        buffer = processRecordBuffer(buffer, aggregate);
+
+        const now = performance.now();
+        if (now - lastPaint > 160) {
+          const percent = total ? Math.min(96, Math.round(state.parsedBytes / total * 96)) : 35;
+          setProgress(percent, '解析中', `${state.recordCount.toLocaleString('ja-JP')}件の対象Recordを集計中`);
+          lastPaint = now;
+        }
+      } catch (error) {
+        stream.pause();
+        reject(error);
+      }
+    });
+    stream.on('end', () => {
+      try {
+        buffer += decoder.decode();
+        processRecordBuffer(buffer, aggregate, true);
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+    stream.on('error', reject);
+    stream.resume();
+  });
+}
+
+function processRecordBuffer(input, aggregate, flush = false) {
+  let buffer = input;
+
+  while (true) {
+    const start = buffer.indexOf('<Record ');
+    if (start < 0) {
+      return flush ? '' : buffer.slice(Math.max(0, buffer.length - 512));
+    }
+    if (start > 0) buffer = buffer.slice(start);
+
+    const selfClose = buffer.indexOf('/>');
+    const fullClose = buffer.indexOf('</Record>');
+    let end = -1;
+    let tag = '';
+
+    if (selfClose >= 0 && (fullClose < 0 || selfClose < fullClose)) {
+      end = selfClose + 2;
+      tag = buffer.slice(0, end);
+    } else if (fullClose >= 0) {
+      end = fullClose + '</Record>'.length;
+      const tagEnd = buffer.indexOf('>');
+      if (tagEnd >= 0) tag = buffer.slice(0, tagEnd + 1);
+    }
+
+    if (end < 0 || !tag) {
+      return flush ? '' : buffer;
+    }
+
+    ingestRecordTag(tag, aggregate);
+    buffer = buffer.slice(end);
+  }
+}
+
+function ingestRecordTag(tag, aggregate) {
+  const attrs = parseAttributes(tag);
+  const type = attrs.type;
+
+  if (type === TYPE.sleep) {
+    ingestSleep(attrs, aggregate);
+    return;
+  }
+
+  const metric = METRIC_BY_TYPE[type];
+  if (!metric) return;
+
+  const value = Number(attrs.value);
+  const date = datePart(attrs.startDate || attrs.creationDate);
+  if (!date || !Number.isFinite(value)) return;
+
+  const sourceKey = classifySource(metric, attrs.sourceName || '');
+  if (!sourceKey) return;
+
+  const numericValue = metric === 'activeEnergy' ? value * 4.184 : value;
+  const day = ensureDay(aggregate, date);
+  addMetricValue(day, metric, sourceKey, numericValue);
+  state.recordCount++;
+}
+
+function ingestSleep(attrs, aggregate) {
+  const stage = SLEEP_MAP[attrs.value];
+  if (!stage) return;
+
+  const sourceKey = classifySource('sleep', attrs.sourceName || '');
+  if (!sourceKey) return;
+
+  const date = datePart(attrs.endDate);
+  const start = new Date(attrs.startDate).getTime();
+  const end = new Date(attrs.endDate).getTime();
+  const seconds = (end - start) / 1000;
+  if (!date || !Number.isFinite(seconds) || seconds <= 0) return;
+
+  const day = ensureDay(aggregate, date);
+  if (!day.sleep[sourceKey]) {
+    day.sleep[sourceKey] = { _core: 0, _deep: 0, _rem: 0, _unspec: 0, _awake: 0, _inbed: 0 };
+  }
+  day.sleep[sourceKey][stage] += seconds;
+  state.recordCount++;
+}
+
+function parseAttributes(tag) {
+  const attrs = {};
+  const re = /([A-Za-z_:][\w:.-]*)="([^"]*)"/g;
+  let match;
+  while ((match = re.exec(tag)) !== null) {
+    attrs[match[1]] = decodeXml(match[2]);
+  }
+  return attrs;
+}
+
+function decodeXml(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function classifySource(metric, sourceName) {
+  const name = String(sourceName);
+  const normalized = name.toLowerCase();
+
+  let key = '';
+  if (name.includes('Apple Watch') || name.includes('アップルウォッチ') || name.includes('時計') || name.includes('YさんのApple Watch')) {
+    key = metric === 'sleep' ? 'watchSleep' : 'watch';
+  } else if (name === 'ym' || normalized === 'ym' || normalized.includes('iphone')) {
+    key = 'iphone';
+  } else if (name.includes('Zepp Life')) {
+    key = 'zepp';
+  } else if (name.includes('Sleep Cycle')) {
+    key = 'sleepCycle';
+  }
+
+  return SOURCE_PRIORITY[metric]?.includes(key) ? key : '';
+}
+
+function createAggregate() {
+  return { days: new Map() };
+}
+
+function ensureDay(aggregate, date) {
+  if (!aggregate.days.has(date)) {
+    aggregate.days.set(date, { metrics: {}, sleep: {} });
+  }
+  return aggregate.days.get(date);
+}
+
+function addMetricValue(day, metric, sourceKey, value) {
+  if (!day.metrics[metric]) day.metrics[metric] = {};
+  if (!day.metrics[metric][sourceKey]) {
+    day.metrics[metric][sourceKey] = { sum: 0, count: 0, max: null, latest: null };
+  }
+  const bucket = day.metrics[metric][sourceKey];
+  bucket.sum += value;
+  bucket.count += 1;
+  bucket.max = bucket.max === null ? value : Math.max(bucket.max, value);
+  bucket.latest = value;
+}
+
+function finalizeRows(aggregate) {
+  return Array.from(aggregate.days.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, day]) => buildRow(date, day))
+    .filter(row => HEALTH_COLUMNS.some((column, index) => index > 0 && row[column] !== ''));
+}
+
+function buildRow(date, day) {
+  const row = Object.fromEntries(HEALTH_COLUMNS.map(column => [column, '']));
+  row['日付'] = date;
+
+  row['手首温度(℃)'] = metricValue(day, 'wristTemp', 'avg', 2);
+  row['VO2Max'] = metricValue(day, 'vo2', 'max', 1);
+  row['アクティブエネルギー(kJ)'] = metricValue(day, 'activeEnergy', 'sum', 0);
+  row['ステップ数'] = metricValue(day, 'steps', 'sum', 0);
+  row['安静時心拍数'] = metricValue(day, 'rhr', 'avg', 0);
+  row['心拍変動(ms)'] = metricValue(day, 'hrv', 'avg', 0);
+  row['歩行速度(km/h)'] = metricValue(day, 'walkingSpeed', 'avg', 2);
+  row['登ったフロア数'] = metricValue(day, 'flights', 'sum', 0);
+
+  const sleep = selectedSleep(day);
+  if (sleep) {
+    const core = secondsToHours(sleep._core);
+    const deep = secondsToHours(sleep._deep);
+    const rem = secondsToHours(sleep._rem);
+    const unspec = secondsToHours(sleep._unspec);
+    const awake = secondsToHours(sleep._awake);
+    const inbed = secondsToHours(sleep._inbed);
+    const asleep = round(core + deep + rem + unspec, 2);
+
+    row['睡眠合計(hr)'] = asleep;
+    row['睡眠中(hr)'] = asleep;
+    row['ベッド時間(hr)'] = inbed;
+    row['コア睡眠(hr)'] = core;
+    row['深い睡眠(hr)'] = deep;
+    row['REM睡眠(hr)'] = rem;
+    row['覚醒時間(hr)'] = awake;
+  }
+
+  return row;
+}
+
+function metricValue(day, metric, method, decimals) {
+  const source = selectedMetricSource(day, metric);
+  if (!source) return '';
+
+  let value;
+  if (method === 'sum') value = source.sum;
+  else if (method === 'max') value = source.max;
+  else value = source.sum / source.count;
+
+  return Number.isFinite(value) ? round(value, decimals) : '';
+}
+
+function selectedMetricSource(day, metric) {
+  const sources = day.metrics[metric];
+  if (!sources) return null;
+  for (const key of SOURCE_PRIORITY[metric] || []) {
+    if (sources[key] && sources[key].count > 0) return sources[key];
+  }
+  return null;
+}
+
+function selectedSleep(day) {
+  for (const key of SOURCE_PRIORITY.sleep) {
+    if (day.sleep[key]) return day.sleep[key];
+  }
+  return null;
+}
+
+function datePart(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function secondsToHours(seconds) {
+  return round((seconds || 0) / 3600, 2);
+}
+
+function round(value, decimals) {
+  const factor = 10 ** decimals;
+  return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
+}
+
+function setProgress(percent, title, note) {
+  const safePercent = Math.max(0, Math.min(100, percent));
+  $('#progressPercent').textContent = `${Math.round(safePercent)}%`;
+  $('#barFill').style.width = `${safePercent}%`;
+  $('#progressTitle').textContent = title;
+  $('#progressNote').textContent = note;
+  $('#recordCount').textContent = state.recordCount.toLocaleString('ja-JP');
+  $('#dayCount').textContent = String(state.rows.length || 0);
+  $('#sendCount').textContent = String(state.rows.length || 0);
+}
+
+function renderRows(rows) {
+  $('#preview').classList.toggle('show', rows.length > 0);
+  $('#dayCount').textContent = String(rows.length);
+  $('#sendCount').textContent = String(rows.length);
+  $('#previewRange').textContent = rows.length ? `${rows[0]['日付']} - ${rows[rows.length - 1]['日付']}` : '';
+  $('#rowList').innerHTML = rows.slice(-14).reverse().map(row => `
+    <article class="health-row">
+      <div class="health-date">${escapeHtml(row['日付'])}</div>
+      <div class="health-values">
+        歩数 ${formatCell(row['ステップ数'])} / 睡眠 ${formatCell(row['睡眠合計(hr)'])}h / 心拍 ${formatCell(row['安静時心拍数'])} / 活動 ${formatCell(row['アクティブエネルギー(kJ)'])}kJ
+      </div>
+    </article>
+  `).join('');
+}
+
+async function sendRows() {
+  if (state.rows.length === 0) return;
+
+  $('#sendBtn').disabled = true;
+  $('#sendBtn').textContent = '送信中...';
+  try {
+    const payload = { sheet: 'ヘルスケアログ_batch', rows: state.rows };
+    await fetch(WEBHOOK, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    showToast('送信リクエストを出しました。シートを確認してください。', 'ok');
+    $('#sendBtn').textContent = '送信リクエスト済み';
+  } catch (error) {
+    console.error(error);
+    showToast('送信できませんでした。通信状況を確認してください。', 'bad');
+    $('#sendBtn').disabled = false;
+    $('#sendBtn').textContent = 'スプレッドシートへ送信';
+  }
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0B';
+  const mb = bytes / 1024 / 1024;
+  return mb >= 1 ? `${mb.toFixed(1)}MB` : `${Math.round(bytes / 1024)}KB`;
+}
+
+function formatCell(value) {
+  return value === '' || value == null ? '-' : value;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+let toastTimer = null;
+function showToast(message, tone = '') {
+  const toast = $('#toast');
+  toast.textContent = message;
+  toast.className = `toast show ${tone}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.className = 'toast';
+  }, 3200);
+}
+</script>
+</body>
+</html>
