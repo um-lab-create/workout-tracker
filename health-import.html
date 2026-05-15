@@ -355,7 +355,6 @@ input[type="file"] {
 
 .health-row {
   display: grid;
-  grid-template-columns: 82px 1fr;
   gap: 10px;
   padding: 11px;
   border: 1px solid rgba(255,255,255,.075);
@@ -365,15 +364,50 @@ input[type="file"] {
 
 .health-date {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 950;
 }
 
-.health-values {
-  color: var(--muted);
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.health-cell {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 11px;
+  background: rgba(255,255,255,.045);
+}
+
+.health-cell.missing {
+  border-color: rgba(255,95,127,.38);
+  background: rgba(255,95,127,.08);
+}
+
+.cell-label {
+  overflow: hidden;
+  color: var(--dim);
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-value {
+  margin-top: 3px;
+  color: var(--ink);
   font-size: 12px;
-  line-height: 1.45;
-  font-weight: 720;
+  line-height: 1.2;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.missing .cell-value {
+  color: var(--bad);
 }
 
 .note {
@@ -417,6 +451,7 @@ input[type="file"] {
   .hero h1 { font-size: 27px; }
   .steps { grid-template-columns: 1fr; }
   .metrics { grid-template-columns: 1fr 1fr; }
+  .health-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -540,15 +575,27 @@ const METRIC_BY_TYPE = {
 };
 
 const SOURCE_PRIORITY = {
-  steps: ['watch', 'iphone', 'zepp'],
-  activeEnergy: ['watch', 'iphone', 'zepp'],
-  flights: ['watch', 'iphone'],
-  walkingSpeed: ['iphone'],
-  wristTemp: ['watch'],
-  vo2: ['watch'],
-  rhr: ['watch'],
-  hrv: ['watch'],
-  sleep: ['watchSleep', 'sleepCycle', 'zepp']
+  steps: ['apple_watch_user', 'apple_watch', 'iphone', 'zepp'],
+  activeEnergy: ['apple_watch_user', 'apple_watch', 'iphone', 'zepp'],
+  flights: ['apple_watch_user', 'apple_watch', 'iphone'],
+  walkingSpeed: ['iphone', 'apple_watch_user', 'apple_watch'],
+  wristTemp: ['apple_watch_user', 'apple_watch'],
+  vo2: ['apple_watch_user', 'apple_watch', 'iphone'],
+  rhr: ['apple_watch_user', 'apple_watch'],
+  hrv: ['apple_watch_user', 'apple_watch'],
+  sleep: ['apple_watch_user', 'apple_watch', 'clock_app', 'sleep_cycle', 'zepp']
+};
+
+const METRIC_LABEL = {
+  steps: 'StepCount',
+  activeEnergy: 'ActiveEnergyBurned',
+  flights: 'FlightsClimbed',
+  walkingSpeed: 'WalkingSpeed',
+  wristTemp: 'AppleSleepingWristTemperature',
+  vo2: 'VO2Max',
+  rhr: 'RestingHeartRate',
+  hrv: 'HeartRateVariabilitySDNN',
+  sleep: 'SleepAnalysis'
 };
 
 const SLEEP_MAP = {
@@ -627,6 +674,7 @@ async function parseSelectedZip() {
     await streamExportXml(entry, aggregate);
     const rows = finalizeRows(aggregate);
     state.rows = rows;
+    logDebugSummary(aggregate);
 
     setProgress(100, '解析完了', `${rows.length}日分の軽量データを作成しました。`);
     renderRows(rows);
@@ -741,6 +789,7 @@ function ingestRecordTag(tag, aggregate) {
   if (!date || !Number.isFinite(value)) return;
 
   const sourceKey = classifySource(metric, attrs.sourceName || '');
+  recordDebug(aggregate, metric, sourceKey, date, attrs.sourceName || '');
   if (!sourceKey) return;
 
   const numericValue = metric === 'activeEnergy' ? value * 4.184 : value;
@@ -753,14 +802,15 @@ function ingestSleep(attrs, aggregate) {
   const stage = SLEEP_MAP[attrs.value];
   if (!stage) return;
 
-  const sourceKey = classifySource('sleep', attrs.sourceName || '');
-  if (!sourceKey) return;
-
   const date = datePart(attrs.endDate);
   const start = new Date(attrs.startDate).getTime();
   const end = new Date(attrs.endDate).getTime();
   const seconds = (end - start) / 1000;
   if (!date || !Number.isFinite(seconds) || seconds <= 0) return;
+
+  const sourceKey = classifySource('sleep', attrs.sourceName || '');
+  recordDebug(aggregate, 'sleep', sourceKey, date, attrs.sourceName || '');
+  if (!sourceKey) return;
 
   const day = ensureDay(aggregate, date);
   if (!day.sleep[sourceKey]) {
@@ -790,25 +840,34 @@ function decodeXml(value) {
 }
 
 function classifySource(metric, sourceName) {
-  const name = String(sourceName);
+  const name = normalizeSourceName(sourceName);
   const normalized = name.toLowerCase();
+  const compact = name.replace(/\s+/g, '');
 
   let key = '';
-  if (name.includes('Apple Watch') || name.includes('アップルウォッチ') || name.includes('時計') || name.includes('YさんのApple Watch')) {
-    key = metric === 'sleep' ? 'watchSleep' : 'watch';
-  } else if (name === 'ym' || normalized === 'ym' || normalized.includes('iphone')) {
+  if (/apple\s*watch/i.test(name) || /アップル\s*ウォッチ/i.test(name) || compact.includes('AppleWatch')) {
+    key = name.includes('さんの') || compact.includes('YさんのAppleWatch') ? 'apple_watch_user' : 'apple_watch';
+  } else if (name === '時計') {
+    key = metric === 'sleep' ? 'clock_app' : 'apple_watch';
+  } else if (name === 'ym' || normalized === 'ym' || normalized.includes('iphone') || name === 'iPhone' || name === 'ヘルスケア') {
     key = 'iphone';
-  } else if (name.includes('Zepp Life')) {
+  } else if (/zepp/i.test(name)) {
     key = 'zepp';
-  } else if (name.includes('Sleep Cycle')) {
-    key = 'sleepCycle';
+  } else if (/sleep\s*cycle/i.test(name)) {
+    key = 'sleep_cycle';
   }
 
   return SOURCE_PRIORITY[metric]?.includes(key) ? key : '';
 }
 
+function normalizeSourceName(sourceName) {
+  return String(sourceName || '')
+    .replace(/[\s\u00a0\u3000]+/g, ' ')
+    .trim();
+}
+
 function createAggregate() {
-  return { days: new Map() };
+  return { days: new Map(), debug: {} };
 }
 
 function ensureDay(aggregate, date) {
@@ -828,6 +887,26 @@ function addMetricValue(day, metric, sourceKey, value) {
   bucket.count += 1;
   bucket.max = bucket.max === null ? value : Math.max(bucket.max, value);
   bucket.latest = value;
+}
+
+function recordDebug(aggregate, metric, sourceKey, date, rawSourceName) {
+  const label = METRIC_LABEL[metric] || metric;
+  if (!aggregate.debug[label]) aggregate.debug[label] = {};
+  const key = sourceKey || `unmatched:${normalizeSourceName(rawSourceName) || '(empty)'}`;
+  if (!aggregate.debug[label][key]) aggregate.debug[label][key] = { records: 0, dates: new Set() };
+  aggregate.debug[label][key].records += 1;
+  if (date) aggregate.debug[label][key].dates.add(date);
+}
+
+function logDebugSummary(aggregate) {
+  const rows = [];
+  Object.entries(aggregate.debug).forEach(([type, sources]) => {
+    Object.entries(sources).forEach(([source, info]) => {
+      rows.push({ type, source, records: info.records, days: info.dates.size });
+    });
+  });
+  rows.sort((a, b) => a.type.localeCompare(b.type) || b.records - a.records);
+  console.table(rows);
 }
 
 function finalizeRows(aggregate) {
@@ -932,11 +1011,21 @@ function renderRows(rows) {
   $('#rowList').innerHTML = rows.slice(-14).reverse().map(row => `
     <article class="health-row">
       <div class="health-date">${escapeHtml(row['日付'])}</div>
-      <div class="health-values">
-        歩数 ${formatCell(row['ステップ数'])} / 睡眠 ${formatCell(row['睡眠合計(hr)'])}h / 心拍 ${formatCell(row['安静時心拍数'])} / 活動 ${formatCell(row['アクティブエネルギー(kJ)'])}kJ
+      <div class="health-grid">
+        ${HEALTH_COLUMNS.slice(1).map(column => renderHealthCell(column, row[column])).join('')}
       </div>
     </article>
   `).join('');
+}
+
+function renderHealthCell(column, value) {
+  const missing = value === '' || value == null;
+  return `
+    <div class="health-cell ${missing ? 'missing' : ''}">
+      <div class="cell-label">${escapeHtml(column)}</div>
+      <div class="cell-value">${missing ? '未取得' : escapeHtml(value)}</div>
+    </div>
+  `;
 }
 
 async function sendRows() {
