@@ -621,6 +621,7 @@
 <script>
 /* ── 設定 ── */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
+const AUTH_STORE = 'hs:write-auth:v1';
 
 /* ── 食品PFCデータベース（100gあたり）── */
 const FOOD_DB = {
@@ -699,6 +700,52 @@ document.getElementById('dateBadge').textContent = fmtDate(todayStr());
 function getRecords() { try { return JSON.parse(localStorage.getItem('meal_recs')||'[]'); } catch { return []; } }
 function saveRecords(l){ localStorage.setItem('meal_recs', JSON.stringify(l)); }
 
+function loadWritePin() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORE);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return typeof parsed.pin === 'string' ? parsed.pin : '';
+  } catch {
+    return '';
+  }
+}
+
+function saveWritePin(pin) {
+  localStorage.setItem(AUTH_STORE, JSON.stringify({ pin: String(pin || '').trim(), savedAt: Date.now() }));
+}
+
+function promptWritePin() {
+  const current = loadWritePin();
+  const value = window.prompt('利用PINを入力してください。初回だけ端末に保存されます。', current);
+  const pin = String(value || '').trim();
+  if (!pin) {
+    const error = new Error('PIN が未入力です');
+    error.code = 'AUTH_REQUIRED';
+    throw error;
+  }
+  saveWritePin(pin);
+  return pin;
+}
+
+function makeAuthNonce() {
+  const buffer = new Uint8Array(12);
+  if (window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(buffer);
+    return Array.from(buffer, part => part.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 14)}`;
+}
+
+function buildAuthedPayload(payload) {
+  const pin = loadWritePin() || promptWritePin();
+  return {
+    ...payload,
+    authPin: pin,
+    authTs: Date.now(),
+    authNonce: makeAuthNonce()
+  };
+}
+
 /* ── 同期ステータス ── */
 function setSyncStatus(state, text) {
   const el = document.getElementById('syncStatus');
@@ -713,12 +760,17 @@ async function sendToSheet(rec) {
     await fetch(GAS_URL, {
       method:'POST', mode:'no-cors',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({sheet:'食事ログ', ...rec})
+      body: JSON.stringify(buildAuthedPayload({sheet:'食事ログ', ...rec}))
     });
     setSyncStatus('synced','同期済み ✓');
     setTimeout(()=>setSyncStatus('','待機中'),3000);
     return true;
   } catch(e) {
+    if (e && e.code === 'AUTH_REQUIRED') {
+      setSyncStatus('','待機中');
+      showToast('PIN を設定してから送信してください', true);
+      return false;
+    }
     setSyncStatus('error','送信失敗');
     setTimeout(()=>setSyncStatus('','待機中'),3000);
     return false;

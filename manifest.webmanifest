@@ -1,0 +1,30 @@
+{
+  "name": "Cockpit",
+  "short_name": "Cockpit",
+  "id": "/workout-tracker/",
+  "start_url": "/workout-tracker/",
+  "scope": "/workout-tracker/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "icons/cockpit-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/cockpit-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/cockpit.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

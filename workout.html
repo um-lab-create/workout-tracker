@@ -866,6 +866,7 @@ body {
 
 const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
 const SHEET = '筋トレログ';
+const AUTH_STORE = 'hs:write-auth:v1';
 
 const STORE = {
   last: 'wt:lastValues:v2',
@@ -923,6 +924,57 @@ function save(key, value) {
 
 function mergeLastValues(primary, legacy) {
   return { ...(legacy || {}), ...(primary || {}) };
+}
+
+function loadWritePin() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORE);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return typeof parsed.pin === 'string' ? parsed.pin : '';
+  } catch {
+    return '';
+  }
+}
+
+function saveWritePin(pin) {
+  localStorage.setItem(AUTH_STORE, JSON.stringify({ pin: String(pin || '').trim(), savedAt: Date.now() }));
+}
+
+function promptWritePin() {
+  const current = loadWritePin();
+  const value = window.prompt('利用PINを入力してください。初回だけ端末に保存されます。', current);
+  const pin = String(value || '').trim();
+  if (!pin) {
+    const error = new Error('PIN が未入力です');
+    error.code = 'AUTH_REQUIRED';
+    throw error;
+  }
+  saveWritePin(pin);
+  return pin;
+}
+
+function makeAuthNonce() {
+  const buffer = new Uint8Array(12);
+  if (window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(buffer);
+    return Array.from(buffer, part => part.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 14)}`;
+}
+
+function buildAuthedPayload(payload, options = {}) {
+  const pin = loadWritePin() || (options.allowPrompt === false ? '' : promptWritePin());
+  if (!pin) {
+    const error = new Error('PIN が未設定です');
+    error.code = 'AUTH_REQUIRED';
+    throw error;
+  }
+  return {
+    ...payload,
+    authPin: pin,
+    authTs: Date.now(),
+    authNonce: makeAuthNonce()
+  };
 }
 
 function exoById(id) {
@@ -1139,7 +1191,12 @@ async function submitRecord() {
     showToast('送信リクエスト済み。端末にも保存しました', 'ok');
     haptic([8, 24, 8]);
     setTimeout(() => setSubmitState('ready'), 1300);
-  } catch {
+  } catch(error) {
+    if (error && error.code === 'AUTH_REQUIRED') {
+      setSubmitState('ready');
+      showToast('PIN を設定してから送信してください', 'warn');
+      return;
+    }
     state.queue.push({ ...record, _queuedAt: Date.now() });
     save(STORE.queue, state.queue);
     rememberRecord(exercise, record, { queued: true });
@@ -1167,12 +1224,12 @@ function buildRecord(exercise) {
   };
 }
 
-function postRecord(record) {
+function postRecord(record, options = {}) {
   return fetch(WEBHOOK, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(publicRecord(record))
+    body: JSON.stringify(buildAuthedPayload(publicRecord(record), options))
   });
 }
 
@@ -1348,9 +1405,10 @@ async function flushQueue(options = {}) {
   const remaining = [];
   for (const item of state.queue) {
     try {
-      await postRecord(item);
-    } catch {
+      await postRecord(item, { allowPrompt: !options.silent });
+    } catch (error) {
       remaining.push(item);
+      if (error && error.code === 'AUTH_REQUIRED') break;
     }
   }
   const sent = state.queue.length - remaining.length;

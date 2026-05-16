@@ -543,7 +543,8 @@ input[type="file"] {
 
 const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
 const ZIP_ENTRY = 'apple_health_export/export.xml';
-const BUILD_LABEL = 'build 2026-05-16.5';
+const BUILD_LABEL = 'build 2026-05-16.6';
+const AUTH_STORE = 'hs:write-auth:v1';
 
 const HEALTH_COLUMNS = [
   '日付', '手首温度(℃)', 'VO2Max', 'アクティブエネルギー(kJ)', 'ステップ数',
@@ -661,6 +662,52 @@ function boot() {
     resetResult();
     setProgress(0, '待機中', 'zipを選ぶと解析を開始できます。');
   });
+}
+
+function loadWritePin() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORE);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return typeof parsed.pin === 'string' ? parsed.pin : '';
+  } catch {
+    return '';
+  }
+}
+
+function saveWritePin(pin) {
+  localStorage.setItem(AUTH_STORE, JSON.stringify({ pin: String(pin || '').trim(), savedAt: Date.now() }));
+}
+
+function promptWritePin() {
+  const current = loadWritePin();
+  const value = window.prompt('利用PINを入力してください。初回だけ端末に保存されます。', current);
+  const pin = String(value || '').trim();
+  if (!pin) {
+    const error = new Error('PIN が未入力です');
+    error.code = 'AUTH_REQUIRED';
+    throw error;
+  }
+  saveWritePin(pin);
+  return pin;
+}
+
+function makeAuthNonce() {
+  const buffer = new Uint8Array(12);
+  if (window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(buffer);
+    return Array.from(buffer, part => part.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 14)}`;
+}
+
+function buildAuthedPayload(payload) {
+  const pin = loadWritePin() || promptWritePin();
+  return {
+    ...payload,
+    authPin: pin,
+    authTs: Date.now(),
+    authNonce: makeAuthNonce()
+  };
 }
 
 function renderNetwork() {
@@ -1072,7 +1119,7 @@ async function sendRows() {
   $('#sendBtn').disabled = true;
   $('#sendBtn').textContent = '送信中...';
   try {
-    const payload = { sheet: 'ヘルスケアログ_batch', rows: state.rows };
+    const payload = buildAuthedPayload({ sheet: 'ヘルスケアログ_batch', rows: state.rows });
     await fetch(WEBHOOK, {
       method: 'POST',
       mode: 'no-cors',
@@ -1083,9 +1130,14 @@ async function sendRows() {
     $('#sendBtn').textContent = '送信リクエスト済み';
   } catch (error) {
     console.error(error);
-    showToast('送信できませんでした。通信状況を確認してください。', 'bad');
+    if (error && error.code === 'AUTH_REQUIRED') {
+      showToast('PIN を設定してから送信してください。', 'warn');
+    } else {
+      showToast('送信できませんでした。通信状況を確認してください。', 'bad');
+    }
     $('#sendBtn').disabled = false;
     $('#sendBtn').textContent = 'スプレッドシートへ送信';
+    return;
   }
 }
 
