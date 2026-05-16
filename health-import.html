@@ -543,7 +543,7 @@ input[type="file"] {
 
 const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
 const ZIP_ENTRY = 'apple_health_export/export.xml';
-const BUILD_LABEL = 'build 2026-05-16.4';
+const BUILD_LABEL = 'build 2026-05-16.5';
 
 const HEALTH_COLUMNS = [
   '日付', '手首温度(℃)', 'VO2Max', 'アクティブエネルギー(kJ)', 'ステップ数',
@@ -822,8 +822,8 @@ function ingestSleep(attrs, aggregate) {
   if (!stage) return;
 
   const date = recordDate(attrs, 'sleep');
-  const start = new Date(attrs.startDate).getTime();
-  const end = new Date(attrs.endDate).getTime();
+  const start = parseAppleHealthDate(attrs.startDate);
+  const end = parseAppleHealthDate(attrs.endDate);
   const seconds = (end - start) / 1000;
   if (!date || !Number.isFinite(seconds) || seconds <= 0) return;
 
@@ -1003,6 +1003,17 @@ function selectedSleep(day) {
 
 function datePart(value) {
   return value ? String(value).slice(0, 10) : '';
+}
+
+function parseAppleHealthDate(value) {
+  const text = String(value || '').trim();
+  if (!text) return NaN;
+
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\s*([+-]\d{2}):?(\d{2}))?$/);
+  if (!match) return Date.parse(text);
+
+  const [, date, time, tzHour = '+00', tzMinute = '00'] = match;
+  return Date.parse(`${date}T${time}${tzHour}:${tzMinute}`);
 }
 
 function recordDate(attrs, metric) {
