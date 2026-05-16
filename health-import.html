@@ -574,10 +574,22 @@ const METRIC_BY_TYPE = {
   [TYPE.flights]: 'flights'
 };
 
+const METRIC_DATE_FIELD = {
+  wristTemp: 'startDate',
+  vo2: 'startDate',
+  activeEnergy: 'endDate',
+  steps: 'endDate',
+  rhr: 'endDate',
+  hrv: 'endDate',
+  walkingSpeed: 'endDate',
+  flights: 'endDate',
+  sleep: 'creationDate'
+};
+
 const SOURCE_PRIORITY = {
   steps: ['apple_watch_user', 'apple_watch', 'iphone', 'zepp'],
   activeEnergy: ['apple_watch_user', 'apple_watch', 'iphone', 'zepp'],
-  flights: ['apple_watch_user', 'apple_watch', 'iphone'],
+  flights: ['iphone', 'apple_watch_user', 'apple_watch'],
   walkingSpeed: ['iphone', 'apple_watch_user', 'apple_watch'],
   wristTemp: ['apple_watch_user', 'apple_watch'],
   vo2: ['apple_watch_user', 'apple_watch', 'iphone'],
@@ -790,7 +802,7 @@ function ingestRecordTag(tag, aggregate) {
   if (!metric) return;
 
   const value = Number(attrs.value);
-  const date = datePart(attrs.startDate || attrs.creationDate);
+  const date = recordDate(attrs, metric);
   if (!date || !Number.isFinite(value)) return;
 
   const sourceKey = classifySource(metric, attrs.sourceName || '');
@@ -807,7 +819,7 @@ function ingestSleep(attrs, aggregate) {
   const stage = SLEEP_MAP[attrs.value];
   if (!stage) return;
 
-  const date = datePart(attrs.endDate);
+  const date = recordDate(attrs, 'sleep');
   const start = new Date(attrs.startDate).getTime();
   const end = new Date(attrs.endDate).getTime();
   const seconds = (end - start) / 1000;
@@ -936,17 +948,15 @@ function buildRow(date, day) {
 
   const sleep = selectedSleep(day);
   if (sleep) {
-    const core = secondsToHours(sleep._core);
+    const core = secondsToHours(sleep._core + sleep._unspec);
     const deep = secondsToHours(sleep._deep);
     const rem = secondsToHours(sleep._rem);
-    const unspec = secondsToHours(sleep._unspec);
     const awake = secondsToHours(sleep._awake);
-    const inbed = secondsToHours(sleep._inbed);
-    const asleep = round(core + deep + rem + unspec, 2);
+    const asleep = round(core + deep + rem, 2);
 
     row['睡眠合計(hr)'] = asleep;
-    row['睡眠中(hr)'] = asleep;
-    row['ベッド時間(hr)'] = inbed;
+    row['睡眠中(hr)'] = 0;
+    row['ベッド時間(hr)'] = 0;
     row['コア睡眠(hr)'] = core;
     row['深い睡眠(hr)'] = deep;
     row['REM睡眠(hr)'] = rem;
@@ -991,6 +1001,11 @@ function selectedSleep(day) {
 
 function datePart(value) {
   return value ? String(value).slice(0, 10) : '';
+}
+
+function recordDate(attrs, metric) {
+  const field = METRIC_DATE_FIELD[metric] || 'startDate';
+  return datePart(attrs[field] || attrs.startDate || attrs.endDate || attrs.creationDate);
 }
 
 function secondsToHours(seconds) {
