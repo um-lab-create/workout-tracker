@@ -460,7 +460,7 @@ input[type="file"] {
   <header class="topbar">
     <div>
       <div class="brand-main">Health Import</div>
-      <div class="brand-sub">Apple Health zip → ヘルスケアログ</div>
+      <div class="brand-sub">Apple Health zip → ヘルスケアログ <span id="buildTag"></span></div>
     </div>
     <div class="pill" id="netPill">オンライン</div>
   </header>
@@ -543,6 +543,7 @@ input[type="file"] {
 
 const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
 const ZIP_ENTRY = 'apple_health_export/export.xml';
+const BUILD_LABEL = 'build 2026-05-16.4';
 
 const HEALTH_COLUMNS = [
   '日付', '手首温度(℃)', 'VO2Max', 'アクティブエネルギー(kJ)', 'ステップ数',
@@ -637,6 +638,7 @@ const state = {
 boot();
 
 function boot() {
+  $('#buildTag').textContent = BUILD_LABEL;
   renderNetwork();
   window.addEventListener('online', renderNetwork);
   window.addEventListener('offline', renderNetwork);
