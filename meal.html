@@ -124,6 +124,13 @@
       font-weight: 800;
     }
 
+    .header-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .status-stack {
       display: grid;
       gap: 8px;
@@ -181,17 +188,17 @@
 
     .hero-copy h1 {
       margin: 0;
-      font-size: 25px;
+      font-size: 23px;
       line-height: 1.06;
       font-weight: 950;
       letter-spacing: -.03em;
     }
 
     .hero-copy p {
-      margin: 8px 0 0;
+      margin: 7px 0 0;
       color: var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
+      font-size: 12px;
+      line-height: 1.5;
       font-weight: 700;
     }
 
@@ -280,23 +287,64 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin-bottom: 10px;
+      margin-bottom: 0;
     }
 
     .section-title {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 950;
     }
 
     .section-copy {
       color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
+      font-size: 11px;
+      line-height: 1.45;
       font-weight: 700;
-      margin-bottom: 10px;
+    }
+
+    .panel-body {
+      margin-top: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .panel-body.collapsed {
+      display: none;
+    }
+
+    .accordion-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .accordion-arrow {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+      font-size: 11px;
+      transition: transform .14s ease;
+    }
+
+    .accordion-btn[aria-expanded="true"] .accordion-arrow {
+      transform: rotate(180deg);
+    }
+
+    .section-meta {
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
     }
 
     .mini-btn {
@@ -325,7 +373,7 @@
     .recent-card {
       position: relative;
       overflow: hidden;
-      min-height: 114px;
+      min-height: 98px;
       border-radius: 18px;
       border: 1px solid var(--line);
       background: var(--panel-strong);
@@ -358,21 +406,21 @@
 
     .preset-name,
     .recent-name {
-      margin-top: 10px;
-      font-size: 15px;
+      margin-top: 8px;
+      font-size: 14px;
       line-height: 1.25;
       font-weight: 900;
     }
 
     .preset-detail,
     .recent-detail {
-      margin-top: 7px;
+      margin-top: 6px;
       color: var(--muted);
-      font-size: 11px;
-      line-height: 1.48;
+      font-size: 10px;
+      line-height: 1.42;
       font-weight: 700;
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -386,7 +434,7 @@
     }
 
     .quick-card {
-      min-height: 90px;
+      min-height: 78px;
       border-radius: 16px;
       border: 1px solid var(--line);
       background: rgba(255,255,255,.04);
@@ -395,16 +443,50 @@
     }
 
     .quick-name {
-      font-size: 13px;
-      line-height: 1.35;
+      font-size: 12px;
+      line-height: 1.3;
       font-weight: 900;
     }
 
     .quick-meta {
-      margin-top: 8px;
+      margin-top: 6px;
       color: var(--dim);
-      font-size: 10px;
+      font-size: 9px;
       line-height: 1.4;
+      font-weight: 800;
+    }
+
+    .mode-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .mode-btn {
+      min-height: 62px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.07);
+      background: rgba(255,255,255,.04);
+      padding: 10px;
+      text-align: left;
+    }
+
+    .mode-btn.active {
+      border-color: rgba(245,158,11,.45);
+      background: linear-gradient(145deg, rgba(245,158,11,.17), rgba(255,255,255,.03));
+    }
+
+    .mode-name {
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .mode-copy {
+      margin-top: 5px;
+      color: var(--dim);
+      font-size: 9px;
+      line-height: 1.35;
       font-weight: 800;
     }
 
@@ -705,8 +787,8 @@
     .empty-state {
       text-align: center;
       color: var(--dim);
-      font-size: 14px;
-      line-height: 1.6;
+      font-size: 13px;
+      line-height: 1.55;
       font-weight: 700;
       padding: 18px 10px;
     }
@@ -854,9 +936,10 @@
 
     @media (max-width: 430px) {
       .brand-main { font-size: 26px; }
-      .hero-copy h1 { font-size: 22px; }
+      .hero-copy h1 { font-size: 21px; }
       .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .preset-grid { grid-template-columns: 1fr; }
+      .mode-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .search-row,
       .qty-row,
       .action-row,
@@ -870,67 +953,71 @@
     <header class="topbar">
       <div class="brand">
         <div class="brand-main">食事記録</div>
-        <div class="brand-sub">固定セット、保存済み、直近からすぐ積み上げる</div>
+        <div class="brand-sub">まずは近い食事を呼び出して、足りない分だけ直す</div>
       </div>
       <div class="status-stack">
         <div class="chip" id="todayChip">--</div>
         <div class="chip" id="syncChip">待機中</div>
+        <div class="header-tools">
+          <button class="mini-btn" type="button" onclick="openPresetManager()">固定項目</button>
+          <button class="mini-btn" type="button" onclick="openCustomFoodManager()">独自食材</button>
+        </div>
       </div>
     </header>
 
     <section class="hero">
       <div class="hero-head">
         <div class="hero-copy">
-          <h1>朝も昼も夜も、同じ流れで記録する。</h1>
-          <p>人間が分かりやすい単位で食材を追加し、固定セットや直近の食事をそのまま再利用できます。</p>
+          <h1>近いものを呼び出して、少しだけ直す。</h1>
+          <p>最初はクイック操作だけ見れば十分です。細かい追加や編集は必要なときだけ開きます。</p>
         </div>
         <div class="hero-mark">食</div>
       </div>
 
       <div class="timing-grid" id="timingGrid"></div>
+      <div class="mode-strip" id="modeStrip"></div>
     </section>
 
     <section class="panel">
       <div class="section-head">
-        <div class="section-title">保存済みセット</div>
-        <button class="mini-btn" type="button" onclick="openPresetManager()">固定項目を編集</button>
+        <div class="section-title">クイック開始</div>
+        <div class="section-meta">まずここから</div>
       </div>
-      <div class="section-copy">毎日の固定セット、よく食べる昼食、夜の定番をここから一発で呼び出します。</div>
-      <div class="preset-grid" id="presetGrid"></div>
+      <div class="panel-body" id="quickStartBody">
+        <div class="section-copy">保存済みセットか直近の食事を呼び出してから、必要なら下で 1 品だけ足します。</div>
+        <div class="preset-grid" id="presetGrid"></div>
+        <div class="recent-grid" id="recentGrid"></div>
+      </div>
     </section>
 
     <section class="panel">
       <div class="section-head">
-        <div class="section-title">直近から再利用</div>
+        <div class="section-title">よく足すもの</div>
+        <button class="accordion-btn" type="button" onclick="togglePanel('quickBody', this)" aria-expanded="true">
+          <span>開閉</span><span class="accordion-arrow">⌄</span>
+        </button>
       </div>
-      <div class="section-copy">直近の記録を同じタイミングで再利用します。違うものを食べた日だけ差し替えれば足ります。</div>
-      <div class="recent-grid" id="recentGrid"></div>
+      <div class="panel-body" id="quickBody">
+        <div class="quick-grid" id="quickGrid"></div>
+      </div>
     </section>
 
     <section class="panel">
       <div class="section-head">
-        <div class="section-title">おすすめ追加</div>
+        <div class="section-title">細かく追加</div>
+        <button class="accordion-btn" type="button" onclick="togglePanel('builderBody', this)" aria-expanded="false">
+          <span>開く</span><span class="accordion-arrow">⌄</span>
+        </button>
       </div>
-      <div class="section-copy" id="quickCopy">タイミングに応じた追加候補です。押すと標準量で現在の食事に入ります。</div>
-      <div class="quick-grid" id="quickGrid"></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
-        <div class="section-title">食材を追加</div>
-      </div>
-      <div class="section-copy">グラム固定ではなく、`本` `個` `枚` `パック` などで入れます。必要なら `g` にも切り替えられます。</div>
-      <div class="form-grid">
+      <div class="panel-body collapsed" id="builderBody">
         <div class="field-group">
           <div class="field-label">
             <span>食材を選ぶ</span>
-            <button class="mini-btn" type="button" onclick="openCustomFoodManager()">独自食材</button>
           </div>
           <div class="search-row">
             <input class="text-input" id="foodSearch" list="foodSuggestions" placeholder="例: バナナ / 鶏胸肉 / オイコス">
             <select class="select-input" id="foodSelect"></select>
           </div>
-          <div class="helper-text">候補にないものは `独自食材` から追加できます。分からないものはメモだけ残す運用でも進められます。</div>
         </div>
 
         <div class="field-group">
@@ -965,33 +1052,35 @@
       </div>
       <div class="items" id="currentItems"></div>
       <div class="empty-state" id="currentEmpty">まだ食材が入っていません。保存済みセットかおすすめ追加から始めるのが速いです。</div>
+      <div class="panel-body">
+        <div class="summary-grid">
+          <div class="summary-card"><div class="summary-value" id="sumKcal">0</div><div class="summary-label">kcal</div></div>
+          <div class="summary-card"><div class="summary-value" id="sumP">0</div><div class="summary-label">タンパク質g</div></div>
+          <div class="summary-card"><div class="summary-value" id="sumF">0</div><div class="summary-label">脂質g</div></div>
+          <div class="summary-card"><div class="summary-value" id="sumC">0</div><div class="summary-label">炭水化物g</div></div>
+        </div>
+
+        <div class="toolbar">
+          <button class="ghost-btn" type="button" onclick="saveCurrentAsPreset()">今の内容を固定項目に保存</button>
+          <button class="ghost-btn" type="button" onclick="togglePanel('historyBody', document.getElementById('historyToggle')); renderHistory();">履歴を開く</button>
+        </div>
+      </div>
+      <button class="save-btn" type="button" onclick="saveMeal()">この食事を記録する</button>
     </section>
 
     <section class="panel">
       <div class="section-head">
-        <div class="section-title">概算PFC</div>
-      </div>
-      <div class="summary-grid">
-        <div class="summary-card"><div class="summary-value" id="sumKcal">0</div><div class="summary-label">kcal</div></div>
-        <div class="summary-card"><div class="summary-value" id="sumP">0</div><div class="summary-label">タンパク質g</div></div>
-        <div class="summary-card"><div class="summary-value" id="sumF">0</div><div class="summary-label">脂質g</div></div>
-        <div class="summary-card"><div class="summary-value" id="sumC">0</div><div class="summary-label">炭水化物g</div></div>
-      </div>
-
-      <div class="toolbar">
-        <button class="ghost-btn" type="button" onclick="saveCurrentAsPreset()">今の内容を固定項目に保存</button>
-        <button class="ghost-btn" type="button" onclick="toggleHistory()">記録を見る / 履歴</button>
-      </div>
-
-      <button class="save-btn" type="button" onclick="saveMeal()">この食事を記録する</button>
-    </section>
-
-    <section class="history-panel" id="historyPanel">
-      <div class="section-head">
         <div class="section-title">食事履歴</div>
-        <button class="mini-btn" type="button" onclick="clearHistory()">履歴を削除</button>
+        <button class="accordion-btn" type="button" id="historyToggle" onclick="togglePanel('historyBody', this); renderHistory();" aria-expanded="false">
+          <span>開く</span><span class="accordion-arrow">⌄</span>
+        </button>
       </div>
-      <div class="history-list" id="historyList"></div>
+      <div class="panel-body collapsed" id="historyBody">
+        <div class="toolbar">
+          <button class="ghost-btn" type="button" onclick="clearHistory()">履歴を削除</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
     </section>
   </main>
 
@@ -1189,7 +1278,6 @@
     let presets = loadPresets();
     let customFoods = loadCustomFoods();
     let drafts = loadDrafts();
-    let historyOpen = false;
     let editingCustomFoodId = null;
 
     function clone(obj) {
@@ -1474,6 +1562,49 @@
           <div class="timing-copy">${timing.copy}</div>
         </button>
       `).join('');
+    }
+
+    function renderModeStrip() {
+      const root = document.getElementById('modeStrip');
+      root.innerHTML = `
+        <button type="button" class="mode-btn active" onclick="focusPanel('quickStartBody')">
+          <div class="mode-name">1. 呼び出す</div>
+          <div class="mode-copy">セットか直近から始める</div>
+        </button>
+        <button type="button" class="mode-btn" onclick="focusPanel('quickBody')">
+          <div class="mode-name">2. 足す</div>
+          <div class="mode-copy">よく足すものを 1 タップ</div>
+        </button>
+        <button type="button" class="mode-btn" onclick="focusPanel('builderBody', true)">
+          <div class="mode-name">3. 細かく</div>
+          <div class="mode-copy">必要なときだけ詳細入力</div>
+        </button>
+        <button type="button" class="mode-btn" onclick="focusPanel('historyBody', true)">
+          <div class="mode-name">4. 履歴</div>
+          <div class="mode-copy">前と同じ内容を再利用</div>
+        </button>
+      `;
+    }
+
+    function togglePanel(bodyId, button) {
+      const body = document.getElementById(bodyId);
+      if (!body) return;
+      const collapsed = body.classList.toggle('collapsed');
+      if (button) {
+        button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        const label = button.querySelector('span');
+        if (label) label.textContent = collapsed ? '開く' : '閉じる';
+      }
+    }
+
+    function focusPanel(bodyId, shouldOpen = false) {
+      const body = document.getElementById(bodyId);
+      if (!body) return;
+      if (shouldOpen && body.classList.contains('collapsed')) {
+        const trigger = document.querySelector(`[onclick*="'${bodyId}'"]`);
+        togglePanel(bodyId, trigger);
+      }
+      body.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function renderPresetGrid() {
@@ -1833,18 +1964,6 @@
       persistCurrentTimingDraft();
     }
 
-    function toggleHistory() {
-      historyOpen = !historyOpen;
-      const panel = document.getElementById('historyPanel');
-      if (historyOpen) {
-        renderHistory();
-        panel.classList.add('show');
-        setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'start' }), 70);
-      } else {
-        panel.classList.remove('show');
-      }
-    }
-
     function clearHistory() {
       if (!window.confirm('履歴をすべて削除しますか？')) return;
       localStorage.removeItem(RECORD_STORE);
@@ -2143,6 +2262,7 @@
       setTodayChip();
       setSyncStatus('', '待機中');
       renderTimingGrid();
+      renderModeStrip();
       renderFoodSelector();
       loadCurrentTimingDraft();
       renderTimingGrid();
