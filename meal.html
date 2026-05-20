@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="食事記録">
@@ -111,6 +112,12 @@
       gap: 5px;
     }
 
+    .brand-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
     .brand-main {
       font-size: 28px;
       line-height: 1;
@@ -154,6 +161,20 @@
     .chip.syncing { color: var(--accent-2); border-color: rgba(245,158,11,.55); }
     .chip.synced { color: var(--ok); border-color: rgba(66,231,155,.55); }
     .chip.error { color: var(--bad); border-color: rgba(255,109,138,.55); }
+
+    .subtle-nav {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
 
     .hero {
       position: relative;
@@ -1096,9 +1117,12 @@
 <body>
   <main class="app">
     <header class="topbar">
-      <div class="brand">
-        <div class="brand-main">食事記録</div>
-        <div class="brand-sub">呼び出す → 足す → 記録</div>
+      <div class="brand-row">
+        <button class="subtle-nav" type="button" aria-label="Cockpitに戻る" onclick="backToCockpit()">‹</button>
+        <div class="brand">
+          <div class="brand-main">食事記録</div>
+          <div class="brand-sub">朝昼夜をさっと記録</div>
+        </div>
       </div>
       <div class="status-stack">
         <div class="chip" id="todayChip">--</div>
@@ -1460,6 +1484,14 @@
         }
       ]
     };
+
+    function backToCockpit() {
+      if (document.referrer && document.referrer.includes(location.host) && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      window.location.href = 'index.html';
+    }
 
     const QUICK_FOODS = {
       morning: ['banana', 'coffee', 'bread', 'oikos', 'soy-protein', 'whey-protein'],

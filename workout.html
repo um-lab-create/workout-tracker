@@ -27,6 +27,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="筋トレ記録">
@@ -116,6 +117,12 @@ button:active {
   gap: 2px;
 }
 
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .brand-main {
   font-size: 24px;
   line-height: 1;
@@ -155,6 +162,20 @@ button:active {
 .net-pill.offline .net-dot {
   background: var(--bad);
   box-shadow: 0 0 18px rgba(255,95,127,.45);
+}
+
+.subtle-nav {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+  flex: 0 0 auto;
 }
 
 .hero {
@@ -781,9 +802,12 @@ body {
 <body>
 <main class="app" id="app">
   <header class="topbar">
-    <div class="brand">
-      <div class="brand-main">筋トレ記録</div>
-      <div class="brand-sub" id="todayLabel">今日の入力</div>
+    <div class="brand-row">
+      <button class="subtle-nav" type="button" aria-label="Cockpitに戻る" onclick="backToCockpit()">‹</button>
+      <div class="brand">
+        <div class="brand-main">筋トレ記録</div>
+        <div class="brand-sub" id="todayLabel">今日の入力</div>
+      </div>
     </div>
     <div class="net-pill" id="netPill">
       <span class="net-dot"></span>
@@ -904,6 +928,14 @@ const state = {
   history: load(STORE.history, load('wt:history:v1', [])),
   queue: load(STORE.queue, load('wt:queue:v1', []))
 };
+
+function backToCockpit() {
+  if (document.referrer && document.referrer.includes(location.host) && window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  window.location.href = 'index.html';
+}
 
 function load(key, fallback) {
   try {

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ヘルスケア取込">
@@ -81,6 +82,12 @@ button:disabled {
   margin: 4px 0 16px;
 }
 
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .brand-main {
   font-size: 24px;
   line-height: 1;
@@ -106,6 +113,20 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
+}
+
+.subtle-nav {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+  flex: 0 0 auto;
 }
 
 .hero {
@@ -458,9 +479,12 @@ input[type="file"] {
 <body>
 <main class="app">
   <header class="topbar">
-    <div>
-      <div class="brand-main">Health Import</div>
-      <div class="brand-sub">Apple Health zip → ヘルスケアログ <span id="buildTag"></span></div>
+    <div class="brand-row">
+      <button class="subtle-nav" type="button" aria-label="Cockpitに戻る" onclick="backToCockpit()">‹</button>
+      <div>
+        <div class="brand-main">Health Import</div>
+        <div class="brand-sub">Apple Health zip → ヘルスケアログ <span id="buildTag"></span></div>
+      </div>
     </div>
     <div class="pill" id="netPill">オンライン</div>
   </header>
@@ -635,6 +659,14 @@ const state = {
   recordCount: 0,
   parsedBytes: 0
 };
+
+function backToCockpit() {
+  if (document.referrer && document.referrer.includes(location.host) && window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  window.location.href = 'index.html';
+}
 
 boot();
 
