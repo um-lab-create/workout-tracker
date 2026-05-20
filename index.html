@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cockpit">
@@ -530,6 +531,10 @@ button:disabled {
   padding: 14px 10px;
 }
 
+.hidden {
+  display: none;
+}
+
 .utility {
   margin-top: 14px;
   display: grid;
@@ -693,25 +698,25 @@ button:disabled {
     <div class="hero-head">
       <div class="hero-copy">
         <h1>開いたら、次の一手が出る。</h1>
-        <p>記録、取込、確認を、スマホでそのまま回すための操作面。</p>
+        <p>記録・取込・確認の入口。</p>
       </div>
       <div class="hero-badge">C</div>
     </div>
     <div class="today-strip">
       <div class="today-card">
         <div class="today-label">朝</div>
-        <div class="today-value">食事 or 体組成</div>
-        <div class="today-copy">先に残す</div>
+        <div class="today-value">先に残す</div>
+        <div class="today-copy">食事・体組成</div>
       </div>
       <div class="today-card">
         <div class="today-label">昼</div>
         <div class="today-value">食事</div>
-        <div class="today-copy">空いた時間で記録</div>
+        <div class="today-copy">空き時間で</div>
       </div>
       <div class="today-card">
         <div class="today-label">夜</div>
-        <div class="today-value">筋トレ + 集計</div>
-        <div class="today-copy">締める</div>
+        <div class="today-value">締める</div>
+        <div class="today-copy">筋トレ・集計</div>
       </div>
     </div>
   </section>
@@ -743,7 +748,7 @@ button:disabled {
     </div>
   </section>
 
-  <section class="section recent" id="recent">
+  <section class="section recent" id="recentSection">
     <div class="section-head">
       <div class="section-title"><span class="section-icon">履</span>最近使った</div>
       <div class="section-note">よく戻る入口</div>
@@ -986,12 +991,15 @@ function relativeTimeLabel(ts) {
 }
 
 function renderRecentList() {
+  const section = document.getElementById('recentSection');
   const root = document.getElementById('recentList');
   const recent = loadRecent();
   if (!recent.length) {
-    root.innerHTML = '<div class="recent-empty">ここは自動で育ちます</div>';
+    section.classList.add('hidden');
+    root.innerHTML = '';
     return;
   }
+  section.classList.remove('hidden');
 
   root.innerHTML = recent.map(item => {
     const meta = TRACKED_TARGETS[item.key];
