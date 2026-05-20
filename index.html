@@ -18,15 +18,15 @@
   --muted: #aaa79d;
   --dim: #6f6d67;
   --line: rgba(255,255,255,.09);
-  --panel: rgba(22,23,28,.84);
+  --panel: rgba(22,23,28,.86);
   --panel-strong: rgba(34,35,40,.96);
   --glass: rgba(255,255,255,.05);
   --accent: #c8ff42;
   --accent-soft: rgba(200,255,66,.16);
   --blue: #58d8ff;
-  --blue-soft: rgba(88,216,255,.16);
+  --blue-soft: rgba(88,216,255,.14);
   --orange: #ffb954;
-  --orange-soft: rgba(255,185,84,.16);
+  --orange-soft: rgba(255,185,84,.14);
   --ok: #42e79b;
   --warn: #ffd15a;
   --shadow: 0 24px 76px rgba(0,0,0,.45);
@@ -49,7 +49,7 @@ body {
 
 body {
   min-height: 100vh;
-  padding: calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 24px);
+  padding: calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 112px);
   background:
     radial-gradient(780px 420px at 18% -10%, rgba(200,255,66,.11), transparent 58%),
     radial-gradient(680px 420px at 104% 20%, rgba(88,216,255,.11), transparent 60%),
@@ -71,8 +71,13 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 .app {
-  width: min(100%, 540px);
+  width: min(100%, 560px);
   margin: 0 auto;
 }
 
@@ -90,7 +95,7 @@ button {
 }
 
 .brand-main {
-  font-size: 29px;
+  font-size: 30px;
   line-height: 1;
   font-weight: 950;
   letter-spacing: -.03em;
@@ -98,15 +103,21 @@ button {
 
 .brand-sub {
   color: var(--dim);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 850;
 }
 
-.date-chip {
+.status-stack {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.chip {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
-  padding: 8px 12px;
+  padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255,255,255,.05);
@@ -120,36 +131,36 @@ button {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: 30px;
   padding: 16px;
   background:
     linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
-    rgba(20,21,25,.82);
+    rgba(20,21,25,.84);
   box-shadow: var(--shadow);
 }
 
 .hero::before {
   content: "";
   position: absolute;
-  inset: -72px -68px auto auto;
+  inset: -80px -74px auto auto;
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(200,255,66,.22), transparent 68%);
+  background: radial-gradient(circle, rgba(200,255,66,.24), transparent 68%);
   pointer-events: none;
 }
 
 .hero-head {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .hero-copy h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 27px;
   line-height: 1.02;
   font-weight: 950;
   letter-spacing: -.03em;
@@ -158,12 +169,12 @@ button {
 .hero-copy p {
   margin: 8px 0 0;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.55;
-  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 800;
 }
 
-.pulse {
+.hero-badge {
   width: 58px;
   height: 58px;
   display: grid;
@@ -176,7 +187,7 @@ button {
   box-shadow: 0 18px 40px rgba(200,255,66,.22);
 }
 
-.hero-strip {
+.today-strip {
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -184,25 +195,35 @@ button {
   margin-top: 14px;
 }
 
-.strip-card {
-  min-height: 68px;
+.today-card {
+  min-height: 76px;
   padding: 10px;
   border: 1px solid rgba(255,255,255,.075);
   border-radius: 18px;
   background: rgba(0,0,0,.22);
 }
 
-.strip-label {
+.today-label {
   color: var(--dim);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
-.strip-value {
-  margin-top: 8px;
-  font-size: 15px;
-  line-height: 1.2;
+.today-value {
+  margin-top: 7px;
+  font-size: 16px;
+  line-height: 1.15;
   font-weight: 900;
+}
+
+.today-copy {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 800;
 }
 
 .section {
@@ -240,120 +261,273 @@ button {
   font-weight: 900;
 }
 
-.record .section-icon { background: var(--accent-soft); color: var(--accent); }
-.import .section-icon { background: var(--orange-soft); color: var(--orange); }
-.view .section-icon { background: var(--blue-soft); color: var(--blue); }
-
 .section-note {
   color: var(--dim);
   font-size: 11px;
   font-weight: 800;
 }
 
-.grid {
+.record .section-icon { background: var(--accent-soft); color: var(--accent); }
+.actions .section-icon { background: var(--orange-soft); color: var(--orange); }
+.views .section-icon { background: var(--blue-soft); color: var(--blue); }
+.recent .section-icon { background: rgba(255,255,255,.06); color: var(--ink); }
+
+.hero-actions {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
-.grid.record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid.import-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid.view-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-
-.card {
+.main-card {
   position: relative;
+  overflow: hidden;
   display: grid;
-  align-content: space-between;
-  min-height: 104px;
-  padding: 12px;
-  border: 1px solid rgba(255,255,255,.075);
-  border-radius: 18px;
-  background:
-    linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
-    rgba(18,19,24,.92);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  gap: 12px;
+  min-height: 136px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 22px;
   text-decoration: none;
-  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.02)),
+    rgba(18,19,24,.96);
 }
 
-.card:active {
-  transform: scale(.96);
-}
+.main-card[data-tone="record"] { border-color: rgba(200,255,66,.18); }
+.main-card[data-tone="meal"] { border-color: rgba(88,216,255,.18); }
+.main-card[data-tone="health"] { border-color: rgba(255,185,84,.18); }
 
-.card:hover {
-  border-color: rgba(200,255,66,.22);
-}
-
-.card-top {
+.main-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.card-glyph {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(255,255,255,.06);
-  color: var(--ink);
-  font-size: 16px;
-  font-weight: 900;
-}
-
-.card-kicker {
+.main-kicker {
   color: var(--dim);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 900;
   text-transform: uppercase;
   letter-spacing: .08em;
 }
 
-.card-title {
-  margin-top: 8px;
+.main-glyph {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
   font-size: 17px;
-  line-height: 1.06;
+  font-weight: 950;
+}
+
+.main-title {
+  font-size: 22px;
+  line-height: 1;
   font-weight: 950;
   letter-spacing: -.02em;
 }
 
-.card-copy {
-  margin-top: 5px;
+.main-copy {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
   font-weight: 700;
 }
 
-.card-tail {
+.main-tail {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 10px;
 }
 
-.card-hint {
+.tail-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.tail-arrow {
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quick-btn {
+  min-height: 88px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(255,255,255,.04);
+  text-align: left;
+}
+
+.quick-btn:active,
+.main-card:active,
+.view-card:active,
+.recent-card:active {
+  transform: scale(.97);
+}
+
+.quick-label {
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.quick-title {
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.1;
+  font-weight: 950;
+}
+
+.quick-copy {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.action-rail {
+  display: grid;
+  gap: 8px;
+}
+
+.action-btn {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 84px;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.075);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
+    rgba(18,19,24,.92);
+  text-align: left;
+}
+
+.action-glyph {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(255,255,255,.06);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.action-btn[data-tone="refresh"] .action-glyph,
+.action-btn[data-tone="refresh"] .action-go {
+  color: var(--accent);
+}
+
+.action-btn[data-tone="csv"] .action-glyph,
+.action-btn[data-tone="csv"] .action-go {
+  color: var(--orange);
+}
+
+.action-title {
+  font-size: 17px;
+  line-height: 1.08;
+  font-weight: 950;
+}
+
+.action-copy {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.action-go {
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.view-list,
+.recent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.view-card,
+.recent-card {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 78px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(255,255,255,.04);
+  text-decoration: none;
+}
+
+.view-glyph,
+.recent-glyph {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.view-title,
+.recent-title {
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.view-copy,
+.recent-copy {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+.view-hint,
+.recent-time {
   color: var(--dim);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 850;
 }
 
-.arrow {
-  color: var(--accent);
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.action-card[data-tone="refresh"] .card-glyph,
-.action-card[data-tone="refresh"] .arrow {
-  color: var(--accent);
-}
-
-.action-card[data-tone="csv"] .card-glyph,
-.action-card[data-tone="csv"] .arrow {
-  color: var(--orange);
+.recent-empty {
+  text-align: center;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
+  padding: 14px 10px;
 }
 
 .utility {
@@ -366,7 +540,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -392,7 +566,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 82px;
+  min-width: 84px;
   min-height: 34px;
   padding: 0 12px;
   border-radius: 999px;
@@ -407,11 +581,56 @@ button {
   cursor: pointer;
 }
 
+.dock {
+  position: fixed;
+  left: 14px;
+  right: 14px;
+  bottom: calc(var(--safe-bottom) + 14px);
+  z-index: 40;
+  width: min(calc(100% - 28px), 560px);
+  margin: 0 auto;
+  padding: 10px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(16,17,20,.92);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 60px rgba(0,0,0,.42);
+}
+
+.dock-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dock-btn {
+  min-height: 56px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.04);
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  text-align: center;
+}
+
+.dock-btn strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dock-btn span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
 .toast {
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: calc(var(--safe-bottom) + 18px);
+  bottom: calc(var(--safe-bottom) + 92px);
   z-index: 50;
   transform: translateY(24px);
   opacity: 0;
@@ -437,19 +656,23 @@ button {
 .toast.warn { border-color: rgba(255,209,90,.4); }
 
 @media (max-width: 430px) {
-  .brand-main { font-size: 26px; }
-  .hero-copy h1 { font-size: 23px; }
-  .hero-strip { grid-template-columns: 1fr 1fr 1fr; }
-  .grid.import-grid,
-  .grid.view-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .card { min-height: 98px; padding: 11px; }
-  .card-title { font-size: 15px; }
-  .card-copy { font-size: 10px; }
+  .brand-main { font-size: 27px; }
+  .hero-copy h1 { font-size: 24px; }
+  .today-strip { grid-template-columns: 1fr 1fr 1fr; }
+  .quick-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 360px) {
-  .grid.import-grid,
-  .grid.view-grid { grid-template-columns: 1fr 1fr; }
+  .action-btn,
+  .view-card,
+  .recent-card {
+    grid-template-columns: 40px 1fr auto;
+    gap: 10px;
+  }
+
+  .dock-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 </style>
 </head>
@@ -458,146 +681,138 @@ button {
   <header class="topbar">
     <div class="brand">
       <div class="brand-main">Cockpit</div>
-      <div class="brand-sub">記録・取込・閲覧を 1 画面で</div>
+      <div class="brand-sub">今日の入口</div>
     </div>
-    <div class="date-chip" id="todayChip">--</div>
+    <div class="status-stack">
+      <div class="chip" id="todayChip">--</div>
+      <div class="chip" id="pinChip">PIN 未設定</div>
+    </div>
   </header>
 
-  <section class="hero">
+  <section class="hero" id="home">
     <div class="hero-head">
       <div class="hero-copy">
-        <h1>開いたら、そのまま動ける。</h1>
-        <p>筋トレ、食事、ヘルスケア取込、集計確認までを、iPhone から迷わず回すためのハブです。</p>
+        <h1>開いたら、次の一手が出る。</h1>
+        <p>記録、取込、確認を、スマホでそのまま回すための操作面。</p>
       </div>
-      <div class="pulse">C</div>
+      <div class="hero-badge">C</div>
     </div>
-    <div class="hero-strip">
-      <div class="strip-card">
-        <div class="strip-label">記録</div>
-        <div class="strip-value">その場で 1 タップ起動</div>
+    <div class="today-strip">
+      <div class="today-card">
+        <div class="today-label">朝</div>
+        <div class="today-value">食事 or 体組成</div>
+        <div class="today-copy">先に残す</div>
       </div>
-      <div class="strip-card">
-        <div class="strip-label">取込</div>
-        <div class="strip-value">CSV と集計を直呼び</div>
+      <div class="today-card">
+        <div class="today-label">昼</div>
+        <div class="today-value">食事</div>
+        <div class="today-copy">空いた時間で記録</div>
       </div>
-      <div class="strip-card">
-        <div class="strip-label">見る</div>
-        <div class="strip-value">必要タブへ直行</div>
+      <div class="today-card">
+        <div class="today-label">夜</div>
+        <div class="today-value">筋トレ + 集計</div>
+        <div class="today-copy">締める</div>
       </div>
     </div>
   </section>
 
-  <section class="section record">
+  <section class="section record" id="record">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">記</span>記録</div>
-      <div class="section-note">毎日使う入口</div>
+      <div class="section-title"><span class="section-icon">記</span>すぐ記録</div>
+      <div class="section-note">毎日触る面</div>
     </div>
-    <div class="grid record-grid">
-      <a class="card" href="workout.html">
-        <div>
-          <div class="card-top">
-            <div class="card-glyph">W</div>
-            <div class="card-kicker">Workout</div>
-          </div>
-          <div class="card-title">筋トレ</div>
-          <div class="card-copy">前回値をベースに、その場で素早く記録。</div>
+    <div class="hero-actions">
+      <a class="main-card" href="workout.html" data-tone="record" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch">
+        <div class="main-top">
+          <div class="main-kicker">Workout</div>
+          <div class="main-glyph">W</div>
         </div>
-        <div class="card-tail"><span class="card-hint">cockpit UI</span><span class="arrow">↗</span></div>
+        <div class="main-title">筋トレ</div>
+        <div class="main-copy">前回値ベースで、その場で入力。</div>
+        <div class="main-tail"><span class="tail-chip">記録</span><span class="tail-arrow">↗</span></div>
       </a>
-      <a class="card" href="meal.html">
-        <div>
-          <div class="card-top">
-            <div class="card-glyph">M</div>
-            <div class="card-kicker">Meal</div>
-          </div>
-          <div class="card-title">食事</div>
-          <div class="card-copy">朝昼夜と補食を、崩さず残すための記録画面。</div>
+      <a class="main-card" href="meal.html" data-tone="meal" data-track-key="meal" data-track-label="食事" data-track-kind="launch">
+        <div class="main-top">
+          <div class="main-kicker">Meal</div>
+          <div class="main-glyph">M</div>
         </div>
-        <div class="card-tail"><span class="card-hint">quick log</span><span class="arrow">↗</span></div>
+        <div class="main-title">食事</div>
+        <div class="main-copy">固定・最近から呼び出して、少し足す。</div>
+        <div class="main-tail"><span class="tail-chip">朝昼夜</span><span class="tail-arrow">↗</span></div>
       </a>
     </div>
   </section>
 
-  <section class="section import">
+  <section class="section recent" id="recent">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">取</span>取込</div>
-      <div class="section-note">流れを止めない補助線</div>
+      <div class="section-title"><span class="section-icon">履</span>最近使った</div>
+      <div class="section-note">よく戻る入口</div>
     </div>
-    <div class="grid import-grid">
-      <a class="card" href="health-import.html">
+    <div class="recent-list" id="recentList"></div>
+  </section>
+
+  <section class="section actions" id="actions">
+    <div class="section-head">
+      <div class="section-title"><span class="section-icon">走</span>一括操作</div>
+      <div class="section-note">止めずに回す</div>
+    </div>
+    <div class="action-rail">
+      <a class="action-btn" href="health-import.html" data-tone="csv" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch">
+        <div class="action-glyph">H</div>
         <div>
-          <div class="card-top">
-            <div class="card-glyph">H</div>
-            <div class="card-kicker">Health</div>
-          </div>
-          <div class="card-title">ヘルスケア</div>
-          <div class="card-copy">書き出し zip を Safari 内で解析して送信。</div>
+          <div class="action-title">ヘルスケア取込</div>
+          <div class="action-copy">書き出し zip を開いて送信。</div>
         </div>
-        <div class="card-tail"><span class="card-hint">zip import</span><span class="arrow">↗</span></div>
+        <div class="action-go">↗</div>
       </a>
-      <button class="card action-card" type="button" data-action="import_eufy" data-tone="csv">
+      <button class="action-btn" type="button" data-action="import_eufy" data-tone="csv">
+        <div class="action-glyph">B</div>
         <div>
-          <div class="card-top">
-            <div class="card-glyph">B</div>
-            <div class="card-kicker">Body CSV</div>
-          </div>
-          <div class="card-title">体組成CSV</div>
-          <div class="card-copy">Drive 上の最新 eufy CSV を取込リクエスト。</div>
+          <div class="action-title">体組成CSV</div>
+          <div class="action-copy">eufy の最新 CSV を取込。</div>
         </div>
-        <div class="card-tail"><span class="card-hint">run import</span><span class="arrow">→</span></div>
+        <div class="action-go">→</div>
       </button>
-      <button class="card action-card" type="button" data-action="refresh_all" data-tone="refresh">
+      <button class="action-btn" type="button" data-action="refresh_all" data-tone="refresh">
+        <div class="action-glyph">R</div>
         <div>
-          <div class="card-top">
-            <div class="card-glyph">R</div>
-            <div class="card-kicker">Refresh</div>
-          </div>
-          <div class="card-title">集計更新</div>
-          <div class="card-copy">日次・週次・品質チェックをまとめて再計算。</div>
+          <div class="action-title">集計更新</div>
+          <div class="action-copy">日次・週次・品質を再計算。</div>
         </div>
-        <div class="card-tail"><span class="card-hint">run summary</span><span class="arrow">→</span></div>
+        <div class="action-go">→</div>
       </button>
     </div>
   </section>
 
-  <section class="section view">
+  <section class="section views" id="views">
     <div class="section-head">
       <div class="section-title"><span class="section-icon">見</span>見る</div>
-      <div class="section-note">必要なタブへ直接ジャンプ</div>
+      <div class="section-note">必要タブへ直行</div>
     </div>
-    <div class="grid view-grid">
-      <a class="card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672" target="_blank" rel="noopener noreferrer">
+    <div class="view-list">
+      <a class="view-card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672" target="_blank" rel="noopener noreferrer" data-track-key="dashboard" data-track-label="ダッシュボード" data-track-kind="view">
+        <div class="view-glyph">D</div>
         <div>
-          <div class="card-top">
-            <div class="card-glyph">D</div>
-            <div class="card-kicker">Dashboard</div>
-          </div>
-          <div class="card-title">ダッシュボード</div>
-          <div class="card-copy">まず最初に見る全体状況。</div>
+          <div class="view-title">ダッシュボード</div>
+          <div class="view-copy">全体状況を先に見る。</div>
         </div>
-        <div class="card-tail"><span class="card-hint">sheet</span><span class="arrow">↗</span></div>
+        <div class="view-hint">↗</div>
       </a>
-      <a class="card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=160628814" target="_blank" rel="noopener noreferrer">
+      <a class="view-card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=160628814" target="_blank" rel="noopener noreferrer" data-track-key="weekly" data-track-label="週次サマリー" data-track-kind="view">
+        <div class="view-glyph">W</div>
         <div>
-          <div class="card-top">
-            <div class="card-glyph">W</div>
-            <div class="card-kicker">Weekly</div>
-          </div>
-          <div class="card-title">週次サマリー</div>
-          <div class="card-copy">週単位で振り返るための要約。</div>
+          <div class="view-title">週次サマリー</div>
+          <div class="view-copy">週単位で流れを見る。</div>
         </div>
-        <div class="card-tail"><span class="card-hint">sheet</span><span class="arrow">↗</span></div>
+        <div class="view-hint">↗</div>
       </a>
-      <a class="card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1103871253" target="_blank" rel="noopener noreferrer">
+      <a class="view-card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1103871253" target="_blank" rel="noopener noreferrer" data-track-key="daily" data-track-label="日次集計" data-track-kind="view">
+        <div class="view-glyph">N</div>
         <div>
-          <div class="card-top">
-            <div class="card-glyph">N</div>
-            <div class="card-kicker">Daily</div>
-          </div>
-          <div class="card-title">日次集計</div>
-          <div class="card-copy">日ごとの統合ログを確認。</div>
+          <div class="view-title">日次集計</div>
+          <div class="view-copy">その日の統合ログを見る。</div>
         </div>
-        <div class="card-tail"><span class="card-hint">sheet</span><span class="arrow">↗</span></div>
+        <div class="view-hint">↗</div>
       </a>
     </div>
   </section>
@@ -605,20 +820,30 @@ button {
   <div class="utility">
     <div class="utility-card">
       <div class="utility-copy">
-        <strong>ホーム画面に追加すると、アプリのように開けます。</strong>
-        <span>Safari の共有メニューから「ホーム画面に追加」。以後は Cockpit を入口にすれば OK です。</span>
+        <strong>ホーム画面に追加すると、ここがアプリの入口になります。</strong>
+        <span>Safari の共有メニューから「ホーム画面に追加」。</span>
       </div>
       <div class="mini" id="installState">Safari 推奨</div>
     </div>
     <div class="utility-card">
       <div class="utility-copy">
         <strong>更新系は利用PINで保護しています。</strong>
-        <span>筋トレ・食事・取込・集計更新の送信時に使う PIN を、この端末に保存または更新できます。</span>
+        <span>この端末の PIN を保存または更新できます。</span>
       </div>
       <button class="mini mini-button" id="pinBtn" type="button">PIN設定</button>
     </div>
   </div>
 </main>
+
+<div class="dock">
+  <div class="dock-grid">
+    <button class="dock-btn" type="button" data-scroll="#home"><strong>◎</strong><span>上</span></button>
+    <button class="dock-btn" type="button" data-scroll="#record"><strong>記</strong><span>記録</span></button>
+    <button class="dock-btn" type="button" data-scroll="#recent"><strong>履</strong><span>最近</span></button>
+    <button class="dock-btn" type="button" data-scroll="#actions"><strong>走</strong><span>操作</span></button>
+    <button class="dock-btn" type="button" data-scroll="#views"><strong>見</strong><span>見る</span></button>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -628,6 +853,16 @@ button {
 const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
 const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const AUTH_STORE = 'hs:write-auth:v1';
+const RECENT_STORE = 'cockpit_recent_v2';
+
+const TRACKED_TARGETS = {
+  workout: { label: '筋トレ', href: 'workout.html', glyph: 'W', copy: '前回値からすぐ記録' },
+  meal: { label: '食事', href: 'meal.html', glyph: 'M', copy: '固定・最近からすぐ記録' },
+  'health-import': { label: 'ヘルスケア取込', href: 'health-import.html', glyph: 'H', copy: 'zip を開いて送信' },
+  dashboard: { label: 'ダッシュボード', href: 'https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672', glyph: 'D', copy: '全体状況を見る', external: true },
+  weekly: { label: '週次サマリー', href: 'https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=160628814', glyph: 'W', copy: '週単位で振り返る', external: true },
+  daily: { label: '日次集計', href: 'https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1103871253', glyph: 'N', copy: 'その日の統合ログを見る', external: true }
+};
 
 boot();
 
@@ -635,11 +870,10 @@ function boot() {
   renderToday();
   renderInstallState();
   renderPinState();
-  document.querySelectorAll('[data-action]').forEach(function(button) {
-    button.addEventListener('click', function() {
-      runAction(button.dataset.action);
-    });
-  });
+  renderRecentList();
+  bindTrackedLaunches();
+  bindActions();
+  bindDock();
   document.getElementById('pinBtn').addEventListener('click', updateWritePin);
 }
 
@@ -705,7 +939,9 @@ function buildAuthedPayload(payload) {
 }
 
 function renderPinState() {
-  document.getElementById('pinBtn').textContent = loadWritePin() ? 'PIN更新' : 'PIN設定';
+  const hasPin = Boolean(loadWritePin());
+  document.getElementById('pinBtn').textContent = hasPin ? 'PIN更新' : 'PIN設定';
+  document.getElementById('pinChip').textContent = hasPin ? 'PIN 保存済み' : 'PIN 未設定';
 }
 
 function updateWritePin() {
@@ -718,13 +954,101 @@ function updateWritePin() {
   }
 }
 
-async function runAction(name) {
+function loadRecent() {
+  try {
+    const raw = localStorage.getItem(RECENT_STORE);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(items) {
+  localStorage.setItem(RECENT_STORE, JSON.stringify(items.slice(0, 4)));
+}
+
+function rememberTarget(key) {
+  const meta = TRACKED_TARGETS[key];
+  if (!meta) return;
+  const next = loadRecent().filter(item => item.key !== key);
+  next.unshift({ key, at: Date.now() });
+  saveRecent(next);
+}
+
+function relativeTimeLabel(ts) {
+  if (!ts) return '';
+  const diffMin = Math.max(1, Math.round((Date.now() - ts) / 60000));
+  if (diffMin < 60) return `${diffMin}分前`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}時間前`;
+  const diffDay = Math.round(diffHour / 24);
+  return `${diffDay}日前`;
+}
+
+function renderRecentList() {
+  const root = document.getElementById('recentList');
+  const recent = loadRecent();
+  if (!recent.length) {
+    root.innerHTML = '<div class="recent-empty">ここは自動で育ちます</div>';
+    return;
+  }
+
+  root.innerHTML = recent.map(item => {
+    const meta = TRACKED_TARGETS[item.key];
+    if (!meta) return '';
+    const attrs = meta.external
+      ? `href="${meta.href}" target="_blank" rel="noopener noreferrer"`
+      : `href="${meta.href}"`;
+    return `
+      <a class="recent-card" ${attrs} data-track-key="${item.key}" data-track-label="${meta.label}" data-track-kind="${meta.external ? 'view' : 'launch'}">
+        <div class="recent-glyph">${meta.glyph}</div>
+        <div>
+          <div class="recent-title">${meta.label}</div>
+          <div class="recent-copy">${meta.copy}</div>
+        </div>
+        <div class="recent-time">${relativeTimeLabel(item.at)}</div>
+      </a>
+    `;
+  }).join('');
+
+  bindTrackedLaunches(root);
+}
+
+function bindTrackedLaunches(scope) {
+  (scope || document).querySelectorAll('[data-track-key]').forEach(function(node) {
+    node.addEventListener('click', function() {
+      rememberTarget(node.dataset.trackKey);
+    }, { once: true });
+  });
+}
+
+function bindActions() {
+  document.querySelectorAll('[data-action]').forEach(function(button) {
+    button.addEventListener('click', function() {
+      runAction(button.dataset.action, button);
+    });
+  });
+}
+
+function bindDock() {
+  document.querySelectorAll('[data-scroll]').forEach(function(button) {
+    button.addEventListener('click', function() {
+      const target = document.querySelector(button.dataset.scroll);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
+async function runAction(name, button) {
   const labels = {
     refresh_all: '集計更新',
     import_eufy: '体組成 CSV 取込',
     import_health: 'ヘルスケア CSV 取込'
   };
   const label = labels[name] || name;
+  const originalDisabled = button ? button.disabled : false;
+  if (button) button.disabled = true;
 
   try {
     showToast(`${label} のリクエストを送信中...`, 'warn');
@@ -734,14 +1058,16 @@ async function runAction(name) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildAuthedPayload({ sheet: 'action_run', name: name }))
     });
-    showToast(`${label} の実行リクエストを送信しました。結果はスプレッドシートで確認してください。`, 'ok');
+    showToast(`${label} の実行リクエストを送信しました。`, 'ok');
   } catch (error) {
     console.error(error);
     if (error && error.code === 'AUTH_REQUIRED') {
       showToast('PIN を設定してから実行してください。', 'warn');
     } else {
-      showToast(`${label} を送信できませんでした。通信状況を確認してください。`, 'warn');
+      showToast(`${label} を送信できませんでした。`, 'warn');
     }
+  } finally {
+    if (button) button.disabled = originalDisabled;
   }
 }
 
