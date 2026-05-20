@@ -463,6 +463,55 @@
       font-weight: 800;
     }
 
+    .smart-panel {
+      display: grid;
+      gap: 8px;
+    }
+
+    .smart-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+
+    .smart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .smart-card {
+      min-height: 78px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: linear-gradient(145deg, rgba(88,216,255,.12), rgba(255,255,255,.04));
+      padding: 12px;
+      text-align: left;
+    }
+
+    .smart-label {
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .smart-name {
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 1.3;
+      font-weight: 900;
+    }
+
+    .smart-copy {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+
     .form-grid {
       display: grid;
       gap: 10px;
@@ -689,6 +738,52 @@
       font-size: 10px;
       line-height: 1.35;
       font-weight: 800;
+    }
+
+    .macro-balance {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .macro-row {
+      display: grid;
+      grid-template-columns: 34px 1fr 40px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .macro-key {
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+
+    .macro-track {
+      position: relative;
+      overflow: hidden;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+    }
+
+    .macro-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0;
+      border-radius: 999px;
+      transition: width .18s ease;
+    }
+
+    .macro-fill.p { background: linear-gradient(90deg, #58d8ff, #7bf0ff); }
+    .macro-fill.f { background: linear-gradient(90deg, #ffd15a, #ffe78a); }
+    .macro-fill.c { background: linear-gradient(90deg, #42e79b, #87f3b9); }
+
+    .macro-num {
+      text-align: right;
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--ink);
     }
 
     .toolbar {
@@ -983,6 +1078,7 @@
       .brand-main { font-size: 26px; }
       .hero-copy h1 { font-size: 21px; }
       .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .smart-grid { grid-template-columns: 1fr; }
       .preset-grid { grid-template-columns: 1fr; }
       .action-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .search-row,
@@ -1053,6 +1149,18 @@
 
     <section class="panel">
       <div class="section-head">
+        <div class="section-title">次に足す</div>
+      </div>
+      <div class="panel-body">
+        <div class="smart-panel">
+          <div class="smart-title">今の内容から候補を出します</div>
+          <div class="smart-grid" id="smartGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
         <div class="section-title">現在の食事</div>
         <div class="header-tools">
           <button class="mini-btn" type="button" onclick="openBuilder()">追加</button>
@@ -1067,6 +1175,23 @@
           <div class="summary-card"><div class="summary-value" id="sumP">0</div><div class="summary-label">タンパク質g</div></div>
           <div class="summary-card"><div class="summary-value" id="sumF">0</div><div class="summary-label">脂質g</div></div>
           <div class="summary-card"><div class="summary-value" id="sumC">0</div><div class="summary-label">炭水化物g</div></div>
+        </div>
+        <div class="macro-balance">
+          <div class="macro-row">
+            <div class="macro-key">P</div>
+            <div class="macro-track"><div class="macro-fill p" id="macroFillP"></div></div>
+            <div class="macro-num" id="macroPctP">0%</div>
+          </div>
+          <div class="macro-row">
+            <div class="macro-key">F</div>
+            <div class="macro-track"><div class="macro-fill f" id="macroFillF"></div></div>
+            <div class="macro-num" id="macroPctF">0%</div>
+          </div>
+          <div class="macro-row">
+            <div class="macro-key">C</div>
+            <div class="macro-track"><div class="macro-fill c" id="macroFillC"></div></div>
+            <div class="macro-num" id="macroPctC">0%</div>
+          </div>
         </div>
 
         <div class="toolbar">
@@ -1602,6 +1727,33 @@
       return items.map(item => `${item.name} ${formatQty(item.qty)}${item.unit}`).join('、');
     }
 
+    function hasFood(foodId) {
+      return currentMeal.some(item => item.foodId === foodId);
+    }
+
+    function suggestionTemplates() {
+      return {
+        morning: [
+          { id: 'soy-protein', tag: 'P', copy: '朝のたんぱく質を足す', when: totals => totals.p < 25 && !hasFood('soy-protein') && !hasFood('whey-protein') },
+          { id: 'whey-protein', tag: 'P', copy: '今日はホエイで速く足す', when: totals => totals.p < 25 && !hasFood('whey-protein') },
+          { id: 'banana', tag: 'C', copy: '炭水化物を少し足す', when: totals => totals.c < 30 && !hasFood('banana') },
+          { id: 'oikos', tag: '軽', copy: '軽く増やしたいとき', when: totals => totals.kcal < 250 && !hasFood('oikos') }
+        ],
+        lunch: [
+          { id: 'chicken-breast', tag: 'P', copy: '昼のたんぱく質を強化', when: totals => totals.p < 30 && !hasFood('chicken-breast') && !hasFood('salad-chicken') },
+          { id: 'rice', tag: 'C', copy: '主食を足して整える', when: totals => totals.c < 45 && !hasFood('rice') },
+          { id: 'broccoli', tag: '野', copy: '副菜を 1 品足す', when: () => !hasFood('broccoli') },
+          { id: 'egg', tag: '追', copy: '手軽に 1 品追加', when: totals => totals.kcal < 400 && !hasFood('egg') }
+        ],
+        dinner: [
+          { id: 'salmon', tag: 'P', copy: '夜の主菜を足す', when: totals => totals.p < 30 && !hasFood('salmon') && !hasFood('mackerel') && !hasFood('tofu') },
+          { id: 'rice', tag: 'C', copy: '少し主食を足す', when: totals => totals.c < 35 && !hasFood('rice') && !hasFood('sweet-potato') },
+          { id: 'kimchi', tag: '副', copy: '副菜を追加', when: () => !hasFood('kimchi') },
+          { id: 'tofu', tag: '軽', copy: '軽めにたんぱく質を足す', when: totals => totals.kcal < 450 && !hasFood('tofu') }
+        ]
+      };
+    }
+
     function formatQty(value) {
       const num = Number(value) || 0;
       return Number.isInteger(num) ? String(num) : String(Math.round(num * 10) / 10);
@@ -1696,6 +1848,39 @@
       }).join('');
     }
 
+    function renderSmartGrid() {
+      const root = document.getElementById('smartGrid');
+      const totals = mealTotals();
+      const templates = suggestionTemplates()[currentTiming] || [];
+      const suggestions = templates
+        .filter(entry => entry.when(totals))
+        .slice(0, 4)
+        .map(entry => ({ ...entry, food: getFoodById(entry.id) }))
+        .filter(entry => entry.food);
+
+      if (!suggestions.length) {
+        root.innerHTML = `
+          <button type="button" class="smart-card" onclick="openBuilder()">
+            <div class="smart-label">OK</div>
+            <div class="smart-name">このままでも良さそう</div>
+            <div class="smart-copy">必要なら検索で追加</div>
+          </button>
+        `;
+        return;
+      }
+
+      root.innerHTML = suggestions.map(entry => {
+        const unit = getDefaultUnit(entry.food);
+        return `
+          <button type="button" class="smart-card" onclick="quickAddFood('${entry.food.id}')">
+            <div class="smart-label">${entry.tag}</div>
+            <div class="smart-name">${entry.food.name}</div>
+            <div class="smart-copy">${entry.copy} / ${formatQty(unit.defaultQty || 1)}${unit.label}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
     function renderFoodSelector() {
       const foods = getAllFoods()
         .filter(food => food.category === '共通' || food.category === TIMINGS[currentTiming].label)
@@ -1746,6 +1931,7 @@
         root.innerHTML = '';
         empty.style.display = 'block';
         renderSummary();
+        renderSmartGrid();
         return;
       }
       empty.style.display = 'none';
@@ -1767,10 +1953,15 @@
         </div>
       `).join('');
       renderSummary();
+      renderSmartGrid();
     }
 
     function renderSummary() {
       const totals = mealTotals();
+      const macroSum = totals.p + totals.f + totals.c;
+      const pctP = macroSum ? Math.round((totals.p / macroSum) * 100) : 0;
+      const pctF = macroSum ? Math.round((totals.f / macroSum) * 100) : 0;
+      const pctC = macroSum ? Math.round((totals.c / macroSum) * 100) : 0;
       document.getElementById('sumKcal').textContent = Math.round(totals.kcal);
       document.getElementById('sumP').textContent = Math.round(totals.p);
       document.getElementById('sumF').textContent = Math.round(totals.f);
@@ -1780,6 +1971,12 @@
       document.getElementById('dockF').textContent = Math.round(totals.f);
       document.getElementById('dockC').textContent = Math.round(totals.c);
       document.getElementById('dockCount').textContent = currentMeal.length;
+      document.getElementById('macroFillP').style.width = `${pctP}%`;
+      document.getElementById('macroFillF').style.width = `${pctF}%`;
+      document.getElementById('macroFillC').style.width = `${pctC}%`;
+      document.getElementById('macroPctP').textContent = `${pctP}%`;
+      document.getElementById('macroPctF').textContent = `${pctF}%`;
+      document.getElementById('macroPctC').textContent = `${pctC}%`;
     }
 
     function renderHistory() {
