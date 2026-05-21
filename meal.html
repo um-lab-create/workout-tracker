@@ -1357,6 +1357,24 @@
           <div class="field-label"><span>名前</span></div>
           <input class="text-input" id="presetEditorName" placeholder="固定項目名">
         </div>
+
+        <div class="field-group">
+          <div class="field-label"><span>食材を追加</span></div>
+          <div class="search-row">
+            <input class="text-input" id="presetEditorFoodSearch" list="presetEditorFoodSuggestions" placeholder="食材名">
+            <select class="select-input" id="presetEditorFoodSelect"></select>
+          </div>
+          <div class="qty-row">
+            <div class="stepper">
+              <button class="step-btn" type="button" onclick="stepPresetEditorAddQty(-1)">−</button>
+              <input class="qty-input" id="presetEditorQtyInput" type="number" inputmode="decimal" min="0" step="0.5" value="1">
+              <button class="step-btn" type="button" onclick="stepPresetEditorAddQty(1)">＋</button>
+            </div>
+            <select class="select-input" id="presetEditorUnitSelect"></select>
+            <button class="accent-btn" type="button" onclick="addFoodToPresetEditor()">追加</button>
+          </div>
+          <div class="helper-text" id="presetEditorUnitHint">標準量</div>
+        </div>
       </div>
 
       <div class="editor-list" id="presetEditorItems"></div>
@@ -1419,6 +1437,7 @@
   </div>
 
   <datalist id="foodSuggestions"></datalist>
+  <datalist id="presetEditorFoodSuggestions"></datalist>
   <div class="toast" id="toast"></div>
 
   <script>
@@ -1760,6 +1779,24 @@
         null;
     }
 
+    function getFoodsForTiming(timingKey) {
+      return getAllFoods()
+        .filter(food => food.category === '共通' || food.category === TIMINGS[timingKey].label)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    }
+
+    function resolveFoodFromControls(selectId, searchValue, foods) {
+      if (selectId) {
+        const selected = foods.find(food => food.id === selectId);
+        if (selected) return selected;
+      }
+      const typed = String(searchValue || '').trim();
+      if (!typed) return null;
+      return foods.find(food => food.name === typed) ||
+        foods.find(food => food.name.includes(typed) || typed.includes(food.name)) ||
+        null;
+    }
+
     function calcFoodPortion(food, qty, unitLabel) {
       const safeQty = Number(qty) || 0;
       if (!food || safeQty <= 0) {
@@ -1996,9 +2033,7 @@
     }
 
     function renderFoodSelector() {
-      const foods = getAllFoods()
-        .filter(food => food.category === '共通' || food.category === TIMINGS[currentTiming].label)
-        .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      const foods = getFoodsForTiming(currentTiming);
 
       const select = document.getElementById('foodSelect');
       const suggestions = document.getElementById('foodSuggestions');
@@ -2027,6 +2062,20 @@
       updateUnitHint();
     }
 
+    function syncPresetEditorUnitOptions(food) {
+      const select = document.getElementById('presetEditorUnitSelect');
+      const qtyInput = document.getElementById('presetEditorQtyInput');
+      const units = getUnitsForFood(food);
+      select.innerHTML = units.map(unit => `<option value="${unit.label}">${unit.label}</option>`).join('');
+      if (units[0]) {
+        select.value = units[0].label;
+        qtyInput.value = units[0].defaultQty || 1;
+        qtyInput.step = units[0].step || 1;
+        select.dataset.prevUnit = units[0].label;
+      }
+      updatePresetEditorUnitHint();
+    }
+
     function updateUnitHint() {
       const food = resolveFoodSelection();
       if (!food) return;
@@ -2037,6 +2086,26 @@
         ? `${formatQty(qty)}${unitLabel}で ${Math.round(portion.kcal)}kcal`
         : `${formatQty(qty)}${unitLabel} = 約${Math.round(portion.grams)}g / ${Math.round(portion.kcal)}kcal`;
       document.getElementById('unitHint').textContent = hint;
+    }
+
+    function updatePresetEditorUnitHint() {
+      const foods = getFoodsForTiming(currentTiming);
+      const food = resolveFoodFromControls(
+        document.getElementById('presetEditorFoodSelect').value,
+        document.getElementById('presetEditorFoodSearch').value,
+        foods
+      );
+      if (!food) {
+        document.getElementById('presetEditorUnitHint').textContent = '食材を選択';
+        return;
+      }
+      const unitLabel = document.getElementById('presetEditorUnitSelect').value;
+      const qty = Number(document.getElementById('presetEditorQtyInput').value) || 0;
+      const portion = calcFoodPortion(food, qty, unitLabel);
+      const hint = portion.grams == null
+        ? `${formatQty(qty)}${unitLabel}で ${Math.round(portion.kcal)}kcal`
+        : `${formatQty(qty)}${unitLabel} = 約${Math.round(portion.grams)}g / ${Math.round(portion.kcal)}kcal`;
+      document.getElementById('presetEditorUnitHint').textContent = hint;
     }
 
     function renderCurrentMeal() {
@@ -2450,8 +2519,60 @@
 
     function openPresetEditor(presetId) {
       editingPresetId = presetId;
+      renderPresetEditorFoodSelector();
       renderPresetEditor();
       openModal('presetEditorModal');
+    }
+
+    function renderPresetEditorFoodSelector() {
+      const foods = getFoodsForTiming(currentTiming);
+      const select = document.getElementById('presetEditorFoodSelect');
+      const suggestions = document.getElementById('presetEditorFoodSuggestions');
+      select.innerHTML = foods.map(food => `<option value="${food.id}">${food.name}</option>`).join('');
+      suggestions.innerHTML = foods.map(food => `<option value="${food.name}"></option>`).join('');
+      if (!foods.length) {
+        document.getElementById('presetEditorFoodSearch').value = '';
+        document.getElementById('presetEditorUnitSelect').innerHTML = '';
+        document.getElementById('presetEditorUnitHint').textContent = '食材なし';
+        return;
+      }
+      const current = foods[0];
+      select.value = current.id;
+      document.getElementById('presetEditorFoodSearch').value = current.name;
+      syncPresetEditorUnitOptions(current);
+    }
+
+    function stepPresetEditorAddQty(direction) {
+      const input = document.getElementById('presetEditorQtyInput');
+      const step = Number(input.step) || 1;
+      const current = Number(input.value) || 0;
+      const next = Math.max(current + direction * step, step);
+      input.value = Number((Math.round(next * 10) / 10).toFixed(1));
+      updatePresetEditorUnitHint();
+    }
+
+    function addFoodToPresetEditor() {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      const foods = getFoodsForTiming(currentTiming);
+      const food = resolveFoodFromControls(
+        document.getElementById('presetEditorFoodSelect').value,
+        document.getElementById('presetEditorFoodSearch').value,
+        foods
+      );
+      if (!food) {
+        showToast('食材を選んでください', 'warn');
+        return;
+      }
+      const qty = Number(document.getElementById('presetEditorQtyInput').value);
+      if (!qty || qty <= 0) {
+        showToast('数量を入力してください', 'warn');
+        return;
+      }
+      const unit = document.getElementById('presetEditorUnitSelect').value;
+      preset.items.push({ foodId: food.id, qty, unit });
+      renderPresetEditor();
+      showToast(`${food.name} を固定項目に追加しました`);
     }
 
     function removePresetEditorItem(index) {
@@ -2751,6 +2872,45 @@
         select.dataset.prevUnit = nextLabel;
         updateUnitHint();
       });
+
+      document.getElementById('presetEditorFoodSelect').addEventListener('change', () => {
+        const foods = getFoodsForTiming(currentTiming);
+        const food = foods.find(entry => entry.id === document.getElementById('presetEditorFoodSelect').value);
+        if (!food) return;
+        document.getElementById('presetEditorFoodSearch').value = food.name;
+        syncPresetEditorUnitOptions(food);
+      });
+
+      document.getElementById('presetEditorFoodSearch').addEventListener('change', () => {
+        const foods = getFoodsForTiming(currentTiming);
+        const food = resolveFoodFromControls('', document.getElementById('presetEditorFoodSearch').value, foods);
+        if (!food) return;
+        document.getElementById('presetEditorFoodSelect').value = food.id;
+        syncPresetEditorUnitOptions(food);
+      });
+
+      document.getElementById('presetEditorUnitSelect').addEventListener('change', () => {
+        const foods = getFoodsForTiming(currentTiming);
+        const food = resolveFoodFromControls(
+          document.getElementById('presetEditorFoodSelect').value,
+          document.getElementById('presetEditorFoodSearch').value,
+          foods
+        );
+        if (!food) return;
+        const select = document.getElementById('presetEditorUnitSelect');
+        const nextLabel = select.value;
+        const prevLabel = select.dataset.prevUnit || nextLabel;
+        const unit = getUnitsForFood(food).find(entry => entry.label === nextLabel);
+        if (unit) {
+          const input = document.getElementById('presetEditorQtyInput');
+          input.value = convertQtyBetweenUnits(food, input.value, prevLabel, nextLabel);
+          input.step = unit.step || 1;
+        }
+        select.dataset.prevUnit = nextLabel;
+        updatePresetEditorUnitHint();
+      });
+
+      document.getElementById('presetEditorQtyInput').addEventListener('input', updatePresetEditorUnitHint);
 
       document.getElementById('qtyInput').addEventListener('input', updateUnitHint);
       document.getElementById('mealNote').addEventListener('input', persistCurrentTimingDraft);
