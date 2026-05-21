@@ -620,6 +620,15 @@ button:disabled {
   text-align: center;
 }
 
+.dock-link {
+  text-decoration: none;
+}
+
+.dock-btn.is-active {
+  border-color: rgba(200,255,66,.28);
+  background: rgba(200,255,66,.12);
+}
+
 .dock-btn strong {
   font-size: 18px;
   line-height: 1;
@@ -842,11 +851,11 @@ button:disabled {
 
 <div class="dock">
   <div class="dock-grid">
-    <button class="dock-btn" type="button" data-scroll="#home"><strong>◎</strong><span>上</span></button>
-    <button class="dock-btn" type="button" data-scroll="#record"><strong>記</strong><span>記録</span></button>
-    <button class="dock-btn" type="button" data-scroll="#recent"><strong>履</strong><span>最近</span></button>
-    <button class="dock-btn" type="button" data-scroll="#actions"><strong>走</strong><span>操作</span></button>
-    <button class="dock-btn" type="button" data-scroll="#views"><strong>見</strong><span>見る</span></button>
+    <a class="dock-link" href="index.html"><div class="dock-btn is-active"><strong>◎</strong><span>ホーム</span></div></a>
+    <a class="dock-link" href="workout.html" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch"><div class="dock-btn"><strong>筋</strong><span>筋トレ</span></div></a>
+    <a class="dock-link" href="meal.html" data-track-key="meal" data-track-label="食事" data-track-kind="launch"><div class="dock-btn"><strong>食</strong><span>食事</span></div></a>
+    <a class="dock-link" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch"><div class="dock-btn"><strong>取</strong><span>取込</span></div></a>
+    <a class="dock-link" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672" target="_blank" rel="noopener noreferrer" data-track-key="dashboard" data-track-label="ダッシュボード" data-track-kind="view"><div class="dock-btn"><strong>見</strong><span>見る</span></div></a>
   </div>
 </div>
 
@@ -878,7 +887,6 @@ function boot() {
   renderRecentList();
   bindTrackedLaunches();
   bindActions();
-  bindDock();
   document.getElementById('pinBtn').addEventListener('click', updateWritePin);
 }
 
@@ -1034,16 +1042,6 @@ function bindActions() {
   document.querySelectorAll('[data-action]').forEach(function(button) {
     button.addEventListener('click', function() {
       runAction(button.dataset.action, button);
-    });
-  });
-}
-
-function bindDock() {
-  document.querySelectorAll('[data-scroll]').forEach(function(button) {
-    button.addEventListener('click', function() {
-      const target = document.querySelector(button.dataset.scroll);
-      if (!target) return;
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 }
