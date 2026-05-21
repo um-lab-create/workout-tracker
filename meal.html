@@ -1059,6 +1059,41 @@
       background: rgba(255,109,138,.07);
     }
 
+    .editor-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .editor-row {
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.07);
+      background: rgba(255,255,255,.04);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .editor-row-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .editor-food {
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    .editor-meta {
+      margin-top: 4px;
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
     .note-area {
       min-height: 92px;
       resize: vertical;
@@ -1154,6 +1189,7 @@
     <section class="panel">
       <div class="section-head">
         <div class="section-title">固定・最近</div>
+        <button class="mini-btn" type="button" onclick="openPresetManager()">編集</button>
       </div>
       <div class="panel-body" id="quickStartBody">
         <div class="preset-grid" id="presetGrid"></div>
@@ -1303,6 +1339,32 @@
         <button class="close-btn" type="button" onclick="closeModal('presetModal')">×</button>
       </div>
       <div class="manage-list" id="presetManageList"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="presetEditorModal">
+    <div class="sheet">
+      <div class="sheet-head">
+        <div>
+          <div class="sheet-title">固定項目を調整</div>
+          <div class="sheet-copy">量と単位をその場で直せます。</div>
+        </div>
+        <button class="close-btn" type="button" onclick="closeModal('presetEditorModal')">×</button>
+      </div>
+
+      <div class="form-grid">
+        <div class="field-group">
+          <div class="field-label"><span>名前</span></div>
+          <input class="text-input" id="presetEditorName" placeholder="固定項目名">
+        </div>
+      </div>
+
+      <div class="editor-list" id="presetEditorItems"></div>
+
+      <div class="action-row" style="margin-top:14px">
+        <button class="ghost-btn" type="button" onclick="closeModal('presetEditorModal')">戻る</button>
+        <button class="accent-btn" type="button" onclick="savePresetEditor()">保存</button>
+      </div>
     </div>
   </div>
 
@@ -1506,6 +1568,7 @@
     let customFoods = loadCustomFoods();
     let drafts = loadDrafts();
     let editingCustomFoodId = null;
+    let editingPresetId = null;
     let isSaving = false;
 
     function clone(obj) {
@@ -1663,6 +1726,25 @@
 
     function getDefaultUnit(food) {
       return getUnitsForFood(food)[0];
+    }
+
+    function roundQtyForUnit(rawQty, unit) {
+      const step = Math.max(Number(unit && unit.step) || 1, 0.1);
+      const qty = Math.max(Number(rawQty) || 0, step);
+      const snapped = Math.round(qty / step) * step;
+      return Number(snapped.toFixed(step < 1 ? 2 : 1));
+    }
+
+    function convertQtyBetweenUnits(food, qty, fromLabel, toLabel) {
+      if (!food || fromLabel === toLabel) return Number(qty) || 0;
+      if (food.mode === 'perUnit') return Number(qty) || 0;
+      const units = getUnitsForFood(food);
+      const fromUnit = units.find(entry => entry.label === fromLabel) || getDefaultUnit(food);
+      const toUnit = units.find(entry => entry.label === toLabel) || getDefaultUnit(food);
+      if (!fromUnit || !toUnit) return Number(qty) || 0;
+      const grams = (Number(qty) || 0) * (fromUnit.grams || 0);
+      if (!grams || !toUnit.grams) return Number(qty) || 0;
+      return roundQtyForUnit(grams / toUnit.grams, toUnit);
     }
 
     function resolveFoodSelection() {
@@ -1940,6 +2022,7 @@
         select.value = units[0].label;
         document.getElementById('qtyInput').value = units[0].defaultQty || 1;
         document.getElementById('qtyInput').step = units[0].step || 1;
+        select.dataset.prevUnit = units[0].label;
       }
       updateUnitHint();
     }
@@ -1980,6 +2063,7 @@
           <div class="item-actions">
             <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', -1)">−</button>
             <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', 1)">＋</button>
+            <button type="button" class="tiny-btn" onclick="promptItemQty('${item.id}')">数量</button>
             <button type="button" class="tiny-btn" onclick="editItemUnit('${item.id}')">単位変更</button>
           </div>
         </div>
@@ -2065,6 +2149,7 @@
           </div>
           <div class="manage-actions">
             <button type="button" class="manage-btn" onclick="applyPreset('${preset.id}', true)">読み込む</button>
+            <button type="button" class="manage-btn" onclick="openPresetEditor('${preset.id}')">中身を編集</button>
             <button type="button" class="manage-btn" onclick="renamePreset('${preset.id}')">名前変更</button>
             <button type="button" class="manage-btn" onclick="overwritePreset('${preset.id}')">今の内容で上書き</button>
             ${preset.default ? '' : `<button type="button" class="manage-btn bad" onclick="deletePreset('${preset.id}')">削除</button>`}
@@ -2200,7 +2285,24 @@
       const food = getFoodById(item.foodId);
       const unit = getUnitsForFood(food).find(entry => entry.label === item.unit) || { step: 1 };
       const next = Math.max((Number(item.qty) || 0) + delta * (unit.step || 1), unit.step || .5);
-      item.qty = Number((Math.round(next * 10) / 10).toFixed(1));
+      item.qty = roundQtyForUnit(next, unit);
+      recalcCurrentMeal();
+      renderCurrentMeal();
+    }
+
+    function promptItemQty(itemId) {
+      const item = currentMeal.find(entry => entry.id === itemId);
+      if (!item) return;
+      const food = getFoodById(item.foodId);
+      const unit = getUnitsForFood(food).find(entry => entry.label === item.unit) || { step: 1 };
+      const next = window.prompt(`数量を入力してください (${item.unit})`, formatQty(item.qty));
+      if (!next) return;
+      const parsed = Number(next);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        showToast('数量を正しく入力してください', 'warn');
+        return;
+      }
+      item.qty = roundQtyForUnit(parsed, unit);
       recalcCurrentMeal();
       renderCurrentMeal();
     }
@@ -2218,6 +2320,7 @@
         showToast('その単位は使えません', 'warn');
         return;
       }
+      item.qty = convertQtyBetweenUnits(food, item.qty, item.unit, normalized);
       item.unit = normalized;
       recalcCurrentMeal();
       renderCurrentMeal();
@@ -2308,6 +2411,110 @@
     function openPresetManager() {
       renderPresetManager();
       openModal('presetModal');
+    }
+
+    function renderPresetEditor() {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      document.getElementById('presetEditorName').value = preset.name;
+      const root = document.getElementById('presetEditorItems');
+      root.innerHTML = preset.items.map((item, index) => {
+        const food = getFoodById(item.foodId);
+        if (!food) return '';
+        const units = getUnitsForFood(food);
+        const currentUnit = units.find(unit => unit.label === item.unit) || units[0];
+        return `
+          <div class="editor-row">
+            <div class="editor-row-head">
+              <div>
+                <div class="editor-food">${food.name}</div>
+                <div class="editor-meta">${food.category} / ${food.mode === 'perUnit' ? `1${food.unitLabel}` : '量を保持して変換'}</div>
+              </div>
+              <button type="button" class="manage-btn bad" onclick="removePresetEditorItem(${index})">外す</button>
+            </div>
+            <div class="qty-row">
+              <div class="stepper">
+                <button class="step-btn" type="button" onclick="stepPresetEditorQty(${index}, -1)">−</button>
+                <input class="qty-input" type="number" inputmode="decimal" min="0" step="${currentUnit && currentUnit.step || 1}" value="${formatQty(item.qty)}" onchange="setPresetEditorQty(${index}, this.value)">
+                <button class="step-btn" type="button" onclick="stepPresetEditorQty(${index}, 1)">＋</button>
+              </div>
+              <select class="select-input" onchange="changePresetEditorUnit(${index}, this.value)">
+                ${units.map(unit => `<option value="${unit.label}" ${unit.label === item.unit ? 'selected' : ''}>${unit.label}</option>`).join('')}
+              </select>
+              <div class="mini-btn" style="display:grid;place-items:center">${formatQty(item.qty)}${item.unit}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openPresetEditor(presetId) {
+      editingPresetId = presetId;
+      renderPresetEditor();
+      openModal('presetEditorModal');
+    }
+
+    function removePresetEditorItem(index) {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      preset.items.splice(index, 1);
+      renderPresetEditor();
+    }
+
+    function setPresetEditorQty(index, value) {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      const item = preset.items[index];
+      const food = getFoodById(item.foodId);
+      const unit = getUnitsForFood(food).find(entry => entry.label === item.unit) || { step: 1 };
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        showToast('数量を正しく入力してください', 'warn');
+        renderPresetEditor();
+        return;
+      }
+      item.qty = roundQtyForUnit(parsed, unit);
+      renderPresetEditor();
+    }
+
+    function stepPresetEditorQty(index, delta) {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      const item = preset.items[index];
+      const food = getFoodById(item.foodId);
+      const unit = getUnitsForFood(food).find(entry => entry.label === item.unit) || { step: 1 };
+      item.qty = roundQtyForUnit((Number(item.qty) || 0) + delta * (unit.step || 1), unit);
+      renderPresetEditor();
+    }
+
+    function changePresetEditorUnit(index, nextUnit) {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      const item = preset.items[index];
+      const food = getFoodById(item.foodId);
+      item.qty = convertQtyBetweenUnits(food, item.qty, item.unit, nextUnit);
+      item.unit = nextUnit;
+      renderPresetEditor();
+    }
+
+    function savePresetEditor() {
+      const preset = getTimingPresets().find(item => item.id === editingPresetId);
+      if (!preset) return;
+      const nextName = document.getElementById('presetEditorName').value.trim();
+      if (!nextName) {
+        showToast('名前を入力してください', 'warn');
+        return;
+      }
+      if (!preset.items.length) {
+        showToast('1品以上残してください', 'warn');
+        return;
+      }
+      preset.name = nextName;
+      savePresets();
+      renderPresetGrid();
+      renderPresetManager();
+      closeModal('presetEditorModal');
+      showToast('固定項目を更新しました');
     }
 
     function openCustomFoodManager() {
@@ -2532,10 +2739,16 @@
       document.getElementById('unitSelect').addEventListener('change', () => {
         const food = resolveFoodSelection();
         if (!food) return;
-        const unit = getUnitsForFood(food).find(entry => entry.label === document.getElementById('unitSelect').value);
+        const select = document.getElementById('unitSelect');
+        const nextLabel = select.value;
+        const prevLabel = select.dataset.prevUnit || nextLabel;
+        const unit = getUnitsForFood(food).find(entry => entry.label === nextLabel);
         if (unit) {
+          const input = document.getElementById('qtyInput');
+          input.value = convertQtyBetweenUnits(food, input.value, prevLabel, nextLabel);
           document.getElementById('qtyInput').step = unit.step || 1;
         }
+        select.dataset.prevUnit = nextLabel;
         updateUnitHint();
       });
 
