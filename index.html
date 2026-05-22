@@ -272,6 +272,7 @@ button:disabled {
 .actions .section-icon { background: var(--orange-soft); color: var(--orange); }
 .views .section-icon { background: var(--blue-soft); color: var(--blue); }
 .recent .section-icon { background: rgba(255,255,255,.06); color: var(--ink); }
+.meal-base .section-icon { background: rgba(88,216,255,.12); color: var(--blue); }
 
 .hero-actions {
   display: grid;
@@ -368,6 +369,43 @@ button:disabled {
   gap: 8px;
 }
 
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stat-card {
+  min-height: 90px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(255,255,255,.04);
+}
+
+.stat-label {
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.stat-value {
+  margin-top: 8px;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.stat-copy {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
 .quick-btn {
   min-height: 88px;
   padding: 12px;
@@ -410,6 +448,39 @@ button:disabled {
 .action-rail {
   display: grid;
   gap: 8px;
+}
+
+.mini-rail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mini-launch {
+  min-height: 72px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(255,255,255,.04);
+  text-decoration: none;
+  text-align: left;
+}
+
+.mini-launch strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.15;
+  font-weight: 950;
+}
+
+.mini-launch span {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 700;
 }
 
 .action-btn {
@@ -674,6 +745,8 @@ button:disabled {
   .hero-copy h1 { font-size: 24px; }
   .today-strip { grid-template-columns: 1fr 1fr 1fr; }
   .quick-grid { grid-template-columns: 1fr 1fr; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .mini-rail { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 360px) {
@@ -751,8 +824,8 @@ button:disabled {
           <div class="main-glyph">M</div>
         </div>
         <div class="main-title">食事</div>
-        <div class="main-copy">固定・最近から呼び出して、少し足す。</div>
-        <div class="main-tail"><span class="tail-chip">朝昼夜</span><span class="tail-arrow">↗</span></div>
+        <div class="main-copy">固定・商品・自作メニューから、すぐ積み上げる。</div>
+        <div class="main-tail"><span class="tail-chip">DB / メニュー</span><span class="tail-arrow">↗</span></div>
       </a>
     </div>
   </section>
@@ -763,6 +836,49 @@ button:disabled {
       <div class="section-note">最近開いた面</div>
     </div>
     <div class="recent-list" id="recentList"></div>
+  </section>
+
+  <section class="section meal-base" id="mealBaseSection">
+    <div class="section-head">
+      <div class="section-title"><span class="section-icon">食</span>食事ベース</div>
+      <div class="section-note">DB と再利用資産</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">商品DB</div>
+        <div class="stat-value" id="mealProductCount">0</div>
+        <div class="stat-copy">登録済みの商品数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">自作メニュー</div>
+        <div class="stat-value" id="mealRecipeCount">0</div>
+        <div class="stat-copy">使い回せる食事</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">固定項目</div>
+        <div class="stat-value" id="mealPresetCount">0</div>
+        <div class="stat-copy">朝昼夜のプリセット</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">要確認</div>
+        <div class="stat-value" id="mealReviewCount">0</div>
+        <div class="stat-copy">量が曖昧な項目</div>
+      </div>
+    </div>
+    <div class="mini-rail">
+      <a class="mini-launch" href="meal.html?panel=product" data-track-key="meal" data-track-label="商品DB" data-track-kind="launch">
+        <strong>商品DB</strong>
+        <span>商品を足す</span>
+      </a>
+      <a class="mini-launch" href="meal.html?panel=recipe" data-track-key="meal" data-track-label="自作メニュー" data-track-kind="launch">
+        <strong>自作メニュー</strong>
+        <span>保存した食事</span>
+      </a>
+      <a class="mini-launch" href="meal.html?panel=builder" data-track-key="meal" data-track-label="食事追加" data-track-kind="launch">
+        <strong>すぐ追加</strong>
+        <span>検索して足す</span>
+      </a>
+    </div>
   </section>
 
   <section class="section actions" id="actions">
@@ -868,6 +984,10 @@ const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx_
 const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const AUTH_STORE = 'hs:write-auth:v1';
 const RECENT_STORE = 'cockpit_recent_v2';
+const MEAL_PRESET_STORE = 'meal_presets_v3';
+const MEAL_PRODUCT_STORE = 'meal_products_v1';
+const MEAL_RECIPE_STORE = 'meal_recipes_v1';
+const MEAL_DRAFT_STORE = 'meal_draft_v4';
 
 const TRACKED_TARGETS = {
   workout: { label: '筋トレ', href: 'workout.html', glyph: 'W', copy: '前回値からすぐ記録' },
@@ -884,6 +1004,7 @@ function boot() {
   renderToday();
   renderInstallState();
   renderPinState();
+  renderMealBase();
   renderRecentList();
   bindTrackedLaunches();
   bindActions();
@@ -974,6 +1095,38 @@ function loadRecent() {
   } catch {
     return [];
   }
+}
+
+function storageGet(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function countReviewFlags(drafts) {
+  return Object.values(drafts || {}).reduce(function(total, draft) {
+    const items = draft && Array.isArray(draft.items) ? draft.items : [];
+    return total + items.filter(function(item) { return item && item.pendingReview; }).length;
+  }, 0);
+}
+
+function renderMealBase() {
+  const presets = storageGet(MEAL_PRESET_STORE, { morning: [], lunch: [], dinner: [] });
+  const products = storageGet(MEAL_PRODUCT_STORE, []);
+  const recipes = storageGet(MEAL_RECIPE_STORE, []);
+  const drafts = storageGet(MEAL_DRAFT_STORE, { morning: { items: [] }, lunch: { items: [] }, dinner: { items: [] } });
+  const presetCount =
+    (presets.morning || []).length +
+    (presets.lunch || []).length +
+    (presets.dinner || []).length;
+  const reviewCount = countReviewFlags(drafts);
+  document.getElementById('mealProductCount').textContent = String(products.length);
+  document.getElementById('mealRecipeCount').textContent = String(recipes.length);
+  document.getElementById('mealPresetCount').textContent = String(presetCount);
+  document.getElementById('mealReviewCount').textContent = String(reviewCount);
 }
 
 function saveRecent(items) {

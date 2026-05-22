@@ -3678,6 +3678,23 @@
       renderRecipeList();
       bindEvents();
       updateUnitHint();
+      applyLaunchContext();
+    }
+
+    function applyLaunchContext() {
+      const params = new URLSearchParams(window.location.search);
+      const panel = params.get('panel');
+      if (panel === 'product') {
+        openProductManager();
+      } else if (panel === 'recipe') {
+        openRecipeManager();
+      } else if (panel === 'custom') {
+        openCustomFoodManager();
+      } else if (panel === 'preset') {
+        openPresetManager();
+      } else if (panel === 'builder') {
+        openBuilder();
+      }
     }
 
     initialize();
