@@ -358,7 +358,7 @@
 
     .action-strip {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
       margin-top: 12px;
     }
@@ -457,7 +457,8 @@
       grid-template-columns: 1fr;
     }
 
-    .quick-grid {
+    .quick-grid,
+    .library-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -468,6 +469,37 @@
       background: rgba(255,255,255,.04);
       padding: 12px;
       text-align: left;
+    }
+
+    .library-card {
+      min-height: 88px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      padding: 12px;
+      text-align: left;
+      display: grid;
+      gap: 6px;
+    }
+
+    .library-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .library-name {
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .library-copy {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.45;
+      font-weight: 800;
     }
 
     .quick-name {
@@ -644,6 +676,29 @@
       gap: 8px;
     }
 
+    .scope-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .scope-chip {
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .scope-chip.active {
+      color: #0a0a0f;
+      border-color: rgba(245,158,11,.55);
+      background: linear-gradient(135deg, rgba(245,158,11,.92), rgba(255,217,120,.98));
+    }
+
     .ghost-btn,
     .accent-btn,
     .save-btn {
@@ -713,6 +768,42 @@
       font-weight: 700;
     }
 
+    .item-flags {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .flag-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .02em;
+    }
+
+    .flag-pill.review {
+      color: var(--bad);
+      border: 1px solid rgba(255,109,138,.3);
+      background: rgba(255,109,138,.08);
+    }
+
+    .flag-pill.product {
+      color: var(--blue);
+      border: 1px solid rgba(88,216,255,.28);
+      background: rgba(88,216,255,.08);
+    }
+
+    .flag-pill.recipe {
+      color: var(--accent-2);
+      border: 1px solid rgba(245,158,11,.28);
+      background: rgba(245,158,11,.09);
+    }
+
     .item-actions {
       display: flex;
       align-items: center;
@@ -741,6 +832,54 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
+    }
+
+    .nutrition-board {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .nutrition-row {
+      display: grid;
+      grid-template-columns: 68px 1fr 52px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .nutrition-key {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .nutrition-track {
+      position: relative;
+      overflow: hidden;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+    }
+
+    .nutrition-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0;
+      border-radius: 999px;
+      transition: width .18s ease;
+      background: linear-gradient(90deg, rgba(245,158,11,.95), rgba(255,217,120,.98));
+    }
+
+    .nutrition-fill.protein { background: linear-gradient(90deg, #58d8ff, #7bf0ff); }
+    .nutrition-fill.fat { background: linear-gradient(90deg, #ffd15a, #ffe78a); }
+    .nutrition-fill.carb { background: linear-gradient(90deg, #42e79b, #87f3b9); }
+    .nutrition-fill.review { background: linear-gradient(90deg, #ff6d8a, #ff98ad); }
+
+    .nutrition-val {
+      text-align: right;
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--ink);
     }
 
     .summary-card {
@@ -1032,6 +1171,42 @@
       padding: 12px;
     }
 
+    .result-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .result-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.07);
+      background: rgba(255,255,255,.04);
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .result-name {
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    .result-meta {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
     .manage-card-top {
       display: flex;
       align-items: flex-start;
@@ -1135,12 +1310,22 @@
     .toast.bad { border-color: rgba(255,109,138,.42); }
 
     @media (max-width: 430px) {
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .status-stack {
+        justify-items: start;
+      }
+      .header-tools {
+        justify-content: flex-start;
+      }
       .brand-main { font-size: 26px; }
       .hero-copy h1 { font-size: 21px; }
       .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .smart-grid { grid-template-columns: 1fr; }
       .preset-grid { grid-template-columns: 1fr; }
-      .action-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .action-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
       .search-row,
       .qty-row,
       .action-row,
@@ -1167,8 +1352,8 @@
         <div class="chip" id="todayChip">--</div>
         <div class="chip" id="syncChip">待機中</div>
         <div class="header-tools">
-          <button class="mini-btn" type="button" onclick="openPresetManager()">固定項目</button>
-          <button class="mini-btn" type="button" onclick="openCustomFoodManager()">独自食材</button>
+          <button class="mini-btn" type="button" onclick="openPresetManager()">固定</button>
+          <button class="mini-btn" type="button" onclick="openProductManager()">DB</button>
         </div>
       </div>
     </header>
@@ -1185,8 +1370,9 @@
       <div class="action-strip">
         <button class="action-pill" type="button" onclick="openPresetManager()"><strong>定</strong><span>固定</span></button>
         <button class="action-pill" type="button" onclick="openBuilder()"><strong>＋</strong><span>追加</span></button>
+        <button class="action-pill" type="button" onclick="openProductManager()"><strong>商</strong><span>商品</span></button>
         <button class="action-pill" type="button" onclick="openHistory()"><strong>時</strong><span>履歴</span></button>
-        <button class="action-pill" type="button" onclick="openCustomFoodManager()"><strong>食</strong><span>食材</span></button>
+        <button class="action-pill" type="button" onclick="openRecipeManager()"><strong>献</strong><span>メニュー</span></button>
       </div>
     </section>
 
@@ -1208,6 +1394,20 @@
       </div>
       <div class="panel-body" id="quickBody">
         <div class="quick-grid" id="quickGrid"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">商品・メニュー</div>
+        <div class="header-tools">
+          <button class="mini-btn" type="button" onclick="openProductManager()">商品DB</button>
+          <button class="mini-btn" type="button" onclick="openRecipeManager()">保存</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="library-grid" id="productGrid"></div>
+        <div class="library-grid" id="recipeGrid"></div>
       </div>
     </section>
 
@@ -1259,8 +1459,31 @@
         </div>
 
         <div class="toolbar">
+          <button class="ghost-btn" type="button" onclick="saveCurrentAsRecipe()">今の内容を自作メニューに保存</button>
           <button class="ghost-btn" type="button" onclick="saveCurrentAsPreset()">今の内容を固定項目に保存</button>
           <button class="ghost-btn" type="button" onclick="openHistory()">履歴を見る</button>
+        </div>
+        <div class="nutrition-board">
+          <div class="nutrition-row">
+            <div class="nutrition-key">P 目安</div>
+            <div class="nutrition-track"><div class="nutrition-fill protein" id="nutritionProtein"></div></div>
+            <div class="nutrition-val" id="nutritionProteinVal">0%</div>
+          </div>
+          <div class="nutrition-row">
+            <div class="nutrition-key">F 目安</div>
+            <div class="nutrition-track"><div class="nutrition-fill fat" id="nutritionFat"></div></div>
+            <div class="nutrition-val" id="nutritionFatVal">0%</div>
+          </div>
+          <div class="nutrition-row">
+            <div class="nutrition-key">C 目安</div>
+            <div class="nutrition-track"><div class="nutrition-fill carb" id="nutritionCarb"></div></div>
+            <div class="nutrition-val" id="nutritionCarbVal">0%</div>
+          </div>
+          <div class="nutrition-row">
+            <div class="nutrition-key">要確認</div>
+            <div class="nutrition-track"><div class="nutrition-fill review" id="nutritionReview"></div></div>
+            <div class="nutrition-val" id="nutritionReviewVal">0</div>
+          </div>
         </div>
       </div>
     </section>
@@ -1290,11 +1513,18 @@
       </div>
       <div class="form-grid">
         <div class="field-group">
+          <div class="scope-row" id="searchScopeRow">
+            <button class="scope-chip active" type="button" data-scope="all" onclick="setSearchScope('all')">全部</button>
+            <button class="scope-chip" type="button" data-scope="food" onclick="setSearchScope('food')">食材</button>
+            <button class="scope-chip" type="button" data-scope="product" onclick="setSearchScope('product')">商品</button>
+            <button class="scope-chip" type="button" data-scope="recipe" onclick="setSearchScope('recipe')">メニュー</button>
+          </div>
           <div class="search-row">
             <input class="text-input" id="foodSearch" list="foodSuggestions" placeholder="食材名">
             <select class="select-input hidden-select" id="foodSelect" aria-hidden="true" tabindex="-1"></select>
           </div>
-          <div class="helper-text">見つからないときは右上の「独自食材」へ。</div>
+          <div class="helper-text">見つからないときは 商品DB / 独自食材 / 自作メニュー で追加。</div>
+          <div class="result-list" id="searchResultList"></div>
         </div>
 
         <div class="field-group">
@@ -1443,6 +1673,85 @@
     </div>
   </div>
 
+  <div class="modal" id="productModal">
+    <div class="sheet">
+      <div class="sheet-head">
+        <div>
+          <div class="sheet-title">商品DBを編集</div>
+        </div>
+        <div class="header-tools">
+          <button class="mini-btn" type="button" onclick="openCustomFoodManager()">独自食材</button>
+          <button class="close-btn" type="button" onclick="closeModal('productModal')">×</button>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="field-group">
+          <div class="field-label"><span>商品名</span></div>
+          <input class="text-input" id="productName" placeholder="例: ザバス ミルクプロテイン">
+        </div>
+
+        <div class="field-group">
+          <div class="field-label"><span>ブランド</span></div>
+          <input class="text-input" id="productBrand" placeholder="例: SAVAS">
+        </div>
+
+        <div class="field-group">
+          <div class="field-label"><span>カテゴリ</span></div>
+          <select class="select-input" id="productCategory">
+            <option value="朝">朝向け</option>
+            <option value="昼">昼向け</option>
+            <option value="夜">夜向け</option>
+            <option value="共通">共通</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label"><span>単位</span></div>
+          <input class="text-input" id="productUnit" placeholder="例: 本 / 個 / パック">
+        </div>
+
+        <div class="field-group">
+          <div class="field-label"><span>バーコード / SKU</span></div>
+          <input class="text-input" id="productBarcode" placeholder="任意">
+        </div>
+
+        <div class="field-group">
+          <div class="field-label"><span>1単位あたりの栄養</span></div>
+          <div class="summary-grid">
+            <input class="text-input" id="productKcal" type="number" inputmode="decimal" placeholder="kcal">
+            <input class="text-input" id="productP" type="number" inputmode="decimal" placeholder="P">
+            <input class="text-input" id="productF" type="number" inputmode="decimal" placeholder="F">
+            <input class="text-input" id="productC" type="number" inputmode="decimal" placeholder="C">
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="ghost-btn" type="button" onclick="resetProductForm()">入力をクリア</button>
+          <button class="accent-btn" type="button" onclick="saveProduct()">商品を保存</button>
+        </div>
+      </div>
+
+      <div class="manage-list" id="productList" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="recipeModal">
+    <div class="sheet">
+      <div class="sheet-head">
+        <div>
+          <div class="sheet-title">自作メニュー</div>
+        </div>
+        <button class="close-btn" type="button" onclick="closeModal('recipeModal')">×</button>
+      </div>
+      <div class="action-row">
+        <button class="ghost-btn" type="button" onclick="saveCurrentAsRecipe()">今の内容を保存</button>
+        <button class="ghost-btn" type="button" onclick="closeModal('recipeModal')">閉じる</button>
+      </div>
+      <div class="manage-list" id="recipeList" style="margin-top:14px"></div>
+    </div>
+  </div>
+
   <datalist id="foodSuggestions"></datalist>
   <datalist id="presetEditorFoodSuggestions"></datalist>
   <div class="toast" id="toast"></div>
@@ -1453,6 +1762,8 @@
     const RECORD_STORE = 'meal_recs_v3';
     const PRESET_STORE = 'meal_presets_v3';
     const CUSTOM_FOOD_STORE = 'meal_custom_foods_v1';
+    const PRODUCT_STORE = 'meal_products_v1';
+    const RECIPE_STORE = 'meal_recipes_v1';
     const DRAFT_STORE = 'meal_draft_v4';
 
     const TIMINGS = {
@@ -1491,6 +1802,15 @@
       { id: 'miso-soup', name: '味噌汁', category: '共通', mode: 'per100g', macros: {kcal:35, p:2.2, f:1.2, c:3.6}, units: [{label:'杯', grams:180, step:1, defaultQty:1}, {label:'ml', grams:1, step:50, defaultQty:180}] },
       { id: 'protein-bar', name: 'プロテインバー', category: '共通', mode: 'perUnit', unitLabel: '本', macrosPerUnit: {kcal:183, p:15, f:8, c:13}, defaultQty: 1, step: 1 },
       { id: 'greek-yogurt', name: 'ギリシャヨーグルト', category: '朝', mode: 'per100g', macros: {kcal:63, p:10.3, f:0.4, c:4.9}, units: [{label:'個', grams:110, step:1, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:110}] }
+    ];
+
+    const BASE_PRODUCTS = [
+      { id: 'prod-oikos-blueberry', name: 'オイコス ブルーベリー', brand: 'ダノン', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 92, p: 10.1, f: 0, c: 12.9 }, defaultQty: 1, step: 1, keywords: ['ヨーグルト', 'oikos'] },
+      { id: 'prod-savas-milk', name: 'ザバス ミルクプロテイン', brand: 'SAVAS', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 102, p: 15, f: 0, c: 10 }, defaultQty: 1, step: 1, keywords: ['プロテイン', '飲料'] },
+      { id: 'prod-base-bread', name: 'BASE BREAD チョコ', brand: 'BASE FOOD', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '袋', macrosPerUnit: { kcal: 255, p: 13.5, f: 8.5, c: 31.5 }, defaultQty: 1, step: 1, keywords: ['パン', 'ベースブレッド'] },
+      { id: 'prod-salad-chicken-herb', name: 'サラダチキン ハーブ', brand: 'セブン', category: '昼', entryType: 'product', mode: 'perUnit', unitLabel: 'パック', macrosPerUnit: { kcal: 115, p: 24.5, f: 1.2, c: 1.1 }, defaultQty: 1, step: 1, keywords: ['鶏胸肉', 'コンビニ'] },
+      { id: 'prod-in-jelly-protein', name: 'inゼリー プロテイン', brand: '森永', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 112, p: 10, f: 0, c: 17.5 }, defaultQty: 1, step: 1, keywords: ['ゼリー', '補食'] },
+      { id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', brand: 'グリコ', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, defaultQty: 1, step: 1, keywords: ['アーモンドミルク', '飲料'] }
     ];
 
     const DEFAULT_PRESETS = {
@@ -1593,9 +1913,13 @@
     let foodLookup = {};
     let presets = loadPresets();
     let customFoods = loadCustomFoods();
+    let customProducts = loadProducts();
+    let customRecipes = loadRecipes();
     let drafts = loadDrafts();
     let editingCustomFoodId = null;
+    let editingProductId = null;
     let editingPresetId = null;
+    let searchScope = 'all';
     let isSaving = false;
 
     function clone(obj) {
@@ -1655,6 +1979,22 @@
 
     function saveCustomFoods() {
       storageSet(CUSTOM_FOOD_STORE, customFoods);
+    }
+
+    function loadProducts() {
+      return storageGet(PRODUCT_STORE, []);
+    }
+
+    function saveProducts() {
+      storageSet(PRODUCT_STORE, customProducts);
+    }
+
+    function loadRecipes() {
+      return storageGet(RECIPE_STORE, []);
+    }
+
+    function saveRecipes() {
+      storageSet(RECIPE_STORE, customRecipes);
     }
 
     function loadDrafts() {
@@ -1730,13 +2070,17 @@
 
     function buildFoodLookup() {
       foodLookup = {};
-      [...BASE_FOODS, ...customFoods].forEach(food => {
+      [...BASE_FOODS, ...BASE_PRODUCTS, ...customFoods, ...customProducts].forEach(food => {
         foodLookup[food.id] = food;
       });
     }
 
     function getAllFoods() {
-      return [...BASE_FOODS, ...customFoods];
+      return [...BASE_FOODS, ...BASE_PRODUCTS, ...customFoods, ...customProducts];
+    }
+
+    function getAllRecipes() {
+      return customRecipes.slice();
     }
 
     function getFoodById(id) {
@@ -1783,7 +2127,7 @@
       const typed = input.value.trim();
       if (!typed) return null;
       return getAllFoods().find(food => food.name === typed) ||
-        getAllFoods().find(food => food.name.includes(typed) || typed.includes(food.name)) ||
+        getAllFoods().find(food => food.name.includes(typed) || typed.includes(food.name) || String(food.brand || '').includes(typed)) ||
         null;
     }
 
@@ -1801,8 +2145,44 @@
       const typed = String(searchValue || '').trim();
       if (!typed) return null;
       return foods.find(food => food.name === typed) ||
-        foods.find(food => food.name.includes(typed) || typed.includes(food.name)) ||
+        foods.find(food => food.name.includes(typed) || typed.includes(food.name) || String(food.brand || '').includes(typed)) ||
         null;
+    }
+
+    function getSearchCandidates() {
+      const foodCandidates = getFoodsForTiming(currentTiming).map(food => ({
+        kind: food.entryType === 'product' ? 'product' : 'food',
+        id: food.id,
+        name: food.name,
+        copy: food.entryType === 'product'
+          ? `${food.brand || '商品'} / 1${food.unitLabel || '個'}`
+          : `${food.category} / ${getDefaultUnit(food)?.label || ''}`,
+        food
+      }));
+      const recipeCandidates = getAllRecipes()
+        .filter(recipe => !recipe.timingKey || recipe.timingKey === currentTiming)
+        .map(recipe => ({
+          kind: 'recipe',
+          id: recipe.id,
+          name: recipe.name,
+          copy: summarizeRecipe(recipe),
+          recipe
+        }));
+      return [...foodCandidates, ...recipeCandidates];
+    }
+
+    function matchesCandidate(candidate, query) {
+      const typed = query.trim().toLowerCase();
+      if (!typed) return false;
+      const haystack = [
+        candidate.name,
+        candidate.copy,
+        candidate.food && candidate.food.brand,
+        candidate.food && candidate.food.keywords && candidate.food.keywords.join(' '),
+        candidate.food && candidate.food.barcode,
+        candidate.recipe && summarizeRecipe(candidate.recipe)
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(typed);
     }
 
     function calcFoodPortion(food, qty, unitLabel) {
@@ -1833,7 +2213,7 @@
       };
     }
 
-    function createMealItem(food, qty, unitLabel) {
+    function createMealItem(food, qty, unitLabel, options = {}) {
       const portion = calcFoodPortion(food, qty, unitLabel);
       return {
         id: `meal-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -1845,7 +2225,10 @@
         kcal: portion.kcal,
         p: portion.p,
         f: portion.f,
-        c: portion.c
+        c: portion.c,
+        pendingReview: Boolean(options.pendingReview),
+        sourceType: food.entryType || 'food',
+        brand: food.brand || ''
       };
     }
 
@@ -1860,7 +2243,9 @@
         kcal: portion.kcal,
         p: portion.p,
         f: portion.f,
-        c: portion.c
+        c: portion.c,
+        sourceType: food.entryType || 'food',
+        brand: food.brand || ''
       };
     }
 
@@ -1884,6 +2269,13 @@
 
     function summarizeItems(items) {
       return items.map(item => `${item.name} ${formatQty(item.qty)}${item.unit}`).join('、');
+    }
+
+    function summarizeRecipe(recipe) {
+      return (recipe.items || []).map(item => {
+        const food = getFoodById(item.foodId);
+        return `${food ? food.name : item.foodId} ${formatQty(item.qty)}${item.unit}`;
+      }).join('、');
     }
 
     function hasFood(foodId) {
@@ -1924,8 +2316,9 @@
         acc.p += item.p || 0;
         acc.f += item.f || 0;
         acc.c += item.c || 0;
+        acc.review += item.pendingReview ? 1 : 0;
         return acc;
-      }, { kcal: 0, p: 0, f: 0, c: 0 });
+      }, { kcal: 0, p: 0, f: 0, c: 0, review: 0 });
     }
 
     function setTodayChip() {
@@ -2007,6 +2400,47 @@
       }).join('');
     }
 
+    function renderProductGrid() {
+      const root = document.getElementById('productGrid');
+      const products = [
+        ...customProducts.filter(product => product.category === '共通' || product.category === TIMINGS[currentTiming].label),
+        ...BASE_PRODUCTS.filter(product => product.category === '共通' || product.category === TIMINGS[currentTiming].label)
+      ].slice(0, 4);
+      if (!products.length) {
+        root.innerHTML = '<div class="empty-state">商品はまだありません</div>';
+        return;
+      }
+      root.innerHTML = products.map(product => `
+        <button type="button" class="library-card" onclick="quickAddFood('${product.id}')">
+          <div class="library-top">
+            <div class="preset-badge">商品</div>
+            <div class="section-meta">${product.brand || '商品'}</div>
+          </div>
+          <div class="library-name">${product.name}</div>
+          <div class="library-copy">1${product.unitLabel || '個'} / ${Math.round(product.macrosPerUnit.kcal || 0)}kcal</div>
+        </button>
+      `).join('');
+    }
+
+    function renderRecipeGrid() {
+      const root = document.getElementById('recipeGrid');
+      const recipes = getAllRecipes().filter(recipe => !recipe.timingKey || recipe.timingKey === currentTiming).slice(0, 4);
+      if (!recipes.length) {
+        root.innerHTML = '<div class="empty-state">自作メニューはまだありません</div>';
+        return;
+      }
+      root.innerHTML = recipes.map(recipe => `
+        <button type="button" class="library-card" onclick="applyRecipe('${recipe.id}')">
+          <div class="library-top">
+            <div class="preset-badge">メニュー</div>
+            <div class="section-meta">${TIMINGS[recipe.timingKey || currentTiming].label}</div>
+          </div>
+          <div class="library-name">${recipe.name}</div>
+          <div class="library-copy">${summarizeRecipe(recipe)}</div>
+        </button>
+      `).join('');
+    }
+
     function renderSmartGrid() {
       const root = document.getElementById('smartGrid');
       const totals = mealTotals();
@@ -2055,6 +2489,43 @@
       const current = resolveFoodSelection() || foods[0];
       document.getElementById('foodSearch').value = current.name;
       syncUnitOptions(current);
+      renderSearchResults();
+    }
+
+    function setSearchScope(scope) {
+      searchScope = scope;
+      document.querySelectorAll('#searchScopeRow .scope-chip').forEach(button => {
+        button.classList.toggle('active', button.dataset.scope === scope);
+      });
+      renderSearchResults();
+    }
+
+    function renderSearchResults() {
+      const root = document.getElementById('searchResultList');
+      const query = document.getElementById('foodSearch').value.trim();
+      if (!query) {
+        root.innerHTML = '';
+        return;
+      }
+      const candidates = getSearchCandidates()
+        .filter(candidate => searchScope === 'all' || candidate.kind === searchScope)
+        .filter(candidate => matchesCandidate(candidate, query))
+        .slice(0, 8);
+
+      if (!candidates.length) {
+        root.innerHTML = '<div class="empty-state">候補なし。独自食材か商品DBへ追加してください。</div>';
+        return;
+      }
+
+      root.innerHTML = candidates.map(candidate => `
+        <button type="button" class="result-card" onclick="selectSearchCandidate('${candidate.kind}', '${candidate.id}')">
+          <div class="result-head">
+            <div class="result-name">${candidate.name}</div>
+            <div class="preset-badge">${candidate.kind === 'recipe' ? 'メニュー' : candidate.kind === 'product' ? '商品' : '食材'}</div>
+          </div>
+          <div class="result-meta">${candidate.copy}</div>
+        </button>
+      `).join('');
     }
 
     function syncUnitOptions(food) {
@@ -2137,11 +2608,17 @@
             <button type="button" class="tiny-btn bad" onclick="removeMealItem('${item.id}')">削除</button>
           </div>
           <div class="item-meta">${Math.round(item.kcal)}kcal / P${Math.round(item.p)}g / F${Math.round(item.f)}g / C${Math.round(item.c)}g</div>
+          <div class="item-flags">
+            ${item.sourceType === 'product' ? '<div class="flag-pill product">商品</div>' : ''}
+            ${item.sourceType === 'recipe' ? '<div class="flag-pill recipe">メニュー</div>' : ''}
+            ${item.pendingReview ? '<div class="flag-pill review">要確認</div>' : ''}
+          </div>
           <div class="item-actions">
             <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', -1)">−</button>
             <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', 1)">＋</button>
             <button type="button" class="tiny-btn" onclick="promptItemQty('${item.id}')">数量</button>
             <button type="button" class="tiny-btn" onclick="editItemUnit('${item.id}')">単位変更</button>
+            <button type="button" class="tiny-btn" onclick="toggleItemReview('${item.id}')">${item.pendingReview ? '確認済' : '要確認'}</button>
           </div>
         </div>
       `).join('');
@@ -2170,6 +2647,18 @@
       document.getElementById('macroPctP').textContent = `${pctP}%`;
       document.getElementById('macroPctF').textContent = `${pctF}%`;
       document.getElementById('macroPctC').textContent = `${pctC}%`;
+      const proteinPct = Math.min(100, Math.round((totals.p / (currentTiming === 'morning' ? 25 : 35)) * 100));
+      const fatPct = Math.min(100, Math.round((totals.f / 20) * 100));
+      const carbPct = Math.min(100, Math.round((totals.c / (currentTiming === 'dinner' ? 45 : 55)) * 100));
+      const reviewPct = currentMeal.length ? Math.round((totals.review / currentMeal.length) * 100) : 0;
+      document.getElementById('nutritionProtein').style.width = `${proteinPct}%`;
+      document.getElementById('nutritionFat').style.width = `${fatPct}%`;
+      document.getElementById('nutritionCarb').style.width = `${carbPct}%`;
+      document.getElementById('nutritionReview').style.width = `${reviewPct}%`;
+      document.getElementById('nutritionProteinVal').textContent = `${proteinPct}%`;
+      document.getElementById('nutritionFatVal').textContent = `${fatPct}%`;
+      document.getElementById('nutritionCarbVal').textContent = `${carbPct}%`;
+      document.getElementById('nutritionReviewVal').textContent = `${totals.review}件`;
     }
 
     function renderHistory() {
@@ -2264,7 +2753,8 @@
         items: currentMeal.map(item => ({
           foodId: item.foodId,
           qty: item.qty,
-          unit: item.unit
+          unit: item.unit,
+          pendingReview: Boolean(item.pendingReview)
         })),
         note: document.getElementById('mealNote').value
       };
@@ -2275,7 +2765,7 @@
       const draft = drafts[currentTiming] || { items: [], note: '' };
       currentMeal = (draft.items || []).map(item => {
         const food = getFoodById(item.foodId);
-        return food ? createMealItem(food, item.qty, item.unit) : null;
+        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
       document.getElementById('mealNote').value = draft.note || '';
     }
@@ -2289,6 +2779,8 @@
       renderPresetGrid();
       renderRecentGrid();
       renderQuickGrid();
+      renderProductGrid();
+      renderRecipeGrid();
       renderFoodSelector();
       renderCurrentMeal();
       renderPresetManager();
@@ -2301,7 +2793,9 @@
       const unit = getDefaultUnit(food);
       currentMeal.push(createMealItem(food, unit.defaultQty || 1, unit.label));
       renderCurrentMeal();
+      renderRecipeGrid();
       showToast(`${food.name} を追加しました`);
+      persistCurrentTimingDraft();
     }
 
     function addCurrentFood() {
@@ -2323,12 +2817,26 @@
       closeModal('builderModal');
     }
 
+    function selectSearchCandidate(kind, id) {
+      if (kind === 'recipe') {
+        applyRecipe(id);
+        closeModal('builderModal');
+        return;
+      }
+      const food = getFoodById(id);
+      if (!food) return;
+      document.getElementById('foodSelect').value = food.id;
+      document.getElementById('foodSearch').value = food.name;
+      syncUnitOptions(food);
+      renderSearchResults();
+    }
+
     function applyPreset(presetId, fromManager = false) {
       const preset = getTimingPresets().find(item => item.id === presetId);
       if (!preset) return;
       currentMeal = preset.items.map(item => {
         const food = getFoodById(item.foodId);
-        return food ? createMealItem(food, item.qty, item.unit) : null;
+        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
       document.getElementById('mealNote').value = '';
       renderCurrentMeal();
@@ -2337,12 +2845,24 @@
       showToast(`${preset.name} を読み込みました`);
     }
 
+    function applyRecipe(recipeId) {
+      const recipe = getAllRecipes().find(entry => entry.id === recipeId);
+      if (!recipe) return;
+      recipe.items.forEach(item => {
+        const food = getFoodById(item.foodId);
+        if (food) currentMeal.push(createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }));
+      });
+      renderCurrentMeal();
+      persistCurrentTimingDraft();
+      showToast(`${recipe.name} を追加しました`);
+    }
+
     function reuseRecord(recordId) {
       const record = getRecords().find(item => item.id === recordId);
       if (!record) return;
       currentMeal = (record.items || []).map(item => {
         const food = getFoodById(item.foodId);
-        return food ? createMealItem(food, item.qty, item.unit) : null;
+        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
       document.getElementById('mealNote').value = record.note || '';
       renderCurrentMeal();
@@ -2352,6 +2872,14 @@
 
     function removeMealItem(itemId) {
       currentMeal = currentMeal.filter(item => item.id !== itemId);
+      renderCurrentMeal();
+      persistCurrentTimingDraft();
+    }
+
+    function toggleItemReview(itemId) {
+      const item = currentMeal.find(entry => entry.id === itemId);
+      if (!item) return;
+      item.pendingReview = !item.pendingReview;
       renderCurrentMeal();
       persistCurrentTimingDraft();
     }
@@ -2431,7 +2959,7 @@
       const preset = {
         id: `preset-${Date.now()}`,
         name: name.trim(),
-        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit }))
+        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }))
       };
       presets[currentTiming].unshift(preset);
       savePresets();
@@ -2448,11 +2976,30 @@
       const preset = getTimingPresets().find(item => item.id === presetId);
       if (!preset) return;
       if (!window.confirm(`「${preset.name}」を今の内容で上書きしますか？`)) return;
-      preset.items = currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit }));
+      preset.items = currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }));
       savePresets();
       renderPresetGrid();
       renderPresetManager();
       showToast('固定項目を上書きしました');
+    }
+
+    function saveCurrentAsRecipe() {
+      if (!currentMeal.length) {
+        showToast('保存する食事内容がありません', 'warn');
+        return;
+      }
+      const name = window.prompt('自作メニュー名を入力してください', `${TIMINGS[currentTiming].title}メニュー`);
+      if (!name) return;
+      customRecipes.unshift({
+        id: `recipe-${Date.now()}`,
+        name: name.trim(),
+        timingKey: currentTiming,
+        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }))
+      });
+      saveRecipes();
+      renderRecipeGrid();
+      renderRecipeList();
+      showToast('自作メニューを保存しました');
     }
 
     function renamePreset(presetId) {
@@ -2488,6 +3035,11 @@
     function openPresetManager() {
       renderPresetManager();
       openModal('presetModal');
+    }
+
+    function openRecipeManager() {
+      renderRecipeList();
+      openModal('recipeModal');
     }
 
     function renderPresetEditor() {
@@ -2651,6 +3203,11 @@
       openModal('customFoodModal');
     }
 
+    function openProductManager() {
+      renderProductList();
+      openModal('productModal');
+    }
+
     function openBuilder() {
       renderFoodSelector();
       updateUnitHint();
@@ -2671,6 +3228,19 @@
       document.getElementById('customP').value = '';
       document.getElementById('customF').value = '';
       document.getElementById('customC').value = '';
+    }
+
+    function resetProductForm() {
+      editingProductId = null;
+      document.getElementById('productName').value = '';
+      document.getElementById('productBrand').value = '';
+      document.getElementById('productCategory').value = '共通';
+      document.getElementById('productUnit').value = '';
+      document.getElementById('productBarcode').value = '';
+      document.getElementById('productKcal').value = '';
+      document.getElementById('productP').value = '';
+      document.getElementById('productF').value = '';
+      document.getElementById('productC').value = '';
     }
 
     function saveCustomFood() {
@@ -2717,6 +3287,57 @@
       showToast('独自食材を保存しました');
     }
 
+    function saveProduct() {
+      const name = document.getElementById('productName').value.trim();
+      const brand = document.getElementById('productBrand').value.trim();
+      const category = document.getElementById('productCategory').value;
+      const unit = document.getElementById('productUnit').value.trim();
+      const barcode = document.getElementById('productBarcode').value.trim();
+      const kcal = Number(document.getElementById('productKcal').value);
+      const p = Number(document.getElementById('productP').value);
+      const f = Number(document.getElementById('productF').value);
+      const c = Number(document.getElementById('productC').value);
+
+      if (!name || !unit) {
+        showToast('商品名と単位は必須です', 'warn');
+        return;
+      }
+
+      const entry = {
+        id: editingProductId || `product-${Date.now()}`,
+        name,
+        brand,
+        category,
+        entryType: 'product',
+        mode: 'perUnit',
+        unitLabel: unit,
+        barcode,
+        keywords: [brand, barcode].filter(Boolean),
+        macrosPerUnit: {
+          kcal: Number.isFinite(kcal) ? kcal : 0,
+          p: Number.isFinite(p) ? p : 0,
+          f: Number.isFinite(f) ? f : 0,
+          c: Number.isFinite(c) ? c : 0
+        },
+        defaultQty: 1,
+        step: 1
+      };
+
+      if (editingProductId) {
+        customProducts = customProducts.map(product => product.id === editingProductId ? entry : product);
+      } else {
+        customProducts.unshift(entry);
+      }
+
+      saveProducts();
+      buildFoodLookup();
+      renderFoodSelector();
+      renderProductList();
+      renderProductGrid();
+      resetProductForm();
+      showToast('商品を保存しました');
+    }
+
     function editCustomFood(foodId) {
       const food = customFoods.find(entry => entry.id === foodId);
       if (!food) return;
@@ -2742,6 +3363,107 @@
       recalcCurrentMeal();
       renderCurrentMeal();
       showToast('独自食材を削除しました');
+    }
+
+    function renderProductList() {
+      const root = document.getElementById('productList');
+      const products = [...customProducts];
+      if (!products.length) {
+        root.innerHTML = '<div class="empty-state">独自商品はまだありません。</div>';
+        return;
+      }
+      root.innerHTML = products.map(product => `
+        <div class="manage-card">
+          <div class="manage-card-top">
+            <div>
+              <div class="item-name">${product.name}</div>
+              <div class="item-meta">${product.brand || '独自商品'} / 1${product.unitLabel} / ${product.macrosPerUnit.kcal}kcal</div>
+            </div>
+            <div class="preset-badge">商品</div>
+          </div>
+          <div class="manage-actions">
+            <button type="button" class="manage-btn" onclick="editProduct('${product.id}')">編集</button>
+            <button type="button" class="manage-btn bad" onclick="deleteProduct('${product.id}')">削除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function editProduct(productId) {
+      const product = customProducts.find(entry => entry.id === productId);
+      if (!product) return;
+      editingProductId = product.id;
+      document.getElementById('productName').value = product.name;
+      document.getElementById('productBrand').value = product.brand || '';
+      document.getElementById('productCategory').value = product.category;
+      document.getElementById('productUnit').value = product.unitLabel || '';
+      document.getElementById('productBarcode').value = product.barcode || '';
+      document.getElementById('productKcal').value = product.macrosPerUnit.kcal;
+      document.getElementById('productP').value = product.macrosPerUnit.p;
+      document.getElementById('productF').value = product.macrosPerUnit.f;
+      document.getElementById('productC').value = product.macrosPerUnit.c;
+    }
+
+    function deleteProduct(productId) {
+      const product = customProducts.find(entry => entry.id === productId);
+      if (!product) return;
+      if (!window.confirm(`「${product.name}」を削除しますか？`)) return;
+      customProducts = customProducts.filter(entry => entry.id !== productId);
+      saveProducts();
+      buildFoodLookup();
+      renderFoodSelector();
+      renderProductList();
+      renderProductGrid();
+      recalcCurrentMeal();
+      renderCurrentMeal();
+      showToast('商品を削除しました');
+    }
+
+    function renderRecipeList() {
+      const root = document.getElementById('recipeList');
+      const recipes = getAllRecipes().filter(recipe => !recipe.timingKey || recipe.timingKey === currentTiming);
+      if (!recipes.length) {
+        root.innerHTML = '<div class="empty-state">自作メニューはまだありません。</div>';
+        return;
+      }
+      root.innerHTML = recipes.map(recipe => `
+        <div class="manage-card">
+          <div class="manage-card-top">
+            <div>
+              <div class="item-name">${recipe.name}</div>
+              <div class="item-meta">${summarizeRecipe(recipe)}</div>
+            </div>
+            <div class="preset-badge">メニュー</div>
+          </div>
+          <div class="manage-actions">
+            <button type="button" class="manage-btn" onclick="applyRecipe('${recipe.id}')">追加</button>
+            <button type="button" class="manage-btn" onclick="renameRecipe('${recipe.id}')">名前変更</button>
+            <button type="button" class="manage-btn bad" onclick="deleteRecipe('${recipe.id}')">削除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renameRecipe(recipeId) {
+      const recipe = customRecipes.find(entry => entry.id === recipeId);
+      if (!recipe) return;
+      const next = window.prompt('新しい名前を入力してください', recipe.name);
+      if (!next) return;
+      recipe.name = next.trim();
+      saveRecipes();
+      renderRecipeGrid();
+      renderRecipeList();
+    }
+
+    function deleteRecipe(recipeId) {
+      const recipe = customRecipes.find(entry => entry.id === recipeId);
+      if (!recipe) return;
+      if (!window.confirm(`「${recipe.name}」を削除しますか？`)) return;
+      customRecipes = customRecipes.filter(entry => entry.id !== recipeId);
+      saveRecipes();
+      renderRecipeGrid();
+      renderRecipeList();
+      showToast('自作メニューを削除しました');
     }
 
     function stepQty(direction) {
@@ -2803,11 +3525,12 @@
         title: timing.title,
         memo: memoParts.join(' / '),
         note,
-        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit })),
+        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview })),
         kcal: Math.round(totals.kcal),
         protein: Math.round(totals.p),
         fat: Math.round(totals.f),
         carb: Math.round(totals.c),
+        reviewCount: totals.review,
         synced: false
       };
 
@@ -2863,7 +3586,10 @@
         if (!food) return;
         document.getElementById('foodSelect').value = food.id;
         syncUnitOptions(food);
+        renderSearchResults();
       });
+
+      document.getElementById('foodSearch').addEventListener('input', renderSearchResults);
 
       document.getElementById('unitSelect').addEventListener('change', () => {
         const food = resolveFoodSelection();
@@ -2943,9 +3669,13 @@
       renderPresetGrid();
       renderRecentGrid();
       renderQuickGrid();
+      renderProductGrid();
+      renderRecipeGrid();
       renderCurrentMeal();
       renderPresetManager();
       renderCustomFoodList();
+      renderProductList();
+      renderRecipeList();
       bindEvents();
       updateUnitHint();
     }
