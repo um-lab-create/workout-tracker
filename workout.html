@@ -244,6 +244,66 @@ button:active {
   margin-top: 16px;
 }
 
+.date-card {
+  margin-top: 12px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 20px;
+  background: rgba(0,0,0,.18);
+  padding: 12px;
+}
+
+.date-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.date-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.date-value {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.date-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.date-chip,
+.date-input {
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  color: var(--ink);
+}
+
+.date-chip {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.date-chip.active {
+  border-color: rgba(200,255,66,.32);
+  background: rgba(200,255,66,.14);
+}
+
+.date-input {
+  width: 100%;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .stat {
   min-height: 68px;
   border: 1px solid rgba(255,255,255,.075);
@@ -827,15 +887,29 @@ body {
     <div class="quick-stats">
       <div class="stat">
         <div class="stat-value hot" id="todaySets">0</div>
-        <div class="stat-label">今日のセット</div>
+        <div class="stat-label">この日のセット</div>
       </div>
       <div class="stat">
         <div class="stat-value" id="todayKinds">0</div>
-        <div class="stat-label">今日の種目</div>
+        <div class="stat-label">この日の種目</div>
       </div>
       <div class="stat">
         <div class="stat-value" id="weekDays">0/3</div>
-        <div class="stat-label">今週の筋トレ日</div>
+        <div class="stat-label">その週の筋トレ日</div>
+      </div>
+    </div>
+
+    <div class="date-card">
+      <div class="date-head">
+        <div>
+          <div class="date-title">記録日</div>
+          <div class="date-value" id="selectedDateLabel">--</div>
+        </div>
+      </div>
+      <div class="date-actions">
+        <button class="date-chip" type="button" id="todayDateBtn">今日</button>
+        <button class="date-chip" type="button" id="yesterdayDateBtn">昨日</button>
+        <input class="date-input" type="date" id="recordDateInput" aria-label="記録日">
       </div>
     </div>
   </section>
@@ -857,7 +931,7 @@ body {
 
 <div class="action-bar">
   <div class="action-inner">
-    <button class="icon-btn" id="historyBtn" aria-label="今日の履歴">≡</button>
+    <button class="icon-btn" id="historyBtn" aria-label="選択日の履歴">≡</button>
     <button class="primary-btn" id="submitBtn">
       <span class="send-icon" id="sendIcon">✓</span>
       <span id="submitText">記録する</span>
@@ -870,7 +944,7 @@ body {
 <div class="sheet" id="historySheet" aria-hidden="true">
   <div class="sheet-card">
     <div class="grip"></div>
-    <h2 class="sheet-title">今日の記録</h2>
+    <h2 class="sheet-title" id="historyTitle">この日の記録</h2>
     <div class="history-list" id="historyList"></div>
   </div>
 </div>
@@ -896,7 +970,8 @@ const STORE = {
   last: 'wt:lastValues:v2',
   queue: 'wt:queue:v2',
   history: 'wt:history:v2',
-  selected: 'wt:selectedExercise:v2'
+  selected: 'wt:selectedExercise:v2',
+  selectedDate: 'wt:selectedDate:v1'
 };
 
 const EXERCISES = [
@@ -923,6 +998,7 @@ const $ = selector => document.querySelector(selector);
 
 const state = {
   selectedId: load(STORE.selected, 'shoulder'),
+  selectedDate: load(STORE.selectedDate, toDateString(new Date())),
   values: {},
   last: mergeLastValues(load(STORE.last, {}), load('wt:lastValues:v1', {})),
   history: load(STORE.history, load('wt:history:v1', [])),
@@ -1053,6 +1129,15 @@ function bindEvents() {
   $('#submitBtn').addEventListener('click', submitRecord);
   $('#historyBtn').addEventListener('click', openHistory);
   $('#queueBtn').addEventListener('click', openQueue);
+  $('#todayDateBtn').addEventListener('click', () => {
+    setSelectedDate(toDateString(new Date()));
+  });
+  $('#yesterdayDateBtn').addEventListener('click', () => {
+    setSelectedDate(shiftDateString(toDateString(new Date()), -1));
+  });
+  $('#recordDateInput').addEventListener('change', event => {
+    setSelectedDate(event.target.value);
+  });
 
   $('#historySheet').addEventListener('click', closeSheetOnBackdrop);
   $('#queueSheet').addEventListener('click', closeSheetOnBackdrop);
@@ -1241,10 +1326,9 @@ async function submitRecord() {
 }
 
 function buildRecord(exercise) {
-  const today = toDateString(new Date());
   return {
     sheet: SHEET,
-    日付: today,
+    日付: state.selectedDate,
     種目: exercise.name,
     重量: state.values.weight ?? '',
     回数: state.values.reps ?? '',
@@ -1314,15 +1398,15 @@ function setSubmitState(stateName) {
 }
 
 function renderStats() {
-  const today = toDateString(new Date());
-  const todays = state.history.filter(item => item.日付 === today);
+  const selected = state.selectedDate;
+  const todays = state.history.filter(item => item.日付 === selected);
   const sets = todays.reduce((sum, item) => sum + (Number(item.セット数) || 0), 0);
   const kinds = new Set(todays.map(item => item.種目)).size;
 
   $('#todaySets').textContent = sets;
   $('#todayKinds').textContent = kinds;
 
-  const monday = startOfWeek(new Date());
+  const monday = startOfWeek(parseLocalDate(selected));
   const weekDates = new Set();
   state.history.forEach(item => {
     const date = parseLocalDate(item.日付);
@@ -1330,7 +1414,12 @@ function renderStats() {
   });
   $('#weekDays').textContent = `${weekDates.size}/3`;
   $('#weekDays').classList.toggle('hot', weekDates.size >= 3);
-  $('#todayLabel').textContent = formatJapaneseDate(new Date());
+  const selectedDate = parseLocalDate(selected);
+  $('#todayLabel').textContent = `${formatJapaneseDate(selectedDate)} の入力`;
+  $('#selectedDateLabel').textContent = formatJapaneseDate(selectedDate);
+  $('#recordDateInput').value = selected;
+  $('#todayDateBtn').classList.toggle('active', selected === toDateString(new Date()));
+  $('#yesterdayDateBtn').classList.toggle('active', selected === shiftDateString(toDateString(new Date()), -1));
 }
 
 function isWeightedExerciseName(name) {
@@ -1359,17 +1448,30 @@ function formatJapaneseDate(date) {
   return `${date.getMonth() + 1}/${date.getDate()} (${dayNames[date.getDay()]})`;
 }
 
+function shiftDateString(dateStr, diffDays) {
+  const date = parseLocalDate(dateStr);
+  date.setDate(date.getDate() + diffDays);
+  return toDateString(date);
+}
+
+function setSelectedDate(dateStr) {
+  if (!dateStr) return;
+  state.selectedDate = dateStr;
+  save(STORE.selectedDate, state.selectedDate);
+  renderStats();
+}
+
 function openHistory() {
   renderHistory();
   openSheet('#historySheet');
 }
 
 function renderHistory() {
-  const today = toDateString(new Date());
-  const todays = state.history.filter(item => item.日付 === today);
+  const todays = state.history.filter(item => item.日付 === state.selectedDate);
+  $('#historyTitle').textContent = `${formatJapaneseDate(parseLocalDate(state.selectedDate))} の記録`;
   $('#historyList').innerHTML = todays.length
     ? todays.map(historyItemHtml).join('')
-    : '<div class="empty">今日の記録はまだありません</div>';
+    : '<div class="empty">この日の記録はまだありません</div>';
 }
 
 function historyItemHtml(item) {
