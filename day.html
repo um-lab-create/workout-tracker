@@ -439,6 +439,44 @@
       gap: 8px;
     }
 
+    .suggest-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .suggest-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,209,90,.16);
+      background: linear-gradient(145deg, rgba(255,209,90,.09), rgba(255,255,255,.035));
+      text-decoration: none;
+    }
+
+    .suggest-title {
+      font-size: 14px;
+      line-height: 1.3;
+      font-weight: 950;
+    }
+
+    .suggest-copy {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .suggest-action {
+      color: var(--warn);
+      font-size: 12px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
     .food-card {
       padding: 12px;
       border-radius: 18px;
@@ -684,6 +722,14 @@
         <div class="section-note">暫定目安つき</div>
       </div>
       <div class="nutrient-grid" id="nutrientGrid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">足す候補</div>
+        <div class="section-note">不足から逆引き</div>
+      </div>
+      <div class="suggest-grid" id="suggestGrid"></div>
     </section>
 
     <section class="panel">
@@ -968,6 +1014,7 @@
       renderHero(state);
       renderMacros(state);
       renderNutrients(state);
+      renderSuggestions(state);
       renderTimings(state);
       renderFoods(state);
       renderContributions(state);
@@ -1051,6 +1098,24 @@
       root.innerHTML = cards.join('');
     }
 
+    function renderSuggestions(state) {
+      const root = document.getElementById('suggestGrid');
+      const suggestions = buildFoodSuggestions(state);
+      if (!suggestions.length) {
+        root.innerHTML = '<div class="empty">今日の入力からは、強い不足候補はまだ出ていません。</div>';
+        return;
+      }
+      root.innerHTML = suggestions.map(item => `
+        <a class="suggest-card" href="meal.html?date=${encodeURIComponent(selectedDate)}&panel=builder">
+          <div>
+            <div class="suggest-title">${item.nutrientLabel}: ${item.foodName}</div>
+            <div class="suggest-copy">${item.reason} / 目安の${item.foodPct}%ぶん</div>
+          </div>
+          <div class="suggest-action">追加へ</div>
+        </a>
+      `).join('');
+    }
+
     function renderFoods(state) {
       const root = document.getElementById('foodGrid');
       const foods = Object.values(state.foodTotals || {})
@@ -1112,6 +1177,63 @@
         .filter(([, value]) => value > 0)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
+    }
+
+    function buildFoodSuggestions(state) {
+      if (!NUTRITION_DB || !NUTRITION_DB.FOODS) return [];
+      const suggestionPriority = [
+        'protein', 'fiber', 'Ca', 'Fe', 'Mg', 'K', 'Zn',
+        'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3'
+      ];
+      const priorityRank = Object.fromEntries(suggestionPriority.map((key, index) => [key, index]));
+      const weakNutrients = Object.entries(NUTRIENT_META)
+        .filter(([key]) => suggestionPriority.includes(key))
+        .map(([key, meta]) => {
+          const value = state.nutrients[key] || 0;
+          const pct = meta.target ? Math.round((value / meta.target) * 100) : 0;
+          return { key, meta, pct };
+        })
+        .filter(item => item.pct < 70)
+        .sort((a, b) => (priorityRank[a.key] - priorityRank[b.key]) || (a.pct - b.pct))
+        .slice(0, 4);
+
+      return weakNutrients.map(item => {
+        const food = bestFoodForNutrient(item.key);
+        if (!food) return null;
+        const value = foodValueForNutrient(food, item.key);
+        const pct = item.meta.target ? Math.round((value / item.meta.target) * 100) : 0;
+        return {
+          nutrientLabel: item.meta.label,
+          foodName: food.name,
+          foodPct: pct,
+          reason: food.mode === 'perUnit' ? `1${food.unitLabel || '個'}` : defaultFoodUnitLabel(food)
+        };
+      }).filter(Boolean);
+    }
+
+    function bestFoodForNutrient(key) {
+      return Object.values(NUTRITION_DB.FOODS)
+        .map(food => ({ food, value: foodValueForNutrient(food, key) }))
+        .filter(entry => entry.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map(entry => entry.food)[0] || null;
+    }
+
+    function foodValueForNutrient(food, key) {
+      if (!food) return 0;
+      if (food.mode === 'perUnit') return food.perUnit[key] || 0;
+      const unitLabel = defaultFoodUnitKey(food);
+      const grams = food.units && food.units[unitLabel] || 100;
+      return (food.per100g[key] || 0) * grams / 100;
+    }
+
+    function defaultFoodUnitKey(food) {
+      return Object.keys(food.units || {}).find(key => key !== 'g' && key !== 'ml') || Object.keys(food.units || {})[0] || 'g';
+    }
+
+    function defaultFoodUnitLabel(food) {
+      const key = defaultFoodUnitKey(food);
+      return key ? `1${key}` : '1食分';
     }
 
     function nutrientStatus(key, pct, value) {
