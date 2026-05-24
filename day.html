@@ -641,61 +641,20 @@
     </div>
   </div>
 
+  <script src="nutrition-db.js"></script>
   <script>
     'use strict';
 
     const RECORD_STORE = 'meal_recs_v3';
     const DRAFT_STORE = 'meal_draft_v4';
+    const NUTRITION_DB = window.HSNutritionDB || null;
     const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
     const TIMING_LABELS = {
       morning: { label: '朝ごはん' },
       lunch: { label: '昼ごはん' },
       dinner: { label: '夜ごはん' }
     };
-    const NUTRIENT_META = {
-      fiber: { label: '食物繊維', unit: 'g', target: 21, precision: 1 },
-      calcium: { label: 'カルシウム', unit: 'mg', target: 750, precision: 0 },
-      iron: { label: '鉄', unit: 'mg', target: 7.5, precision: 1 },
-      vitaminC: { label: 'ビタミンC', unit: 'mg', target: 100, precision: 0 },
-      potassium: { label: 'カリウム', unit: 'mg', target: 3000, precision: 0 }
-    };
-    const FOOD_LIBRARY = {
-      bihidas: { name: 'ビヒダスヨーグルト', mode: 'per100g', units: { '大スプーン': 15, '小スプーン': 5, '小鉢': 80, 'g': 1 }, macros: { kcal: 65, p: 3.6, f: 3.0, c: 4.9 }, nutrients: { fiber: 0, calcium: 120, iron: 0, vitaminC: 0, potassium: 160 } },
-      banana: { name: 'バナナ', mode: 'per100g', units: { '本': 100, 'g': 1 }, macros: { kcal: 93, p: 1.1, f: 0.2, c: 22.5 }, nutrients: { fiber: 1.1, calcium: 6, iron: 0.3, vitaminC: 16, potassium: 360 } },
-      'soy-protein': { name: 'ソイプロテイン', mode: 'per100g', units: { '食分': 30, 'g': 1 }, macros: { kcal: 380, p: 80, f: 6, c: 8 }, nutrients: { fiber: 3.5, calcium: 220, iron: 6.0, vitaminC: 0, potassium: 1000 } },
-      'whey-protein': { name: 'ホエイプロテイン', mode: 'per100g', units: { '食分': 30, 'g': 1 }, macros: { kcal: 390, p: 78, f: 6, c: 10 }, nutrients: { fiber: 0, calcium: 450, iron: 0.6, vitaminC: 0, potassium: 420 } },
-      'mix-nuts': { name: 'ミックスナッツ', mode: 'per100g', units: { '粒': 1.2, 'つかみ': 20, 'g': 1 }, macros: { kcal: 650, p: 17, f: 58, c: 17 }, nutrients: { fiber: 7.0, calcium: 70, iron: 2.5, vitaminC: 0, potassium: 680 } },
-      raisin: { name: 'レーズン', mode: 'per100g', units: { '粒': 0.5, '大さじ': 10, 'g': 1 }, macros: { kcal: 324, p: 2.7, f: 0.2, c: 80.7 }, nutrients: { fiber: 4.1, calcium: 65, iron: 2.3, vitaminC: 2, potassium: 740 } },
-      coffee: { name: 'コーヒー', mode: 'per100g', units: { '杯': 200, 'ml': 1 }, macros: { kcal: 4, p: 0.2, f: 0, c: 0.7 }, nutrients: { fiber: 0, calcium: 2, iron: 0, vitaminC: 0, potassium: 65 } },
-      milk: { name: '牛乳', mode: 'per100g', units: { '杯': 200, 'ml': 1, 'g': 1 }, macros: { kcal: 61, p: 3.3, f: 3.8, c: 4.8 }, nutrients: { fiber: 0, calcium: 110, iron: 0, vitaminC: 1, potassium: 150 } },
-      bread: { name: '食パン', mode: 'per100g', units: { '枚': 60, 'g': 1 }, macros: { kcal: 248, p: 8.9, f: 4.1, c: 46.7 }, nutrients: { fiber: 2.3, calcium: 43, iron: 0.6, vitaminC: 0, potassium: 97 } },
-      rice: { name: '白米', mode: 'per100g', units: { '膳': 150, '杯': 120, 'g': 1 }, macros: { kcal: 168, p: 2.5, f: 0.3, c: 37.1 }, nutrients: { fiber: 0.3, calcium: 3, iron: 0.1, vitaminC: 0, potassium: 29 } },
-      oikos: { name: 'オイコス', mode: 'per100g', units: { '個': 113, 'g': 1 }, macros: { kcal: 92, p: 10.1, f: 0, c: 12.9 }, nutrients: { fiber: 0, calcium: 130, iron: 0, vitaminC: 0, potassium: 140 } },
-      natto: { name: '納豆', mode: 'per100g', units: { 'パック': 45, 'g': 1 }, macros: { kcal: 190, p: 16.5, f: 10, c: 12.1 }, nutrients: { fiber: 6.7, calcium: 90, iron: 3.3, vitaminC: 0, potassium: 660 } },
-      egg: { name: '卵', mode: 'per100g', units: { '個': 50, 'g': 1 }, macros: { kcal: 151, p: 12.3, f: 10.3, c: 0.3 }, nutrients: { fiber: 0, calcium: 51, iron: 1.8, vitaminC: 0, potassium: 130 } },
-      'chicken-breast': { name: '鶏胸肉', mode: 'per100g', units: { '枚': 220, '100g': 100, 'g': 1 }, macros: { kcal: 108, p: 22.3, f: 1.5, c: 0 }, nutrients: { fiber: 0, calcium: 5, iron: 0.4, vitaminC: 0, potassium: 330 } },
-      'salad-chicken': { name: 'サラダチキン', mode: 'per100g', units: { 'パック': 110, 'g': 1 }, macros: { kcal: 105, p: 22.3, f: 1.1, c: 2.2 }, nutrients: { fiber: 0, calcium: 5, iron: 0.4, vitaminC: 0, potassium: 330 } },
-      'pork-loin': { name: '豚ロース', mode: 'per100g', units: { '枚': 120, '100g': 100, 'g': 1 }, macros: { kcal: 263, p: 19.3, f: 19.2, c: 0.2 }, nutrients: { fiber: 0, calcium: 4, iron: 0.7, vitaminC: 0, potassium: 310 } },
-      salmon: { name: 'サーモン', mode: 'per100g', units: { '切れ': 100, 'g': 1 }, macros: { kcal: 138, p: 20.1, f: 4.1, c: 0.3 }, nutrients: { fiber: 0, calcium: 15, iron: 0.8, vitaminC: 0, potassium: 490 } },
-      mackerel: { name: 'サバ', mode: 'per100g', units: { '切れ': 100, 'g': 1 }, macros: { kcal: 211, p: 20.6, f: 16.8, c: 0.3 }, nutrients: { fiber: 0, calcium: 6, iron: 1.2, vitaminC: 0, potassium: 320 } },
-      tofu: { name: '豆腐', mode: 'per100g', units: { 'パック': 150, '丁': 300, 'g': 1 }, macros: { kcal: 56, p: 4.9, f: 3.0, c: 1.6 }, nutrients: { fiber: 0.3, calcium: 120, iron: 1.5, vitaminC: 0, potassium: 140 } },
-      broccoli: { name: 'ブロッコリー', mode: 'per100g', units: { '房': 80, '皿': 100, 'g': 1 }, macros: { kcal: 33, p: 4.3, f: 0.5, c: 5.2 }, nutrients: { fiber: 5.1, calcium: 50, iron: 1.3, vitaminC: 140, potassium: 460 } },
-      kimchi: { name: 'キムチ', mode: 'per100g', units: { '皿': 50, 'g': 1 }, macros: { kcal: 46, p: 2.8, f: 0.5, c: 8.2 }, nutrients: { fiber: 2.7, calcium: 45, iron: 0.6, vitaminC: 18, potassium: 340 } },
-      oatmeal: { name: 'オートミール', mode: 'per100g', units: { '食分': 30, 'g': 1 }, macros: { kcal: 350, p: 13.7, f: 5.7, c: 69.1 }, nutrients: { fiber: 9.4, calcium: 47, iron: 3.9, vitaminC: 0, potassium: 260 } },
-      pasta: { name: 'パスタ', mode: 'per100g', units: { '皿': 250, 'g': 1 }, macros: { kcal: 150, p: 5.2, f: 0.9, c: 30.3 }, nutrients: { fiber: 1.8, calcium: 12, iron: 0.6, vitaminC: 0, potassium: 44 } },
-      udon: { name: 'うどん', mode: 'per100g', units: { '玉': 200, 'g': 1 }, macros: { kcal: 105, p: 2.6, f: 0.4, c: 21.6 }, nutrients: { fiber: 1.3, calcium: 12, iron: 0.3, vitaminC: 0, potassium: 8 } },
-      soba: { name: 'そば', mode: 'per100g', units: { '玉': 180, 'g': 1 }, macros: { kcal: 132, p: 4.8, f: 1.0, c: 26.0 }, nutrients: { fiber: 2.9, calcium: 17, iron: 0.8, vitaminC: 0, potassium: 34 } },
-      'sweet-potato': { name: 'さつまいも', mode: 'per100g', units: { '本': 180, 'g': 1 }, macros: { kcal: 126, p: 1.2, f: 0.2, c: 29.7 }, nutrients: { fiber: 2.8, calcium: 36, iron: 0.6, vitaminC: 29, potassium: 480 } },
-      'miso-soup': { name: '味噌汁', mode: 'per100g', units: { '杯': 180, 'ml': 1 }, macros: { kcal: 35, p: 2.2, f: 1.2, c: 3.6 }, nutrients: { fiber: 0.8, calcium: 24, iron: 0.4, vitaminC: 1, potassium: 70 } },
-      'protein-bar': { name: 'プロテインバー', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 183, p: 15, f: 8, c: 13 }, nutrientsPerUnit: { fiber: 3.0, calcium: 120, iron: 1.5, vitaminC: 0, potassium: 120 } },
-      'greek-yogurt': { name: 'ギリシャヨーグルト', mode: 'per100g', units: { '個': 110, 'g': 1 }, macros: { kcal: 63, p: 10.3, f: 0.4, c: 4.9 }, nutrients: { fiber: 0, calcium: 120, iron: 0, vitaminC: 0, potassium: 140 } },
-      'prod-oikos-blueberry': { name: 'オイコス ブルーベリー', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 92, p: 10.1, f: 0, c: 12.9 }, nutrientsPerUnit: { fiber: 0.3, calcium: 130, iron: 0, vitaminC: 0, potassium: 140 } },
-      'prod-savas-milk': { name: 'ザバス ミルクプロテイン', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 102, p: 15, f: 0, c: 10 }, nutrientsPerUnit: { fiber: 0, calcium: 300, iron: 0, vitaminC: 0, potassium: 200 } },
-      'prod-base-bread': { name: 'BASE BREAD チョコ', mode: 'perUnit', unitLabel: '袋', macrosPerUnit: { kcal: 255, p: 13.5, f: 8.5, c: 31.5 }, nutrientsPerUnit: { fiber: 6.5, calcium: 120, iron: 1.5, vitaminC: 0, potassium: 210 } },
-      'prod-salad-chicken-herb': { name: 'サラダチキン ハーブ', mode: 'perUnit', unitLabel: 'パック', macrosPerUnit: { kcal: 115, p: 24.5, f: 1.2, c: 1.1 }, nutrientsPerUnit: { fiber: 0, calcium: 6, iron: 0.5, vitaminC: 0, potassium: 360 } },
-      'prod-in-jelly-protein': { name: 'inゼリー プロテイン', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 112, p: 10, f: 0, c: 17.5 }, nutrientsPerUnit: { fiber: 0, calcium: 0, iron: 0, vitaminC: 0, potassium: 80 } },
-      'prod-ameal': { name: 'アーモンド効果 砂糖不使用', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, nutrientsPerUnit: { fiber: 1.2, calcium: 180, iron: 0.6, vitaminC: 0, potassium: 120 } }
-    };
+    const NUTRIENT_META = NUTRITION_DB ? NUTRITION_DB.META : {};
 
     let selectedDate = readInitialDate();
 
@@ -779,38 +738,27 @@
     }
 
     function calcFoodPortion(food, qty, unitLabel) {
-      const safeQty = Number(qty) || 0;
-      if (!food || safeQty <= 0) return null;
-      if (food.mode === 'perUnit') {
-        return {
-          kcal: (food.macrosPerUnit.kcal || 0) * safeQty,
-          p: (food.macrosPerUnit.p || 0) * safeQty,
-          f: (food.macrosPerUnit.f || 0) * safeQty,
-          c: (food.macrosPerUnit.c || 0) * safeQty,
-          fiber: (food.nutrientsPerUnit.fiber || 0) * safeQty,
-          calcium: (food.nutrientsPerUnit.calcium || 0) * safeQty,
-          iron: (food.nutrientsPerUnit.iron || 0) * safeQty,
-          vitaminC: (food.nutrientsPerUnit.vitaminC || 0) * safeQty,
-          potassium: (food.nutrientsPerUnit.potassium || 0) * safeQty,
-          known: true
-        };
-      }
-      const gramsPerUnit = food.units[unitLabel];
-      if (!gramsPerUnit) return null;
-      const grams = safeQty * gramsPerUnit;
-      const ratio = grams / 100;
+      if (!NUTRITION_DB || !food) return null;
+      const portion = NUTRITION_DB.calcPortion(food, qty, unitLabel);
+      if (!portion) return null;
       return {
-        kcal: (food.macros.kcal || 0) * ratio,
-        p: (food.macros.p || 0) * ratio,
-        f: (food.macros.f || 0) * ratio,
-        c: (food.macros.c || 0) * ratio,
-        fiber: (food.nutrients.fiber || 0) * ratio,
-        calcium: (food.nutrients.calcium || 0) * ratio,
-        iron: (food.nutrients.iron || 0) * ratio,
-        vitaminC: (food.nutrients.vitaminC || 0) * ratio,
-        potassium: (food.nutrients.potassium || 0) * ratio,
+        grams: portion.grams,
+        nutrients: portion.totals,
         known: true
       };
+    }
+
+    function structureItem(item) {
+      if (item && item.nutrients) return item;
+      if (NUTRITION_DB) return NUTRITION_DB.structureItem(item, null);
+      return null;
+    }
+
+    function getEntryItems(entry) {
+      if (entry && Array.isArray(entry.structuredItems) && entry.structuredItems.length) {
+        return entry.structuredItems.map(structureItem).filter(Boolean);
+      }
+      return ((entry && entry.items) || []).map(structureItem).filter(Boolean);
     }
 
     function buildDayState() {
@@ -819,40 +767,46 @@
       const timingState = { morning: null, lunch: null, dinner: null };
 
       records.forEach(record => {
+        const items = getEntryItems(record);
+        const totals = computeItemsSummary(items);
         timingState[record.timingKey] = {
           source: 'saved',
           title: TIMING_LABELS[record.timingKey]?.label || record.timing,
           memo: record.memo,
-          kcal: Number(record.kcal) || 0,
-          p: Number(record.protein) || 0,
-          f: Number(record.fat) || 0,
-          c: Number(record.carb) || 0,
-          items: record.items || [],
-          reviewCount: Number(record.reviewCount) || 0
+          kcal: totals.energy,
+          p: totals.protein,
+          f: totals.fat,
+          c: totals.carb,
+          items: items,
+          reviewCount: totals.reviewCount
         };
       });
 
       Object.keys(TIMING_LABELS).forEach(timingKey => {
         if (timingState[timingKey]) return;
         const draft = drafts[draftKey(selectedDate, timingKey)];
-        if (!draft || !(draft.items || []).length) return;
-        const totals = computeItemsSummary(draft.items);
+        const items = getEntryItems(draft);
+        if (!items.length) return;
+        const totals = computeItemsSummary(items);
         timingState[timingKey] = {
           source: 'draft',
           title: TIMING_LABELS[timingKey].label,
-          memo: summarizeItems(draft.items),
-          kcal: totals.kcal,
-          p: totals.p,
-          f: totals.f,
-          c: totals.c,
-          items: draft.items,
+          memo: summarizeItems(items),
+          kcal: totals.energy,
+          p: totals.protein,
+          f: totals.fat,
+          c: totals.carb,
+          items: items,
           reviewCount: totals.reviewCount
         };
       });
 
       const totals = { kcal: 0, p: 0, f: 0, c: 0, reviewCount: 0, meals: 0 };
-      const nutrients = { fiber: 0, calcium: 0, iron: 0, vitaminC: 0, potassium: 0 };
-      const contributions = { fiber: {}, calcium: {}, iron: {}, vitaminC: {}, potassium: {} };
+      const nutrients = NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {};
+      const contributions = {};
+      Object.keys(NUTRIENT_META).forEach(key => {
+        contributions[key] = {};
+      });
       let knownItems = 0;
       let totalItems = 0;
 
@@ -867,14 +821,13 @@
 
         (entry.items || []).forEach(item => {
           totalItems += 1;
-          const food = FOOD_LIBRARY[item.foodId];
-          const portion = calcFoodPortion(food, item.qty, item.unit);
-          if (!portion) return;
+          const portion = structureItem(item);
+          if (!portion || !portion.nutrients) return;
           knownItems += 1;
           Object.keys(nutrients).forEach(key => {
-            nutrients[key] += portion[key] || 0;
-            const name = food.name;
-            contributions[key][name] = (contributions[key][name] || 0) + (portion[key] || 0);
+            nutrients[key] += portion.nutrients[key] || 0;
+            const name = portion.foodName || portion.foodId;
+            contributions[key][name] = (contributions[key][name] || 0) + (portion.nutrients[key] || 0);
           });
         });
       });
@@ -890,23 +843,21 @@
 
     function computeItemsSummary(items) {
       return (items || []).reduce((acc, item) => {
-        const food = FOOD_LIBRARY[item.foodId];
-        const portion = calcFoodPortion(food, item.qty, item.unit);
-        if (portion) {
-          acc.kcal += portion.kcal;
-          acc.p += portion.p;
-          acc.f += portion.f;
-          acc.c += portion.c;
+        const portion = structureItem(item);
+        if (portion && portion.nutrients) {
+          acc.energy += portion.nutrients.energy || 0;
+          acc.protein += portion.nutrients.protein || 0;
+          acc.fat += portion.nutrients.fat || 0;
+          acc.carb += portion.nutrients.carb || 0;
         }
         acc.reviewCount += item.pendingReview ? 1 : 0;
         return acc;
-      }, { kcal: 0, p: 0, f: 0, c: 0, reviewCount: 0 });
+      }, { energy: 0, protein: 0, fat: 0, carb: 0, reviewCount: 0 });
     }
 
     function summarizeItems(items) {
       return (items || []).map(item => {
-        const food = FOOD_LIBRARY[item.foodId];
-        const name = food ? food.name : item.foodId;
+        const name = item.foodName || item.foodId;
         return `${name} ${formatQty(item.qty)}${item.unit}`;
       }).join('、');
     }
@@ -968,9 +919,9 @@
               <div class="nutrient-name">${meta.label}</div>
               <div class="nutrient-target">目安 ${meta.target}${meta.unit}</div>
             </div>
-            <div class="nutrient-value">${formatNutrient(value, meta)}${meta.unit}</div>
+            <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
             <div class="track"><div class="fill" style="width:${pct}%"></div></div>
-            <div class="nutrient-meta">${pct}% / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(item.value, meta)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
+            <div class="nutrient-meta">${pct}% / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
           </div>
         `;
       }).join('');
@@ -1026,7 +977,7 @@
               <div class="contrib-name">${meta.label} / ${item.name}</div>
               <div class="contrib-copy">この栄養の主な寄与食品</div>
             </div>
-            <div class="contrib-amount">${formatNutrient(item.value, meta)}${meta.unit}</div>
+            <div class="contrib-amount">${formatNutrient(key, item.value)}${meta.unit}</div>
           </div>
         `).join('');
       }).join('');
@@ -1040,7 +991,9 @@
         .sort((a, b) => b.value - a.value);
     }
 
-    function formatNutrient(value, meta) {
+    function formatNutrient(key, value) {
+      if (NUTRITION_DB) return NUTRITION_DB.formatValue(key, value);
+      const meta = NUTRIENT_META[key] || {};
       const precision = meta.precision || 0;
       return Number(value || 0).toFixed(precision).replace(/\.0$/, '');
     }

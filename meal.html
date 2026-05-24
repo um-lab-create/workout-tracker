@@ -1952,6 +1952,7 @@
   <datalist id="presetEditorFoodSuggestions"></datalist>
   <div class="toast" id="toast"></div>
 
+  <script src="nutrition-db.js"></script>
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
     const AUTH_STORE = 'hs:write-auth:v1';
@@ -1962,6 +1963,7 @@
     const RECIPE_STORE = 'meal_recipes_v1';
     const DRAFT_STORE = 'meal_draft_v4';
     const HABIT_STORE = 'meal_habits_v1';
+    const NUTRITION_DB = window.HSNutritionDB || null;
 
     const TIMINGS = {
       morning: { label: '朝', title: '朝ごはん', icon: '朝' },
@@ -2431,6 +2433,50 @@
         f: (food.macros.f || 0) * ratio,
         c: (food.macros.c || 0) * ratio
       };
+    }
+
+    function buildStructuredItem(item) {
+      if (!NUTRITION_DB) {
+        return {
+          foodId: item.foodId,
+          foodName: item.name,
+          qty: Number(item.qty) || 0,
+          unit: item.unit,
+          grams: item.grams == null ? null : Number(item.grams) || 0,
+          pendingReview: Boolean(item.pendingReview),
+          nutrients: {
+            energy: Number(item.kcal) || 0,
+            protein: Number(item.p) || 0,
+            fat: Number(item.f) || 0,
+            carb: Number(item.c) || 0
+          }
+        };
+      }
+      return NUTRITION_DB.structureItem(item, getFoodById(item.foodId));
+    }
+
+    function toStoredMealItems(sourceItems) {
+      return (sourceItems || []).map(item => ({
+        foodId: item.foodId,
+        qty: Number(item.qty) || 0,
+        unit: item.unit,
+        pendingReview: Boolean(item.pendingReview)
+      }));
+    }
+
+    function restoreMealItems(rawItems, rawStructuredItems) {
+      const sourceItems = (rawItems && rawItems.length)
+        ? rawItems
+        : (rawStructuredItems || []).map(item => ({
+            foodId: item.foodId,
+            qty: item.qty,
+            unit: item.unit,
+            pendingReview: item.pendingReview
+          }));
+      return sourceItems.map(item => {
+        const food = getFoodById(item.foodId);
+        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
+      }).filter(Boolean);
     }
 
     function createMealItem(food, qty, unitLabel, options = {}) {
@@ -3061,13 +3107,11 @@
     }
 
     function persistCurrentTimingDraft() {
+      const storedItems = toStoredMealItems(currentMeal);
       drafts[draftKey(selectedDate, currentTiming)] = {
-        items: currentMeal.map(item => ({
-          foodId: item.foodId,
-          qty: item.qty,
-          unit: item.unit,
-          pendingReview: Boolean(item.pendingReview)
-        })),
+        items: storedItems,
+        structuredItems: currentMeal.map(buildStructuredItem),
+        nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
         note: document.getElementById('mealNote').value
       };
       storageSet(DRAFT_STORE, drafts);
@@ -3075,7 +3119,7 @@
 
     function loadCurrentTimingDraft() {
       const key = draftKey(selectedDate, currentTiming);
-      const draft = drafts[key] || { items: [], note: '' };
+      const draft = drafts[key] || { items: [], structuredItems: [], note: '' };
       const hasSavedRecord = getRecords().some(record => record.date === selectedDate && record.timingKey === currentTiming);
       let sourceItems = draft.items || [];
       let sourceNote = draft.note || '';
@@ -3086,10 +3130,7 @@
           sourceNote = '';
         }
       }
-      currentMeal = sourceItems.map(item => {
-        const food = getFoodById(item.foodId);
-        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
-      }).filter(Boolean);
+      currentMeal = restoreMealItems(sourceItems, draft.structuredItems || []);
       document.getElementById('mealNote').value = sourceNote;
     }
 
@@ -3923,7 +3964,9 @@
         title: timing.title,
         memo: memoParts.join(' / '),
         note,
-        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview })),
+        items: toStoredMealItems(currentMeal),
+        structuredItems: currentMeal.map(buildStructuredItem),
+        nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
         kcal: Math.round(totals.kcal),
         protein: Math.round(totals.p),
         fat: Math.round(totals.f),
