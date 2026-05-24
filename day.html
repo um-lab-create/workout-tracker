@@ -347,6 +347,24 @@
       font-weight: 800;
     }
 
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .status-pill.low { color: var(--warn); border-color: rgba(255,209,90,.35); }
+    .status-pill.ok { color: var(--ok); border-color: rgba(66,231,155,.35); }
+    .status-pill.high { color: #ff8fa3; border-color: rgba(255,143,163,.35); }
+
     .nutrient-value {
       margin-top: 8px;
       font-size: 22px;
@@ -414,6 +432,59 @@
     .contrib-list {
       display: grid;
       gap: 8px;
+    }
+
+    .food-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .food-card {
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(255,255,255,.04);
+      display: grid;
+      gap: 10px;
+    }
+
+    .food-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .food-name {
+      font-size: 14px;
+      line-height: 1.3;
+      font-weight: 950;
+    }
+
+    .food-kcal {
+      color: var(--accent-2);
+      font-size: 13px;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .food-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .food-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: rgba(88,216,255,.12);
+      border: 1px solid rgba(88,216,255,.16);
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 850;
     }
 
     .contrib-row {
@@ -511,7 +582,7 @@
       background: rgba(88,216,255,.14);
     }
 
-    @media (max-width: 430px) {
+    @media (max-width: 600px) {
       .hero-grid,
       .macro-grid,
       .nutrient-grid {
@@ -621,6 +692,14 @@
         <div class="section-note">未保存下書きも含む</div>
       </div>
       <div class="timing-grid" id="timingGrid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">食品別</div>
+        <div class="section-note">何が強いか</div>
+      </div>
+      <div class="food-grid" id="foodGrid"></div>
     </section>
 
     <section class="panel">
@@ -804,6 +883,7 @@
       const totals = { kcal: 0, p: 0, f: 0, c: 0, reviewCount: 0, meals: 0 };
       const nutrients = NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {};
       const contributions = {};
+      const foodTotals = {};
       Object.keys(NUTRIENT_META).forEach(key => {
         contributions[key] = {};
       });
@@ -824,11 +904,22 @@
           const portion = structureItem(item);
           if (!portion || !portion.nutrients) return;
           knownItems += 1;
+          const foodName = portion.foodName || portion.foodId;
+          if (!foodTotals[foodName]) {
+            foodTotals[foodName] = {
+              name: foodName,
+              nutrients: NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {},
+              kcal: 0,
+              review: false
+            };
+          }
+          foodTotals[foodName].review = foodTotals[foodName].review || Boolean(portion.pendingReview);
           Object.keys(nutrients).forEach(key => {
             nutrients[key] += portion.nutrients[key] || 0;
-            const name = portion.foodName || portion.foodId;
-            contributions[key][name] = (contributions[key][name] || 0) + (portion.nutrients[key] || 0);
+            foodTotals[foodName].nutrients[key] += portion.nutrients[key] || 0;
+            contributions[key][foodName] = (contributions[key][foodName] || 0) + (portion.nutrients[key] || 0);
           });
+          foodTotals[foodName].kcal += portion.nutrients.energy || 0;
         });
       });
 
@@ -837,6 +928,7 @@
         totals,
         nutrients,
         contributions,
+        foodTotals,
         coverage: totalItems ? Math.round((knownItems / totalItems) * 100) : 0
       };
     }
@@ -877,6 +969,7 @@
       renderMacros(state);
       renderNutrients(state);
       renderTimings(state);
+      renderFoods(state);
       renderContributions(state);
     }
 
@@ -911,17 +1004,19 @@
       const root = document.getElementById('nutrientGrid');
       root.innerHTML = Object.entries(NUTRIENT_META).map(([key, meta]) => {
         const value = state.nutrients[key] || 0;
-        const pct = Math.min(100, Math.round((value / meta.target) * 100));
+        const rawPct = meta.target ? Math.round((value / meta.target) * 100) : 0;
+        const pct = Math.min(100, rawPct);
+        const status = nutrientStatus(key, rawPct, value);
         const leaders = topContributors(state.contributions[key]).slice(0, 2);
         return `
           <div class="nutrient-card">
             <div class="nutrient-head">
               <div class="nutrient-name">${meta.label}</div>
-              <div class="nutrient-target">目安 ${meta.target}${meta.unit}</div>
+              <div class="status-pill ${status.kind}">${status.label}</div>
             </div>
             <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
             <div class="track"><div class="fill" style="width:${pct}%"></div></div>
-            <div class="nutrient-meta">${pct}% / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
+            <div class="nutrient-meta">${rawPct}% / 目安 ${meta.target}${meta.unit} / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
           </div>
         `;
       }).join('');
@@ -954,6 +1049,34 @@
         `;
       });
       root.innerHTML = cards.join('');
+    }
+
+    function renderFoods(state) {
+      const root = document.getElementById('foodGrid');
+      const foods = Object.values(state.foodTotals || {})
+        .sort((a, b) => b.kcal - a.kcal)
+        .slice(0, 12);
+      if (!foods.length) {
+        root.innerHTML = '<div class="empty">まだありません。</div>';
+        return;
+      }
+      root.innerHTML = foods.map(food => {
+        const strengths = foodStrengths(food.nutrients).slice(0, 4);
+        return `
+          <div class="food-card">
+            <div class="food-card-head">
+              <div>
+                <div class="food-name">${food.name}</div>
+                ${food.review ? '<div class="nutrient-meta">要確認の概算を含みます</div>' : ''}
+              </div>
+              <div class="food-kcal">${Math.round(food.kcal)}kcal</div>
+            </div>
+            <div class="food-tags">
+              ${strengths.length ? strengths.map(item => `<div class="food-tag">${item.label} ${item.pct}%</div>`).join('') : '<div class="food-tag">栄養DB未整備</div>'}
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     function renderContributions(state) {
@@ -989,6 +1112,30 @@
         .filter(([, value]) => value > 0)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value);
+    }
+
+    function nutrientStatus(key, pct, value) {
+      if (!value) return { label: '未摂取', kind: 'low' };
+      if (key === 'salt' || key === 'saturatedFat') {
+        if (pct > 120) return { label: '多め', kind: 'high' };
+        return { label: '適切', kind: 'ok' };
+      }
+      if (pct < 60) return { label: '不足', kind: 'low' };
+      if (pct < 100) return { label: 'もう少し', kind: 'low' };
+      if (pct <= 180) return { label: '適切', kind: 'ok' };
+      return { label: '多め', kind: 'high' };
+    }
+
+    function foodStrengths(nutrients) {
+      return Object.entries(NUTRIENT_META)
+        .filter(([key]) => key !== 'energy' && key !== 'salt' && key !== 'saturatedFat')
+        .map(([key, meta]) => {
+          const value = nutrients[key] || 0;
+          const pct = meta.target ? Math.round((value / meta.target) * 100) : 0;
+          return { key, label: meta.label, pct, value };
+        })
+        .filter(item => item.value > 0 && item.pct >= 5)
+        .sort((a, b) => b.pct - a.pct);
     }
 
     function formatNutrient(key, value) {
