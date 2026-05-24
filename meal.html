@@ -799,6 +799,54 @@
       background: linear-gradient(135deg, rgba(245,158,11,.92), rgba(255,217,120,.98));
     }
 
+    .portion-row,
+    .topping-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .portion-chip,
+    .topping-chip {
+      min-height: 42px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .portion-chip.active {
+      color: #0a0a0f;
+      border-color: rgba(245,158,11,.55);
+      background: linear-gradient(135deg, rgba(245,158,11,.92), rgba(255,217,120,.98));
+    }
+
+    .estimate-card {
+      border-radius: 16px;
+      border: 1px solid rgba(255,209,90,.26);
+      background: linear-gradient(145deg, rgba(255,209,90,.10), rgba(255,255,255,.03));
+      padding: 12px;
+      display: none;
+      gap: 10px;
+    }
+
+    .estimate-card.show {
+      display: grid;
+    }
+
+    .estimate-title {
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .estimate-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
     .ghost-btn,
     .accent-btn,
     .save-btn {
@@ -1448,7 +1496,7 @@
     .toast.warn { border-color: rgba(255,209,90,.4); }
     .toast.bad { border-color: rgba(255,109,138,.42); }
 
-    @media (max-width: 430px) {
+    @media (max-width: 600px) {
       .topbar {
         flex-direction: column;
         align-items: stretch;
@@ -1468,8 +1516,13 @@
       .search-row,
       .qty-row,
       .action-row,
+      .estimate-actions,
       .toolbar { grid-template-columns: 1fr; }
+      .portion-row,
+      .topping-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .modal { padding-left: 8px; padding-right: 8px; }
+      .sheet { border-radius: 22px; padding: 14px; }
       .dock-row { grid-template-columns: 1fr; }
       .dock-actions { width: 100%; }
       .dock-mini,
@@ -1721,6 +1774,17 @@
           </div>
           <div class="helper-text">見つからないときは 商品DB / 独自食材 / 自作メニュー で追加。</div>
           <div class="result-list" id="searchResultList"></div>
+          <div class="estimate-card" id="estimateCard">
+            <div>
+              <div class="estimate-title" id="estimateTitle">概算で追加</div>
+              <div class="helper-text" id="estimateCopy">後で見直せるように要確認で入れます。</div>
+            </div>
+            <div class="estimate-actions">
+              <button class="ghost-btn" type="button" onclick="addEstimatedFood('light')">軽め</button>
+              <button class="ghost-btn" type="button" onclick="addEstimatedFood('normal')">普通</button>
+              <button class="ghost-btn" type="button" onclick="addEstimatedFood('heavy')">多め</button>
+            </div>
+          </div>
         </div>
 
         <div class="field-group">
@@ -1728,6 +1792,7 @@
             <span>量</span>
             <span id="unitHint">標準量</span>
           </div>
+          <div class="portion-row" id="portionShortcutRow"></div>
           <div class="qty-row">
             <div class="stepper">
               <button class="step-btn" type="button" onclick="stepQty(-1)">−</button>
@@ -1737,6 +1802,13 @@
             <select class="select-input" id="unitSelect"></select>
             <button class="accent-btn" type="button" onclick="addCurrentFood()">追加</button>
           </div>
+        </div>
+
+        <div class="field-group" id="toppingGroup" style="display:none">
+          <div class="field-label">
+            <span>一緒に足す</span>
+          </div>
+          <div class="topping-grid" id="toppingGrid"></div>
         </div>
 
         <div class="field-group">
@@ -2107,6 +2179,39 @@
       dinner: ['rice', 'salmon', 'mackerel', 'tofu', 'kimchi', 'sweet-potato']
     };
 
+    const TOPPING_SETS = {
+      natto: ['egg', 'kimchi', 'miso-soup', 'rice'],
+      rice: ['natto', 'egg', 'kimchi', 'miso-soup'],
+      tofu: ['kimchi', 'egg', 'miso-soup'],
+      bihidas: ['banana', 'mix-nuts', 'raisin', 'whey-protein'],
+      banana: ['bihidas', 'mix-nuts', 'soy-protein'],
+      bread: ['egg', 'milk', 'coffee'],
+      'chicken-breast': ['rice', 'broccoli', 'miso-soup'],
+      'salad-chicken': ['rice', 'broccoli', 'egg'],
+      salmon: ['rice', 'miso-soup', 'broccoli'],
+      mackerel: ['rice', 'miso-soup', 'broccoli'],
+      pasta: ['egg', 'broccoli', 'salad-chicken'],
+      udon: ['egg', 'tofu', 'miso-soup']
+    };
+
+    const ESTIMATE_PRESETS = {
+      morning: {
+        light: { kcal: 180, p: 8, f: 6, c: 24 },
+        normal: { kcal: 320, p: 15, f: 10, c: 42 },
+        heavy: { kcal: 520, p: 24, f: 18, c: 66 }
+      },
+      lunch: {
+        light: { kcal: 350, p: 18, f: 10, c: 48 },
+        normal: { kcal: 650, p: 30, f: 20, c: 88 },
+        heavy: { kcal: 900, p: 40, f: 30, c: 120 }
+      },
+      dinner: {
+        light: { kcal: 320, p: 20, f: 12, c: 35 },
+        normal: { kcal: 620, p: 32, f: 22, c: 72 },
+        heavy: { kcal: 850, p: 42, f: 32, c: 100 }
+      }
+    };
+
     let currentTiming = 'morning';
     let currentMeal = [];
     let foodLookup = {};
@@ -2343,14 +2448,16 @@
     function resolveFoodSelection() {
       const select = document.getElementById('foodSelect');
       const input = document.getElementById('foodSearch');
+      const typed = input.value.trim();
+      if (typed) {
+        const typedFood = getAllFoods().find(food => food.name === typed) ||
+          getAllFoods().find(food => food.name.includes(typed) || typed.includes(food.name) || String(food.brand || '').includes(typed));
+        if (typedFood) return typedFood;
+      }
+
       const selectId = select.value;
       if (selectId && getFoodById(selectId)) return getFoodById(selectId);
-
-      const typed = input.value.trim();
-      if (!typed) return null;
-      return getAllFoods().find(food => food.name === typed) ||
-        getAllFoods().find(food => food.name.includes(typed) || typed.includes(food.name) || String(food.brand || '').includes(typed)) ||
-        null;
+      return null;
     }
 
     function getFoodsForTiming(timingKey) {
@@ -2861,6 +2968,7 @@
       const query = document.getElementById('foodSearch').value.trim();
       if (!query) {
         root.innerHTML = '';
+        renderEstimateCard(false);
         return;
       }
       const candidates = getSearchCandidates()
@@ -2870,9 +2978,11 @@
 
       if (!candidates.length) {
         root.innerHTML = '<div class="empty-state">候補なし。独自食材か商品DBへ追加してください。</div>';
+        renderEstimateCard(true, query);
         return;
       }
 
+      renderEstimateCard(false);
       root.innerHTML = candidates.map(candidate => `
         <button type="button" class="result-card" onclick="selectSearchCandidate('${candidate.kind}', '${candidate.id}')">
           <div class="result-head">
@@ -2882,6 +2992,80 @@
           <div class="result-meta">${candidate.copy}</div>
         </button>
       `).join('');
+    }
+
+    function renderEstimateCard(show, query = '') {
+      const card = document.getElementById('estimateCard');
+      if (!card) return;
+      card.classList.toggle('show', Boolean(show));
+      document.getElementById('estimateTitle').textContent = query ? `「${query}」を概算で追加` : '概算で追加';
+    }
+
+    function getPortionShortcuts(food) {
+      const unit = getDefaultUnit(food);
+      if (!food || !unit) return [];
+      const baseQty = Number(unit.defaultQty) || 1;
+      if (food.mode === 'perUnit' && (Number(unit.step) || 1) >= 1) {
+        return [
+          { label: '1個', qty: baseQty, unit: unit.label },
+          { label: '2個', qty: baseQty * 2, unit: unit.label },
+          { label: '3個', qty: baseQty * 3, unit: unit.label }
+        ];
+      }
+      return [
+        { label: '半分', qty: baseQty * 0.5, unit: unit.label },
+        { label: '1人前', qty: baseQty, unit: unit.label },
+        { label: '1.5', qty: baseQty * 1.5, unit: unit.label },
+        { label: '2人前', qty: baseQty * 2, unit: unit.label }
+      ];
+    }
+
+    function renderPortionShortcuts(food) {
+      const root = document.getElementById('portionShortcutRow');
+      if (!root) return;
+      const shortcuts = getPortionShortcuts(food);
+      root.innerHTML = shortcuts.map(entry => `
+        <button type="button" class="portion-chip" onclick="applyPortionShortcut(${entry.qty}, '${entry.unit}')">${entry.label}</button>
+      `).join('');
+      updatePortionShortcutState();
+    }
+
+    function updatePortionShortcutState() {
+      const root = document.getElementById('portionShortcutRow');
+      const food = resolveFoodSelection();
+      if (!root || !food) return;
+      const qty = Number(document.getElementById('qtyInput').value) || 0;
+      const unit = document.getElementById('unitSelect').value;
+      const shortcuts = getPortionShortcuts(food);
+      [...root.querySelectorAll('.portion-chip')].forEach((button, index) => {
+        const entry = shortcuts[index];
+        button.classList.toggle('active', entry && entry.unit === unit && Math.abs(entry.qty - qty) < 0.01);
+      });
+    }
+
+    function applyPortionShortcut(qty, unitLabel) {
+      const food = resolveFoodSelection();
+      if (!food) return;
+      const unit = getUnitsForFood(food).find(entry => entry.label === unitLabel) || getDefaultUnit(food);
+      document.getElementById('unitSelect').value = unit.label;
+      document.getElementById('unitSelect').dataset.prevUnit = unit.label;
+      document.getElementById('qtyInput').step = unit.step || 1;
+      document.getElementById('qtyInput').value = Number(qty).toFixed(2).replace(/\.00$/, '').replace(/0$/, '');
+      updateUnitHint();
+    }
+
+    function renderToppingCandidates(food) {
+      const group = document.getElementById('toppingGroup');
+      const root = document.getElementById('toppingGrid');
+      if (!group || !root) return;
+      const ids = (food && TOPPING_SETS[food.id] || [])
+        .filter(id => getFoodById(id) && id !== food.id && !hasFood(id))
+        .slice(0, 4);
+      group.style.display = ids.length ? 'grid' : 'none';
+      root.innerHTML = ids.map(id => {
+        const topping = getFoodById(id);
+        return `<button type="button" class="topping-chip" onclick="quickAddFood('${topping.id}')">${topping.name}</button>`;
+      }).join('');
     }
 
     function syncUnitOptions(food) {
@@ -2894,6 +3078,8 @@
         document.getElementById('qtyInput').step = units[0].step || 1;
         select.dataset.prevUnit = units[0].label;
       }
+      renderPortionShortcuts(food);
+      renderToppingCandidates(food);
       updateUnitHint();
     }
 
@@ -2921,6 +3107,7 @@
         ? `${formatQty(qty)}${unitLabel}で ${Math.round(portion.kcal)}kcal`
         : `${formatQty(qty)}${unitLabel} = 約${Math.round(portion.grams)}g / ${Math.round(portion.kcal)}kcal`;
       document.getElementById('unitHint').textContent = hint;
+      updatePortionShortcutState();
     }
 
     function updatePresetEditorUnitHint() {
@@ -3243,6 +3430,37 @@
       currentMeal.push(createMealItem(food, qty, unitLabel));
       renderCurrentMeal();
       showToast(`${food.name} を追加しました`);
+      persistCurrentTimingDraft();
+      closeModal('builderModal');
+    }
+
+    function addEstimatedFood(size) {
+      const name = document.getElementById('foodSearch').value.trim();
+      if (!name) {
+        showToast('名前を入れてください', 'warn');
+        return;
+      }
+      const preset = (ESTIMATE_PRESETS[currentTiming] && ESTIMATE_PRESETS[currentTiming][size]) || ESTIMATE_PRESETS[currentTiming].normal;
+      const entry = {
+        id: `estimate-${Date.now()}`,
+        name,
+        category: TIMINGS[currentTiming].label,
+        entryType: 'estimate',
+        mode: 'perUnit',
+        unitLabel: '食分',
+        macrosPerUnit: { ...preset },
+        defaultQty: 1,
+        step: 1,
+        keywords: ['概算', '要確認']
+      };
+      customFoods.unshift(entry);
+      saveCustomFoods();
+      buildFoodLookup();
+      currentMeal.push(createMealItem(entry, 1, '食分', { pendingReview: true }));
+      renderFoodSelector();
+      renderCurrentMeal();
+      renderCustomFoodList();
+      showToast(`${name} を概算で追加しました`);
       persistCurrentTimingDraft();
       closeModal('builderModal');
     }
