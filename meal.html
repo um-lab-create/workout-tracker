@@ -199,6 +199,106 @@
       pointer-events: none;
     }
 
+    .date-strip {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+
+    .date-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .date-title {
+      display: grid;
+      gap: 4px;
+    }
+
+    .date-label {
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .date-value {
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 900;
+    }
+
+    .date-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .date-quick {
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .date-quick.active {
+      color: var(--ink);
+      border-color: rgba(245,158,11,.46);
+      background: linear-gradient(145deg, rgba(245,158,11,.22), rgba(245,158,11,.09));
+    }
+
+    .date-input {
+      min-height: 34px;
+      min-width: 154px;
+      padding: 0 12px;
+      border-radius: 999px;
+    }
+
+    .habit-strip {
+      display: grid;
+      gap: 8px;
+    }
+
+    .habit-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .habit-copy {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .habit-name {
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .habit-detail {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
     .hero-head {
       position: relative;
       display: flex;
@@ -840,6 +940,45 @@
       margin-top: 14px;
     }
 
+    .day-board {
+      display: grid;
+      gap: 10px;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .day-card {
+      min-height: 82px;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .day-label {
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .day-value {
+      margin-top: 8px;
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .day-sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
     .nutrition-row {
       display: grid;
       grid-template-columns: 68px 1fr 52px;
@@ -1374,6 +1513,62 @@
         <button class="action-pill" type="button" onclick="openHistory()"><strong>時</strong><span>履歴</span></button>
         <button class="action-pill" type="button" onclick="openRecipeManager()"><strong>献</strong><span>メニュー</span></button>
       </div>
+      <div class="date-strip">
+        <div class="date-head">
+          <div class="date-title">
+            <div class="date-label">記録日</div>
+            <div class="date-value" id="selectedDateLabel">-</div>
+          </div>
+          <div class="date-controls">
+            <button class="date-quick active" id="todayDateBtn" type="button" onclick="jumpRecordDate(0)">今日</button>
+            <button class="date-quick" id="yesterdayDateBtn" type="button" onclick="jumpRecordDate(-1)">昨日</button>
+            <input class="date-input" id="recordDateInput" type="date">
+          </div>
+        </div>
+        <div class="habit-strip">
+          <div class="habit-card">
+            <div class="habit-copy">
+              <div class="habit-name" id="habitTitle">普段の食事なし</div>
+              <div class="habit-detail" id="habitDetail">このタイミングの定番を決めておくと、未入力日に自動で下書きされます。</div>
+            </div>
+            <div class="header-tools">
+              <button class="mini-btn" type="button" onclick="applyHabitPlan()">置く</button>
+              <button class="mini-btn" type="button" onclick="saveCurrentAsHabit()">今を普段にする</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">1日の合計</div>
+      </div>
+      <div class="panel-body day-board">
+        <div class="day-grid">
+          <div class="day-card"><div class="day-label">kcal</div><div class="day-value" id="dayKcal">0</div><div class="day-sub" id="dayKcalSub">0/3 食</div></div>
+          <div class="day-card"><div class="day-label">P</div><div class="day-value" id="dayProtein">0g</div><div class="day-sub" id="dayProteinSub">0%</div></div>
+          <div class="day-card"><div class="day-label">F</div><div class="day-value" id="dayFat">0g</div><div class="day-sub" id="dayFatSub">0%</div></div>
+          <div class="day-card"><div class="day-label">C</div><div class="day-value" id="dayCarb">0g</div><div class="day-sub" id="dayCarbSub">0%</div></div>
+        </div>
+        <div class="nutrition-board">
+          <div class="nutrition-row">
+            <div class="nutrition-key">朝</div>
+            <div class="nutrition-track"><div class="nutrition-fill protein" id="dayMorningFill"></div></div>
+            <div class="nutrition-val" id="dayMorningVal">0kcal</div>
+          </div>
+          <div class="nutrition-row">
+            <div class="nutrition-key">昼</div>
+            <div class="nutrition-track"><div class="nutrition-fill fat" id="dayLunchFill"></div></div>
+            <div class="nutrition-val" id="dayLunchVal">0kcal</div>
+          </div>
+          <div class="nutrition-row">
+            <div class="nutrition-key">夜</div>
+            <div class="nutrition-track"><div class="nutrition-fill carb" id="dayDinnerFill"></div></div>
+            <div class="nutrition-val" id="dayDinnerVal">0kcal</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="panel">
@@ -1765,6 +1960,7 @@
     const PRODUCT_STORE = 'meal_products_v1';
     const RECIPE_STORE = 'meal_recipes_v1';
     const DRAFT_STORE = 'meal_draft_v4';
+    const HABIT_STORE = 'meal_habits_v1';
 
     const TIMINGS = {
       morning: { label: '朝', title: '朝ごはん', icon: '朝' },
@@ -1916,11 +2112,13 @@
     let customProducts = loadProducts();
     let customRecipes = loadRecipes();
     let drafts = loadDrafts();
+    let habits = loadHabits();
     let editingCustomFoodId = null;
     let editingProductId = null;
     let editingPresetId = null;
     let searchScope = 'all';
     let isSaving = false;
+    let selectedDate = todayStr();
 
     function clone(obj) {
       return JSON.parse(JSON.stringify(obj));
@@ -1934,10 +2132,23 @@
       return `${y}-${m}-${day}`;
     }
 
+    function shiftDate(dateStr, offset) {
+      const base = new Date(`${dateStr}T00:00:00`);
+      base.setDate(base.getDate() + offset);
+      const y = base.getFullYear();
+      const m = String(base.getMonth() + 1).padStart(2, '0');
+      const day = String(base.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
     function fmtDate(dateStr) {
       const d = new Date(`${dateStr}T00:00:00`);
       const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
       return `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
+    }
+
+    function draftKey(dateStr, timingKey) {
+      return `${dateStr}:${timingKey}`;
     }
 
     function storageGet(key, fallback) {
@@ -1998,15 +2209,23 @@
     }
 
     function loadDrafts() {
-      const stored = storageGet(DRAFT_STORE, null);
+      return storageGet(DRAFT_STORE, {});
+    }
+
+    function loadHabits() {
+      const stored = storageGet(HABIT_STORE, null);
       if (stored && stored.morning && stored.lunch && stored.dinner) return stored;
-      const empty = {
-        morning: { items: [], note: '' },
-        lunch: { items: [], note: '' },
-        dinner: { items: [], note: '' }
+      const seeded = {
+        morning: { presetId: 'preset-morning-fixed' },
+        lunch: { presetId: 'preset-lunch-chicken' },
+        dinner: { presetId: 'preset-dinner-salmon' }
       };
-      storageSet(DRAFT_STORE, empty);
-      return empty;
+      storageSet(HABIT_STORE, seeded);
+      return seeded;
+    }
+
+    function saveHabits() {
+      storageSet(HABIT_STORE, habits);
     }
 
     function loadWritePin() {
@@ -2258,9 +2477,15 @@
       return presets[currentTiming] || [];
     }
 
+    function getHabitPreset(timingKey = currentTiming) {
+      const setting = habits[timingKey];
+      if (!setting || !setting.presetId) return null;
+      return (presets[timingKey] || []).find(item => item.id === setting.presetId) || null;
+    }
+
     function getRecentRecordsForTiming() {
       return getRecords()
-        .filter(record => record.timingKey === currentTiming)
+        .filter(record => record.timingKey === currentTiming && record.date <= selectedDate)
         .slice()
         .reverse()
         .filter((record, index, arr) => arr.findIndex(other => other.memo === record.memo) === index)
@@ -2325,6 +2550,13 @@
       document.getElementById('todayChip').textContent = fmtDate(todayStr());
     }
 
+    function renderSelectedDate() {
+      document.getElementById('selectedDateLabel').textContent = fmtDate(selectedDate);
+      document.getElementById('recordDateInput').value = selectedDate;
+      document.getElementById('todayDateBtn').classList.toggle('active', selectedDate === todayStr());
+      document.getElementById('yesterdayDateBtn').classList.toggle('active', selectedDate === shiftDate(todayStr(), -1));
+    }
+
     function renderTimingGrid() {
       const root = document.getElementById('timingGrid');
       root.innerHTML = Object.entries(TIMINGS).map(([key, timing]) => `
@@ -2342,6 +2574,83 @@
       const title = TIMINGS[currentTiming].title;
       document.getElementById('heroTitle').textContent = title;
       document.getElementById('dockTiming').textContent = title;
+    }
+
+    function renderHabitCard() {
+      const preset = getHabitPreset();
+      document.getElementById('habitTitle').textContent = preset ? preset.name : '普段の食事なし';
+      document.getElementById('habitDetail').textContent = preset
+        ? `${preset.items.length}品 / 未入力日はこれを先に置きます`
+        : 'このタイミングの定番を決めておくと、未入力日に自動で下書きされます。';
+    }
+
+    function getRecordsForDate(dateStr) {
+      return getRecords().filter(record => record.date === dateStr);
+    }
+
+    function getDaySnapshot(dateStr) {
+      const totals = { kcal: 0, protein: 0, fat: 0, carb: 0, count: 0 };
+      const byTiming = { morning: 0, lunch: 0, dinner: 0 };
+      const records = getRecordsForDate(dateStr);
+      records.forEach(record => {
+        totals.kcal += Number(record.kcal) || 0;
+        totals.protein += Number(record.protein) || 0;
+        totals.fat += Number(record.fat) || 0;
+        totals.carb += Number(record.carb) || 0;
+        totals.count += 1;
+        if (record.timingKey && byTiming[record.timingKey] != null) {
+          byTiming[record.timingKey] += Number(record.kcal) || 0;
+        }
+      });
+
+      const draftKeyNow = draftKey(dateStr, currentTiming);
+      const hasSavedForTiming = records.some(record => record.timingKey === currentTiming);
+      const draft = drafts[draftKeyNow];
+      const shouldCountCurrent = !hasSavedForTiming && selectedDate === dateStr && currentMeal.length;
+      const hasDraftOnly = !shouldCountCurrent && !hasSavedForTiming && draft && (draft.items || []).length;
+      if (shouldCountCurrent || hasDraftOnly) {
+        const draftTotals = shouldCountCurrent
+          ? mealTotals()
+          : (draft.items || []).reduce((acc, item) => {
+              const food = getFoodById(item.foodId);
+              if (!food) return acc;
+              const portion = calcFoodPortion(food, item.qty, item.unit);
+              acc.kcal += portion.kcal || 0;
+              acc.p += portion.p || 0;
+              acc.f += portion.f || 0;
+              acc.c += portion.c || 0;
+              return acc;
+            }, { kcal: 0, p: 0, f: 0, c: 0 });
+        totals.kcal += Math.round(draftTotals.kcal);
+        totals.protein += Math.round(draftTotals.p);
+        totals.fat += Math.round(draftTotals.f);
+        totals.carb += Math.round(draftTotals.c);
+        totals.count += 1;
+        byTiming[currentTiming] += Math.round(draftTotals.kcal);
+      }
+
+      return { totals, byTiming };
+    }
+
+    function renderDayBoard() {
+      const { totals, byTiming } = getDaySnapshot(selectedDate);
+      const macroSum = totals.protein + totals.fat + totals.carb;
+      const pctP = macroSum ? Math.round((totals.protein / macroSum) * 100) : 0;
+      const pctF = macroSum ? Math.round((totals.fat / macroSum) * 100) : 0;
+      const pctC = macroSum ? Math.round((totals.carb / macroSum) * 100) : 0;
+      const dayMax = Math.max(byTiming.morning, byTiming.lunch, byTiming.dinner, 1);
+      document.getElementById('dayKcal').textContent = Math.round(totals.kcal);
+      document.getElementById('dayKcalSub').textContent = `${totals.count}/3 食`;
+      document.getElementById('dayProtein').textContent = `${Math.round(totals.protein)}g`;
+      document.getElementById('dayProteinSub').textContent = `${pctP}%`;
+      document.getElementById('dayFat').textContent = `${Math.round(totals.fat)}g`;
+      document.getElementById('dayFatSub').textContent = `${pctF}%`;
+      document.getElementById('dayCarb').textContent = `${Math.round(totals.carb)}g`;
+      document.getElementById('dayCarbSub').textContent = `${pctC}%`;
+      [['morning', 'Morning'], ['lunch', 'Lunch'], ['dinner', 'Dinner']].forEach(([key, suffix]) => {
+        document.getElementById(`day${suffix}Fill`).style.width = `${Math.round((byTiming[key] / dayMax) * 100)}%`;
+        document.getElementById(`day${suffix}Val`).textContent = `${Math.round(byTiming[key])}kcal`;
+      });
     }
 
     function renderPresetGrid() {
@@ -2595,6 +2904,7 @@
         empty.style.display = 'block';
         renderSummary();
         renderSmartGrid();
+        renderDayBoard();
         return;
       }
       empty.style.display = 'none';
@@ -2624,6 +2934,7 @@
       `).join('');
       renderSummary();
       renderSmartGrid();
+      renderDayBoard();
     }
 
     function renderSummary() {
@@ -2749,7 +3060,7 @@
     }
 
     function persistCurrentTimingDraft() {
-      drafts[currentTiming] = {
+      drafts[draftKey(selectedDate, currentTiming)] = {
         items: currentMeal.map(item => ({
           foodId: item.foodId,
           qty: item.qty,
@@ -2762,12 +3073,23 @@
     }
 
     function loadCurrentTimingDraft() {
-      const draft = drafts[currentTiming] || { items: [], note: '' };
-      currentMeal = (draft.items || []).map(item => {
+      const key = draftKey(selectedDate, currentTiming);
+      const draft = drafts[key] || { items: [], note: '' };
+      const hasSavedRecord = getRecords().some(record => record.date === selectedDate && record.timingKey === currentTiming);
+      let sourceItems = draft.items || [];
+      let sourceNote = draft.note || '';
+      if (!sourceItems.length && !hasSavedRecord) {
+        const habitPreset = getHabitPreset();
+        if (habitPreset) {
+          sourceItems = habitPreset.items || [];
+          sourceNote = '';
+        }
+      }
+      currentMeal = sourceItems.map(item => {
         const food = getFoodById(item.foodId);
         return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
-      document.getElementById('mealNote').value = draft.note || '';
+      document.getElementById('mealNote').value = sourceNote;
     }
 
     function selectTiming(key) {
@@ -2776,6 +3098,7 @@
       loadCurrentTimingDraft();
       renderTimingGrid();
       renderHeroTitle();
+      renderHabitCard();
       renderPresetGrid();
       renderRecentGrid();
       renderQuickGrid();
@@ -2783,8 +3106,69 @@
       renderRecipeGrid();
       renderFoodSelector();
       renderCurrentMeal();
+      renderDayBoard();
       renderPresetManager();
       persistCurrentTimingDraft();
+    }
+
+    function applyHabitPlan() {
+      const preset = getHabitPreset();
+      if (!preset) {
+        showToast('普段の食事がありません', 'warn');
+        return;
+      }
+      currentMeal = preset.items.map(item => {
+        const food = getFoodById(item.foodId);
+        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
+      }).filter(Boolean);
+      document.getElementById('mealNote').value = '';
+      renderCurrentMeal();
+      renderDayBoard();
+      persistCurrentTimingDraft();
+      showToast('普段の食事を置きました');
+    }
+
+    function saveCurrentAsHabit() {
+      if (!currentMeal.length) {
+        showToast('今の食事内容が空です', 'warn');
+        return;
+      }
+      const existing = getHabitPreset();
+      if (existing) {
+        existing.items = currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }));
+      } else {
+        const fallbackId = `habit-${currentTiming}-${Date.now()}`;
+        const preset = {
+          id: fallbackId,
+          name: `${TIMINGS[currentTiming].title}の普段`,
+          items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }))
+        };
+        presets[currentTiming].unshift(preset);
+        habits[currentTiming] = { presetId: fallbackId };
+      }
+      savePresets();
+      saveHabits();
+      renderPresetGrid();
+      renderPresetManager();
+      renderHabitCard();
+      showToast('普段の食事を更新しました');
+    }
+
+    function setRecordDate(nextDate) {
+      if (!nextDate) return;
+      persistCurrentTimingDraft();
+      selectedDate = nextDate;
+      loadCurrentTimingDraft();
+      renderSelectedDate();
+      renderHabitCard();
+      renderRecentGrid();
+      renderCurrentMeal();
+      renderDayBoard();
+      persistCurrentTimingDraft();
+    }
+
+    function jumpRecordDate(offset) {
+      setRecordDate(shiftDate(todayStr(), offset));
     }
 
     function quickAddFood(foodId) {
@@ -2965,6 +3349,7 @@
       savePresets();
       renderPresetGrid();
       renderPresetManager();
+      renderHabitCard();
       showToast('固定項目に保存しました');
     }
 
@@ -2980,6 +3365,7 @@
       savePresets();
       renderPresetGrid();
       renderPresetManager();
+      renderHabitCard();
       showToast('固定項目を上書きしました');
     }
 
@@ -3011,6 +3397,7 @@
       savePresets();
       renderPresetGrid();
       renderPresetManager();
+      renderHabitCard();
     }
 
     function deletePreset(presetId) {
@@ -3018,9 +3405,14 @@
       if (!preset) return;
       if (!window.confirm(`「${preset.name}」を削除しますか？`)) return;
       presets[currentTiming] = presets[currentTiming].filter(item => item.id !== presetId);
+      if (habits[currentTiming] && habits[currentTiming].presetId === presetId) {
+        habits[currentTiming] = { presetId: presets[currentTiming][0] ? presets[currentTiming][0].id : '' };
+        saveHabits();
+      }
       savePresets();
       renderPresetGrid();
       renderPresetManager();
+      renderHabitCard();
       showToast('固定項目を削除しました');
     }
 
@@ -3194,6 +3586,7 @@
       savePresets();
       renderPresetGrid();
       renderPresetManager();
+      renderHabitCard();
       closeModal('presetEditorModal');
       showToast('固定項目を更新しました');
     }
@@ -3519,7 +3912,7 @@
 
       const record = {
         id: `rec-${Date.now()}`,
-        date: todayStr(),
+        date: selectedDate,
         timing: timing.label,
         timingKey: currentTiming,
         title: timing.title,
@@ -3563,6 +3956,7 @@
         renderCurrentMeal();
         renderHistory();
         renderRecentGrid();
+        renderDayBoard();
         persistCurrentTimingDraft();
         showToast(`${timing.title}を記録しました`);
       } else {
@@ -3648,6 +4042,9 @@
 
       document.getElementById('qtyInput').addEventListener('input', updateUnitHint);
       document.getElementById('mealNote').addEventListener('input', persistCurrentTimingDraft);
+      document.getElementById('recordDateInput').addEventListener('change', event => {
+        if (event.target.value) setRecordDate(event.target.value);
+      });
 
       document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', event => {
@@ -3659,6 +4056,7 @@
     function initialize() {
       buildFoodLookup();
       setTodayChip();
+      renderSelectedDate();
       setSyncStatus('', '待機中');
       renderTimingGrid();
       renderHeroTitle();
@@ -3666,12 +4064,14 @@
       loadCurrentTimingDraft();
       renderTimingGrid();
       renderHeroTitle();
+      renderHabitCard();
       renderPresetGrid();
       renderRecentGrid();
       renderQuickGrid();
       renderProductGrid();
       renderRecipeGrid();
       renderCurrentMeal();
+      renderDayBoard();
       renderPresetManager();
       renderCustomFoodList();
       renderProductList();
