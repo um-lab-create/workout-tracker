@@ -874,6 +874,10 @@ button:disabled {
         <strong>自作メニュー</strong>
         <span>保存した食事</span>
       </a>
+      <a class="mini-launch" href="day.html" data-track-key="meal-day" data-track-label="日次栄養" data-track-kind="launch">
+        <strong>日次栄養</strong>
+        <span>PFC と主要栄養</span>
+      </a>
       <a class="mini-launch" href="meal.html?panel=builder" data-track-key="meal" data-track-label="食事追加" data-track-kind="launch">
         <strong>すぐ追加</strong>
         <span>検索して足す</span>
@@ -920,6 +924,14 @@ button:disabled {
       <div class="section-note">必要タブへ直行</div>
     </div>
     <div class="view-list">
+      <a class="view-card" href="day.html" data-track-key="meal-day" data-track-label="日次栄養" data-track-kind="view">
+        <div class="view-glyph">栄</div>
+        <div>
+          <div class="view-title">日次栄養</div>
+          <div class="view-copy">PFC と主要栄養をその日単位で見る。</div>
+        </div>
+        <div class="view-hint">↗</div>
+      </a>
       <a class="view-card" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672" target="_blank" rel="noopener noreferrer" data-track-key="dashboard" data-track-label="ダッシュボード" data-track-kind="view">
         <div class="view-glyph">D</div>
         <div>
@@ -971,7 +983,7 @@ button:disabled {
     <a class="dock-link" href="workout.html" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch"><div class="dock-btn"><strong>筋</strong><span>筋トレ</span></div></a>
     <a class="dock-link" href="meal.html" data-track-key="meal" data-track-label="食事" data-track-kind="launch"><div class="dock-btn"><strong>食</strong><span>食事</span></div></a>
     <a class="dock-link" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch"><div class="dock-btn"><strong>取</strong><span>取込</span></div></a>
-    <a class="dock-link" href="https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672" target="_blank" rel="noopener noreferrer" data-track-key="dashboard" data-track-label="ダッシュボード" data-track-kind="view"><div class="dock-btn"><strong>見</strong><span>見る</span></div></a>
+    <a class="dock-link" href="day.html" data-track-key="meal-day" data-track-label="日次栄養" data-track-kind="view"><div class="dock-btn"><strong>栄</strong><span>日次</span></div></a>
   </div>
 </div>
 
@@ -988,10 +1000,12 @@ const MEAL_PRESET_STORE = 'meal_presets_v3';
 const MEAL_PRODUCT_STORE = 'meal_products_v1';
 const MEAL_RECIPE_STORE = 'meal_recipes_v1';
 const MEAL_DRAFT_STORE = 'meal_draft_v4';
+const BASE_PRODUCT_COUNT = 6;
 
 const TRACKED_TARGETS = {
   workout: { label: '筋トレ', href: 'workout.html', glyph: 'W', copy: '前回値からすぐ記録' },
   meal: { label: '食事', href: 'meal.html', glyph: 'M', copy: '固定・最近からすぐ記録' },
+  'meal-day': { label: '日次栄養', href: 'day.html', glyph: '栄', copy: 'PFC と主要栄養を見る' },
   'health-import': { label: 'ヘルスケア取込', href: 'health-import.html', glyph: 'H', copy: 'zip を開いて送信' },
   dashboard: { label: 'ダッシュボード', href: 'https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=1615759672', glyph: 'D', copy: '全体状況を見る', external: true },
   weekly: { label: '週次サマリー', href: 'https://docs.google.com/spreadsheets/d/1sGy5mi0-7r5gxwY3fxhRnclTVvQVKTywaReNJxlGTCM/edit#gid=160628814', glyph: 'W', copy: '週単位で振り返る', external: true },
@@ -1123,7 +1137,7 @@ function renderMealBase() {
     (presets.lunch || []).length +
     (presets.dinner || []).length;
   const reviewCount = countReviewFlags(drafts);
-  document.getElementById('mealProductCount').textContent = String(products.length);
+  document.getElementById('mealProductCount').textContent = String(products.length + BASE_PRODUCT_COUNT);
   document.getElementById('mealRecipeCount').textContent = String(recipes.length);
   document.getElementById('mealPresetCount').textContent = String(presetCount);
   document.getElementById('mealReviewCount').textContent = String(reviewCount);

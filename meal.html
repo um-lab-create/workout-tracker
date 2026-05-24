@@ -1543,6 +1543,7 @@
     <section class="panel">
       <div class="section-head">
         <div class="section-title">1日の合計</div>
+        <button class="mini-btn" type="button" onclick="openDayView()">詳しく</button>
       </div>
       <div class="panel-body day-board">
         <div class="day-grid">
@@ -3171,6 +3172,10 @@
       setRecordDate(shiftDate(todayStr(), offset));
     }
 
+    function openDayView() {
+      window.location.href = `day.html?date=${encodeURIComponent(selectedDate)}`;
+    }
+
     function quickAddFood(foodId) {
       const food = getFoodById(foodId);
       if (!food) return;
@@ -4083,6 +4088,16 @@
 
     function applyLaunchContext() {
       const params = new URLSearchParams(window.location.search);
+      const date = params.get('date');
+      if (date) {
+        selectedDate = date;
+        renderSelectedDate();
+        loadCurrentTimingDraft();
+        renderHabitCard();
+        renderRecentGrid();
+        renderCurrentMeal();
+        renderDayBoard();
+      }
       const panel = params.get('panel');
       if (panel === 'product') {
         openProductManager();

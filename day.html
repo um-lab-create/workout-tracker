@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="日次栄養">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>日次栄養</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --ink: #f7f4ea;
+      --muted: #aaa79d;
+      --dim: #6f6d67;
+      --line: rgba(255,255,255,.09);
+      --panel: rgba(22,23,28,.84);
+      --panel-strong: rgba(34,35,40,.96);
+      --accent: #58d8ff;
+      --accent-soft: rgba(88,216,255,.16);
+      --accent-2: #c8ff42;
+      --warn: #ffd15a;
+      --ok: #42e79b;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --shadow: 0 22px 70px rgba(0,0,0,.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 100px);
+      background:
+        radial-gradient(760px 420px at 18% -10%, rgba(88,216,255,.14), transparent 58%),
+        radial-gradient(620px 380px at 104% 18%, rgba(200,255,66,.10), transparent 60%),
+        linear-gradient(145deg, #08090d 0%, #111218 58%, #08090d 100%);
+    }
+
+    button,
+    input,
+    a {
+      font: inherit;
+      color: inherit;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      background: none;
+      padding: 0;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    input {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(10,10,15,.9);
+      color: var(--ink);
+      border-radius: 999px;
+      min-height: 36px;
+      padding: 0 12px;
+    }
+
+    .app {
+      width: min(100%, 560px);
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .subtle-nav {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .brand-main {
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -.03em;
+    }
+
+    .brand-sub {
+      margin-top: 6px;
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .hero,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
+        rgba(20,21,25,.84);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 16px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: -80px -74px auto auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(88,216,255,.22), transparent 68%);
+      pointer-events: none;
+    }
+
+    .hero-head {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .hero-copy h1 {
+      margin: 0;
+      font-size: 25px;
+      line-height: 1.04;
+      font-weight: 950;
+      letter-spacing: -.03em;
+    }
+
+    .hero-copy p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
+    .hero-mark {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--accent), #8ce8ff);
+      color: #0a0a0f;
+      font-size: 24px;
+      font-weight: 950;
+    }
+
+    .date-row {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .date-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .date-value {
+      font-size: 20px;
+      font-weight: 950;
+      line-height: 1.05;
+    }
+
+    .date-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .date-btn {
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .date-btn.active {
+      color: var(--ink);
+      border-color: rgba(88,216,255,.42);
+      background: linear-gradient(145deg, rgba(88,216,255,.18), rgba(88,216,255,.08));
+    }
+
+    .hero-grid,
+    .macro-grid,
+    .nutrient-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .hero-grid,
+    .macro-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 14px;
+    }
+
+    .hero-card,
+    .macro-card,
+    .timing-card {
+      min-height: 88px;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .card-label {
+      color: var(--dim);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .card-value {
+      margin-top: 8px;
+      font-size: 23px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .card-copy {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    .panel {
+      margin-top: 14px;
+      padding: 14px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 950;
+    }
+
+    .section-note {
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .macro-card .card-value {
+      color: var(--accent-2);
+    }
+
+    .nutrient-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .nutrient-card {
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .nutrient-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .nutrient-name {
+      font-size: 14px;
+      font-weight: 950;
+    }
+
+    .nutrient-target {
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .nutrient-value {
+      margin-top: 8px;
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .track {
+      position: relative;
+      overflow: hidden;
+      height: 10px;
+      margin-top: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+    }
+
+    .fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(88,216,255,.95), rgba(200,255,66,.98));
+    }
+
+    .nutrient-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .timing-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .timing-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .timing-title {
+      font-size: 15px;
+      font-weight: 950;
+    }
+
+    .timing-copy {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .timing-badge {
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .contrib-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .contrib-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 56px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(255,255,255,.04);
+    }
+
+    .contrib-name {
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .contrib-copy {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .contrib-amount {
+      color: var(--accent-2);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .empty {
+      color: var(--dim);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.5;
+      text-align: center;
+      padding: 10px 6px;
+    }
+
+    .dock {
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: calc(var(--safe-bottom) + 14px);
+      z-index: 40;
+      width: min(calc(100% - 28px), 560px);
+      margin: 0 auto;
+      padding: 10px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(16,17,20,.92);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 20px 60px rgba(0,0,0,.42);
+    }
+
+    .dock-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .dock-link {
+      text-decoration: none;
+    }
+
+    .dock-btn {
+      min-height: 56px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.06);
+      background: rgba(255,255,255,.04);
+      display: grid;
+      place-items: center;
+      gap: 2px;
+      padding: 8px 4px;
+      text-align: center;
+    }
+
+    .dock-btn strong {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .dock-btn span {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .dock-btn.is-active {
+      border-color: rgba(88,216,255,.28);
+      background: rgba(88,216,255,.14);
+    }
+
+    @media (max-width: 430px) {
+      .hero-grid,
+      .macro-grid,
+      .nutrient-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <div class="brand-row">
+          <button class="subtle-nav" type="button" onclick="backToMeal()">‹</button>
+          <div>
+            <div class="brand-main">日次栄養</div>
+            <div class="brand-sub">PFC と主要栄養をその日単位で確認</div>
+          </div>
+        </div>
+      </div>
+      <div class="chip" id="coverageChip">栄養DB 0%</div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-head">
+        <div class="hero-copy">
+          <h1 id="selectedDateLabel">-</h1>
+          <p>成人向けの暫定目安で表示。足りない栄養と、どの食品から入ったかを先に見る。</p>
+        </div>
+        <div class="hero-mark">栄</div>
+      </div>
+
+      <div class="date-row">
+        <div class="date-head">
+          <div class="date-controls">
+            <button class="date-btn active" id="todayBtn" type="button" onclick="jumpDate(0)">今日</button>
+            <button class="date-btn" id="yesterdayBtn" type="button" onclick="jumpDate(-1)">昨日</button>
+          </div>
+          <input id="dateInput" type="date">
+        </div>
+      </div>
+
+      <div class="hero-grid">
+        <div class="hero-card">
+          <div class="card-label">kcal</div>
+          <div class="card-value" id="heroKcal">0</div>
+          <div class="card-copy" id="heroCount">0/3 食</div>
+        </div>
+        <div class="hero-card">
+          <div class="card-label">PFC</div>
+          <div class="card-value" id="heroPfc">0/0/0</div>
+          <div class="card-copy">g ベース</div>
+        </div>
+        <div class="hero-card">
+          <div class="card-label">見えてる栄養</div>
+          <div class="card-value" id="heroCoverage">0%</div>
+          <div class="card-copy">栄養DB カバー率</div>
+        </div>
+        <div class="hero-card">
+          <div class="card-label">要確認</div>
+          <div class="card-value" id="heroReview">0</div>
+          <div class="card-copy">量が曖昧</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">PFC</div>
+        <div class="section-note">その日の合計</div>
+      </div>
+      <div class="macro-grid">
+        <div class="macro-card">
+          <div class="card-label">Protein</div>
+          <div class="card-value" id="macroP">0g</div>
+          <div class="card-copy" id="macroPSub">0%</div>
+        </div>
+        <div class="macro-card">
+          <div class="card-label">Fat</div>
+          <div class="card-value" id="macroF">0g</div>
+          <div class="card-copy" id="macroFSub">0%</div>
+        </div>
+        <div class="macro-card">
+          <div class="card-label">Carb</div>
+          <div class="card-value" id="macroC">0g</div>
+          <div class="card-copy" id="macroCSub">0%</div>
+        </div>
+        <div class="macro-card">
+          <div class="card-label">Meals</div>
+          <div class="card-value" id="macroMeals">0</div>
+          <div class="card-copy">朝昼夜 + 下書き</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">主要栄養</div>
+        <div class="section-note">暫定目安つき</div>
+      </div>
+      <div class="nutrient-grid" id="nutrientGrid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">食事ごとの中身</div>
+        <div class="section-note">未保存下書きも含む</div>
+      </div>
+      <div class="timing-grid" id="timingGrid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">食品ごとの寄与</div>
+        <div class="section-note">どこから入ったか</div>
+      </div>
+      <div class="contrib-list" id="contribList"></div>
+    </section>
+  </main>
+
+  <div class="dock">
+    <div class="dock-grid">
+      <a class="dock-link" href="index.html"><div class="dock-btn"><strong>◎</strong><span>ホーム</span></div></a>
+      <a class="dock-link" href="meal.html"><div class="dock-btn"><strong>食</strong><span>食事</span></div></a>
+      <a class="dock-link" href="day.html"><div class="dock-btn is-active"><strong>栄</strong><span>日次栄養</span></div></a>
+      <a class="dock-link" href="workout.html"><div class="dock-btn"><strong>筋</strong><span>筋トレ</span></div></a>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    const RECORD_STORE = 'meal_recs_v3';
+    const DRAFT_STORE = 'meal_draft_v4';
+    const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
+    const TIMING_LABELS = {
+      morning: { label: '朝ごはん' },
+      lunch: { label: '昼ごはん' },
+      dinner: { label: '夜ごはん' }
+    };
+    const NUTRIENT_META = {
+      fiber: { label: '食物繊維', unit: 'g', target: 21, precision: 1 },
+      calcium: { label: 'カルシウム', unit: 'mg', target: 750, precision: 0 },
+      iron: { label: '鉄', unit: 'mg', target: 7.5, precision: 1 },
+      vitaminC: { label: 'ビタミンC', unit: 'mg', target: 100, precision: 0 },
+      potassium: { label: 'カリウム', unit: 'mg', target: 3000, precision: 0 }
+    };
+    const FOOD_LIBRARY = {
+      bihidas: { name: 'ビヒダスヨーグルト', mode: 'per100g', units: { '大スプーン': 15, '小スプーン': 5, '小鉢': 80, 'g': 1 }, macros: { kcal: 65, p: 3.6, f: 3.0, c: 4.9 }, nutrients: { fiber: 0, calcium: 120, iron: 0, vitaminC: 0, potassium: 160 } },
+      banana: { name: 'バナナ', mode: 'per100g', units: { '本': 100, 'g': 1 }, macros: { kcal: 93, p: 1.1, f: 0.2, c: 22.5 }, nutrients: { fiber: 1.1, calcium: 6, iron: 0.3, vitaminC: 16, potassium: 360 } },
+      'soy-protein': { name: 'ソイプロテイン', mode: 'per100g', units: { '食分': 30, 'g': 1 }, macros: { kcal: 380, p: 80, f: 6, c: 8 }, nutrients: { fiber: 3.5, calcium: 220, iron: 6.0, vitaminC: 0, potassium: 1000 } },
+      'whey-protein': { name: 'ホエイプロテイン', mode: 'per100g', units: { '食分': 30, 'g': 1 }, macros: { kcal: 390, p: 78, f: 6, c: 10 }, nutrients: { fiber: 0, calcium: 450, iron: 0.6, vitaminC: 0, potassium: 420 } },
+      'mix-nuts': { name: 'ミックスナッツ', mode: 'per100g', units: { '粒': 1.2, 'つかみ': 20, 'g': 1 }, macros: { kcal: 650, p: 17, f: 58, c: 17 }, nutrients: { fiber: 7.0, calcium: 70, iron: 2.5, vitaminC: 0, potassium: 680 } },
+      raisin: { name: 'レーズン', mode: 'per100g', units: { '粒': 0.5, '大さじ': 10, 'g': 1 }, macros: { kcal: 324, p: 2.7, f: 0.2, c: 80.7 }, nutrients: { fiber: 4.1, calcium: 65, iron: 2.3, vitaminC: 2, potassium: 740 } },
+      coffee: { name: 'コーヒー', mode: 'per100g', units: { '杯': 200, 'ml': 1 }, macros: { kcal: 4, p: 0.2, f: 0, c: 0.7 }, nutrients: { fiber: 0, calcium: 2, iron: 0, vitaminC: 0, potassium: 65 } },
+      milk: { name: '牛乳', mode: 'per100g', units: { '杯': 200, 'ml': 1, 'g': 1 }, macros: { kcal: 61, p: 3.3, f: 3.8, c: 4.8 }, nutrients: { fiber: 0, calcium: 110, iron: 0, vitaminC: 1, potassium: 150 } },
+      bread: { name: '食パン', mode: 'per100g', units: { '枚': 60, 'g': 1 }, macros: { kcal: 248, p: 8.9, f: 4.1, c: 46.7 }, nutrients: { fiber: 2.3, calcium: 43, iron: 0.6, vitaminC: 0, potassium: 97 } },
+      rice: { name: '白米', mode: 'per100g', units: { '膳': 150, '杯': 120, 'g': 1 }, macros: { kcal: 168, p: 2.5, f: 0.3, c: 37.1 }, nutrients: { fiber: 0.3, calcium: 3, iron: 0.1, vitaminC: 0, potassium: 29 } },
+      oikos: { name: 'オイコス', mode: 'per100g', units: { '個': 113, 'g': 1 }, macros: { kcal: 92, p: 10.1, f: 0, c: 12.9 }, nutrients: { fiber: 0, calcium: 130, iron: 0, vitaminC: 0, potassium: 140 } },
+      natto: { name: '納豆', mode: 'per100g', units: { 'パック': 45, 'g': 1 }, macros: { kcal: 190, p: 16.5, f: 10, c: 12.1 }, nutrients: { fiber: 6.7, calcium: 90, iron: 3.3, vitaminC: 0, potassium: 660 } },
+      egg: { name: '卵', mode: 'per100g', units: { '個': 50, 'g': 1 }, macros: { kcal: 151, p: 12.3, f: 10.3, c: 0.3 }, nutrients: { fiber: 0, calcium: 51, iron: 1.8, vitaminC: 0, potassium: 130 } },
+      'chicken-breast': { name: '鶏胸肉', mode: 'per100g', units: { '枚': 220, '100g': 100, 'g': 1 }, macros: { kcal: 108, p: 22.3, f: 1.5, c: 0 }, nutrients: { fiber: 0, calcium: 5, iron: 0.4, vitaminC: 0, potassium: 330 } },
+      'salad-chicken': { name: 'サラダチキン', mode: 'per100g', units: { 'パック': 110, 'g': 1 }, macros: { kcal: 105, p: 22.3, f: 1.1, c: 2.2 }, nutrients: { fiber: 0, calcium: 5, iron: 0.4, vitaminC: 0, potassium: 330 } },
+      'pork-loin': { name: '豚ロース', mode: 'per100g', units: { '枚': 120, '100g': 100, 'g': 1 }, macros: { kcal: 263, p: 19.3, f: 19.2, c: 0.2 }, nutrients: { fiber: 0, calcium: 4, iron: 0.7, vitaminC: 0, potassium: 310 } },
+      salmon: { name: 'サーモン', mode: 'per100g', units: { '切れ': 100, 'g': 1 }, macros: { kcal: 138, p: 20.1, f: 4.1, c: 0.3 }, nutrients: { fiber: 0, calcium: 15, iron: 0.8, vitaminC: 0, potassium: 490 } },
+      mackerel: { name: 'サバ', mode: 'per100g', units: { '切れ': 100, 'g': 1 }, macros: { kcal: 211, p: 20.6, f: 16.8, c: 0.3 }, nutrients: { fiber: 0, calcium: 6, iron: 1.2, vitaminC: 0, potassium: 320 } },
+      tofu: { name: '豆腐', mode: 'per100g', units: { 'パック': 150, '丁': 300, 'g': 1 }, macros: { kcal: 56, p: 4.9, f: 3.0, c: 1.6 }, nutrients: { fiber: 0.3, calcium: 120, iron: 1.5, vitaminC: 0, potassium: 140 } },
+      broccoli: { name: 'ブロッコリー', mode: 'per100g', units: { '房': 80, '皿': 100, 'g': 1 }, macros: { kcal: 33, p: 4.3, f: 0.5, c: 5.2 }, nutrients: { fiber: 5.1, calcium: 50, iron: 1.3, vitaminC: 140, potassium: 460 } },
+      kimchi: { name: 'キムチ', mode: 'per100g', units: { '皿': 50, 'g': 1 }, macros: { kcal: 46, p: 2.8, f: 0.5, c: 8.2 }, nutrients: { fiber: 2.7, calcium: 45, iron: 0.6, vitaminC: 18, potassium: 340 } },
+      oatmeal: { name: 'オートミール', mode: 'per100g', units: { '食分': 30, 'g': 1 }, macros: { kcal: 350, p: 13.7, f: 5.7, c: 69.1 }, nutrients: { fiber: 9.4, calcium: 47, iron: 3.9, vitaminC: 0, potassium: 260 } },
+      pasta: { name: 'パスタ', mode: 'per100g', units: { '皿': 250, 'g': 1 }, macros: { kcal: 150, p: 5.2, f: 0.9, c: 30.3 }, nutrients: { fiber: 1.8, calcium: 12, iron: 0.6, vitaminC: 0, potassium: 44 } },
+      udon: { name: 'うどん', mode: 'per100g', units: { '玉': 200, 'g': 1 }, macros: { kcal: 105, p: 2.6, f: 0.4, c: 21.6 }, nutrients: { fiber: 1.3, calcium: 12, iron: 0.3, vitaminC: 0, potassium: 8 } },
+      soba: { name: 'そば', mode: 'per100g', units: { '玉': 180, 'g': 1 }, macros: { kcal: 132, p: 4.8, f: 1.0, c: 26.0 }, nutrients: { fiber: 2.9, calcium: 17, iron: 0.8, vitaminC: 0, potassium: 34 } },
+      'sweet-potato': { name: 'さつまいも', mode: 'per100g', units: { '本': 180, 'g': 1 }, macros: { kcal: 126, p: 1.2, f: 0.2, c: 29.7 }, nutrients: { fiber: 2.8, calcium: 36, iron: 0.6, vitaminC: 29, potassium: 480 } },
+      'miso-soup': { name: '味噌汁', mode: 'per100g', units: { '杯': 180, 'ml': 1 }, macros: { kcal: 35, p: 2.2, f: 1.2, c: 3.6 }, nutrients: { fiber: 0.8, calcium: 24, iron: 0.4, vitaminC: 1, potassium: 70 } },
+      'protein-bar': { name: 'プロテインバー', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 183, p: 15, f: 8, c: 13 }, nutrientsPerUnit: { fiber: 3.0, calcium: 120, iron: 1.5, vitaminC: 0, potassium: 120 } },
+      'greek-yogurt': { name: 'ギリシャヨーグルト', mode: 'per100g', units: { '個': 110, 'g': 1 }, macros: { kcal: 63, p: 10.3, f: 0.4, c: 4.9 }, nutrients: { fiber: 0, calcium: 120, iron: 0, vitaminC: 0, potassium: 140 } },
+      'prod-oikos-blueberry': { name: 'オイコス ブルーベリー', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 92, p: 10.1, f: 0, c: 12.9 }, nutrientsPerUnit: { fiber: 0.3, calcium: 130, iron: 0, vitaminC: 0, potassium: 140 } },
+      'prod-savas-milk': { name: 'ザバス ミルクプロテイン', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 102, p: 15, f: 0, c: 10 }, nutrientsPerUnit: { fiber: 0, calcium: 300, iron: 0, vitaminC: 0, potassium: 200 } },
+      'prod-base-bread': { name: 'BASE BREAD チョコ', mode: 'perUnit', unitLabel: '袋', macrosPerUnit: { kcal: 255, p: 13.5, f: 8.5, c: 31.5 }, nutrientsPerUnit: { fiber: 6.5, calcium: 120, iron: 1.5, vitaminC: 0, potassium: 210 } },
+      'prod-salad-chicken-herb': { name: 'サラダチキン ハーブ', mode: 'perUnit', unitLabel: 'パック', macrosPerUnit: { kcal: 115, p: 24.5, f: 1.2, c: 1.1 }, nutrientsPerUnit: { fiber: 0, calcium: 6, iron: 0.5, vitaminC: 0, potassium: 360 } },
+      'prod-in-jelly-protein': { name: 'inゼリー プロテイン', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 112, p: 10, f: 0, c: 17.5 }, nutrientsPerUnit: { fiber: 0, calcium: 0, iron: 0, vitaminC: 0, potassium: 80 } },
+      'prod-ameal': { name: 'アーモンド効果 砂糖不使用', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, nutrientsPerUnit: { fiber: 1.2, calcium: 180, iron: 0.6, vitaminC: 0, potassium: 120 } }
+    };
+
+    let selectedDate = readInitialDate();
+
+    boot();
+
+    function boot() {
+      bindDateControls();
+      renderAll();
+    }
+
+    function readInitialDate() {
+      const params = new URLSearchParams(window.location.search);
+      const date = params.get('date');
+      return date || todayStr();
+    }
+
+    function todayStr() {
+      const d = new Date();
+      return formatIsoDate(d);
+    }
+
+    function shiftDate(dateStr, offset) {
+      const base = new Date(`${dateStr}T00:00:00`);
+      base.setDate(base.getDate() + offset);
+      return formatIsoDate(base);
+    }
+
+    function formatIsoDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function fmtDate(dateStr) {
+      const d = new Date(`${dateStr}T00:00:00`);
+      return `${d.getMonth() + 1}/${d.getDate()} (${JAPANESE_DAYS[d.getDay()]})`;
+    }
+
+    function storageGet(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function bindDateControls() {
+      document.getElementById('dateInput').addEventListener('change', event => {
+        if (event.target.value) {
+          selectedDate = event.target.value;
+          renderAll();
+        }
+      });
+    }
+
+    function jumpDate(offset) {
+      selectedDate = shiftDate(todayStr(), offset);
+      renderAll();
+    }
+
+    function backToMeal() {
+      if (document.referrer && document.referrer.includes(location.host) && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      window.location.href = `meal.html?date=${encodeURIComponent(selectedDate)}`;
+    }
+
+    function getRecords() {
+      return storageGet(RECORD_STORE, []);
+    }
+
+    function getDrafts() {
+      return storageGet(DRAFT_STORE, {});
+    }
+
+    function draftKey(dateStr, timingKey) {
+      return `${dateStr}:${timingKey}`;
+    }
+
+    function calcFoodPortion(food, qty, unitLabel) {
+      const safeQty = Number(qty) || 0;
+      if (!food || safeQty <= 0) return null;
+      if (food.mode === 'perUnit') {
+        return {
+          kcal: (food.macrosPerUnit.kcal || 0) * safeQty,
+          p: (food.macrosPerUnit.p || 0) * safeQty,
+          f: (food.macrosPerUnit.f || 0) * safeQty,
+          c: (food.macrosPerUnit.c || 0) * safeQty,
+          fiber: (food.nutrientsPerUnit.fiber || 0) * safeQty,
+          calcium: (food.nutrientsPerUnit.calcium || 0) * safeQty,
+          iron: (food.nutrientsPerUnit.iron || 0) * safeQty,
+          vitaminC: (food.nutrientsPerUnit.vitaminC || 0) * safeQty,
+          potassium: (food.nutrientsPerUnit.potassium || 0) * safeQty,
+          known: true
+        };
+      }
+      const gramsPerUnit = food.units[unitLabel];
+      if (!gramsPerUnit) return null;
+      const grams = safeQty * gramsPerUnit;
+      const ratio = grams / 100;
+      return {
+        kcal: (food.macros.kcal || 0) * ratio,
+        p: (food.macros.p || 0) * ratio,
+        f: (food.macros.f || 0) * ratio,
+        c: (food.macros.c || 0) * ratio,
+        fiber: (food.nutrients.fiber || 0) * ratio,
+        calcium: (food.nutrients.calcium || 0) * ratio,
+        iron: (food.nutrients.iron || 0) * ratio,
+        vitaminC: (food.nutrients.vitaminC || 0) * ratio,
+        potassium: (food.nutrients.potassium || 0) * ratio,
+        known: true
+      };
+    }
+
+    function buildDayState() {
+      const records = getRecords().filter(record => record.date === selectedDate);
+      const drafts = getDrafts();
+      const timingState = { morning: null, lunch: null, dinner: null };
+
+      records.forEach(record => {
+        timingState[record.timingKey] = {
+          source: 'saved',
+          title: TIMING_LABELS[record.timingKey]?.label || record.timing,
+          memo: record.memo,
+          kcal: Number(record.kcal) || 0,
+          p: Number(record.protein) || 0,
+          f: Number(record.fat) || 0,
+          c: Number(record.carb) || 0,
+          items: record.items || [],
+          reviewCount: Number(record.reviewCount) || 0
+        };
+      });
+
+      Object.keys(TIMING_LABELS).forEach(timingKey => {
+        if (timingState[timingKey]) return;
+        const draft = drafts[draftKey(selectedDate, timingKey)];
+        if (!draft || !(draft.items || []).length) return;
+        const totals = computeItemsSummary(draft.items);
+        timingState[timingKey] = {
+          source: 'draft',
+          title: TIMING_LABELS[timingKey].label,
+          memo: summarizeItems(draft.items),
+          kcal: totals.kcal,
+          p: totals.p,
+          f: totals.f,
+          c: totals.c,
+          items: draft.items,
+          reviewCount: totals.reviewCount
+        };
+      });
+
+      const totals = { kcal: 0, p: 0, f: 0, c: 0, reviewCount: 0, meals: 0 };
+      const nutrients = { fiber: 0, calcium: 0, iron: 0, vitaminC: 0, potassium: 0 };
+      const contributions = { fiber: {}, calcium: {}, iron: {}, vitaminC: {}, potassium: {} };
+      let knownItems = 0;
+      let totalItems = 0;
+
+      Object.entries(timingState).forEach(([timingKey, entry]) => {
+        if (!entry) return;
+        totals.kcal += entry.kcal;
+        totals.p += entry.p;
+        totals.f += entry.f;
+        totals.c += entry.c;
+        totals.reviewCount += entry.reviewCount || 0;
+        totals.meals += 1;
+
+        (entry.items || []).forEach(item => {
+          totalItems += 1;
+          const food = FOOD_LIBRARY[item.foodId];
+          const portion = calcFoodPortion(food, item.qty, item.unit);
+          if (!portion) return;
+          knownItems += 1;
+          Object.keys(nutrients).forEach(key => {
+            nutrients[key] += portion[key] || 0;
+            const name = food.name;
+            contributions[key][name] = (contributions[key][name] || 0) + (portion[key] || 0);
+          });
+        });
+      });
+
+      return {
+        timingState,
+        totals,
+        nutrients,
+        contributions,
+        coverage: totalItems ? Math.round((knownItems / totalItems) * 100) : 0
+      };
+    }
+
+    function computeItemsSummary(items) {
+      return (items || []).reduce((acc, item) => {
+        const food = FOOD_LIBRARY[item.foodId];
+        const portion = calcFoodPortion(food, item.qty, item.unit);
+        if (portion) {
+          acc.kcal += portion.kcal;
+          acc.p += portion.p;
+          acc.f += portion.f;
+          acc.c += portion.c;
+        }
+        acc.reviewCount += item.pendingReview ? 1 : 0;
+        return acc;
+      }, { kcal: 0, p: 0, f: 0, c: 0, reviewCount: 0 });
+    }
+
+    function summarizeItems(items) {
+      return (items || []).map(item => {
+        const food = FOOD_LIBRARY[item.foodId];
+        const name = food ? food.name : item.foodId;
+        return `${name} ${formatQty(item.qty)}${item.unit}`;
+      }).join('、');
+    }
+
+    function formatQty(value) {
+      const num = Number(value) || 0;
+      return Number.isInteger(num) ? String(num) : String(Math.round(num * 10) / 10);
+    }
+
+    function renderAll() {
+      const state = buildDayState();
+      document.getElementById('selectedDateLabel').textContent = fmtDate(selectedDate);
+      document.getElementById('dateInput').value = selectedDate;
+      document.getElementById('todayBtn').classList.toggle('active', selectedDate === todayStr());
+      document.getElementById('yesterdayBtn').classList.toggle('active', selectedDate === shiftDate(todayStr(), -1));
+      renderHero(state);
+      renderMacros(state);
+      renderNutrients(state);
+      renderTimings(state);
+      renderContributions(state);
+    }
+
+    function renderHero(state) {
+      const macroSum = state.totals.p + state.totals.f + state.totals.c;
+      document.getElementById('heroKcal').textContent = Math.round(state.totals.kcal);
+      document.getElementById('heroCount').textContent = `${state.totals.meals}/3 食`;
+      document.getElementById('heroPfc').textContent = `${Math.round(state.totals.p)}/${Math.round(state.totals.f)}/${Math.round(state.totals.c)}`;
+      document.getElementById('heroCoverage').textContent = `${state.coverage}%`;
+      document.getElementById('heroReview').textContent = String(state.totals.reviewCount);
+      document.getElementById('coverageChip').textContent = `栄養DB ${state.coverage}%`;
+      if (!macroSum && !state.totals.meals) {
+        document.getElementById('heroCount').textContent = 'まだ未入力';
+      }
+    }
+
+    function renderMacros(state) {
+      const macroSum = state.totals.p + state.totals.f + state.totals.c;
+      const pctP = macroSum ? Math.round((state.totals.p / macroSum) * 100) : 0;
+      const pctF = macroSum ? Math.round((state.totals.f / macroSum) * 100) : 0;
+      const pctC = macroSum ? Math.round((state.totals.c / macroSum) * 100) : 0;
+      document.getElementById('macroP').textContent = `${Math.round(state.totals.p)}g`;
+      document.getElementById('macroF').textContent = `${Math.round(state.totals.f)}g`;
+      document.getElementById('macroC').textContent = `${Math.round(state.totals.c)}g`;
+      document.getElementById('macroPSub').textContent = `${pctP}%`;
+      document.getElementById('macroFSub').textContent = `${pctF}%`;
+      document.getElementById('macroCSub').textContent = `${pctC}%`;
+      document.getElementById('macroMeals').textContent = String(state.totals.meals);
+    }
+
+    function renderNutrients(state) {
+      const root = document.getElementById('nutrientGrid');
+      root.innerHTML = Object.entries(NUTRIENT_META).map(([key, meta]) => {
+        const value = state.nutrients[key] || 0;
+        const pct = Math.min(100, Math.round((value / meta.target) * 100));
+        const leaders = topContributors(state.contributions[key]).slice(0, 2);
+        return `
+          <div class="nutrient-card">
+            <div class="nutrient-head">
+              <div class="nutrient-name">${meta.label}</div>
+              <div class="nutrient-target">目安 ${meta.target}${meta.unit}</div>
+            </div>
+            <div class="nutrient-value">${formatNutrient(value, meta)}${meta.unit}</div>
+            <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+            <div class="nutrient-meta">${pct}% / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(item.value, meta)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTimings(state) {
+      const root = document.getElementById('timingGrid');
+      const cards = Object.keys(TIMING_LABELS).map(key => {
+        const entry = state.timingState[key];
+        if (!entry) {
+          return `
+            <div class="timing-card">
+              <div class="timing-top">
+                <div class="timing-title">${TIMING_LABELS[key].label}</div>
+                <div class="timing-badge">未入力</div>
+              </div>
+              <div class="timing-copy">まだ何もありません。</div>
+            </div>
+          `;
+        }
+        return `
+          <div class="timing-card">
+            <div class="timing-top">
+              <div class="timing-title">${entry.title}</div>
+              <div class="timing-badge">${entry.source === 'draft' ? '下書き' : '保存済み'}</div>
+            </div>
+            <div class="timing-copy">${entry.memo || 'メモなし'}</div>
+            <div class="timing-copy" style="color:var(--accent-2)">${Math.round(entry.kcal)}kcal / P${Math.round(entry.p)} / F${Math.round(entry.f)} / C${Math.round(entry.c)}</div>
+          </div>
+        `;
+      });
+      root.innerHTML = cards.join('');
+    }
+
+    function renderContributions(state) {
+      const root = document.getElementById('contribList');
+      const allRows = Object.entries(NUTRIENT_META).map(([key, meta]) => {
+        const top = topContributors(state.contributions[key]).slice(0, 3);
+        if (!top.length) {
+          return `
+            <div class="contrib-row">
+              <div>
+                <div class="contrib-name">${meta.label}</div>
+                <div class="contrib-copy">まだ寄与食品がありません。</div>
+              </div>
+              <div class="contrib-amount">-</div>
+            </div>
+          `;
+        }
+        return top.map(item => `
+          <div class="contrib-row">
+            <div>
+              <div class="contrib-name">${meta.label} / ${item.name}</div>
+              <div class="contrib-copy">この栄養の主な寄与食品</div>
+            </div>
+            <div class="contrib-amount">${formatNutrient(item.value, meta)}${meta.unit}</div>
+          </div>
+        `).join('');
+      }).join('');
+      root.innerHTML = allRows || '<div class="empty">まだありません。</div>';
+    }
+
+    function topContributors(map) {
+      return Object.entries(map || {})
+        .filter(([, value]) => value > 0)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+
+    function formatNutrient(value, meta) {
+      const precision = meta.precision || 0;
+      return Number(value || 0).toFixed(precision).replace(/\.0$/, '');
+    }
+  </script>
+</body>
+</html>
