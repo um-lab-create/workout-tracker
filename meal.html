@@ -2064,6 +2064,12 @@
       { id: 'mackerel', name: 'サバ', category: '夜', mode: 'per100g', macros: {kcal:211, p:20.6, f:16.8, c:0.3}, units: [{label:'切れ', grams:100, step:1, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:100}] },
       { id: 'tofu', name: '豆腐', category: '共通', mode: 'per100g', macros: {kcal:56, p:4.9, f:3.0, c:1.6}, units: [{label:'パック', grams:150, step:1, defaultQty:1}, {label:'丁', grams:300, step:0.5, defaultQty:0.5}, {label:'g', grams:1, step:10, defaultQty:150}] },
       { id: 'broccoli', name: 'ブロッコリー', category: '共通', mode: 'per100g', macros: {kcal:33, p:4.3, f:0.5, c:5.2}, units: [{label:'房', grams:80, step:0.5, defaultQty:1}, {label:'皿', grams:100, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:100}] },
+      { id: 'spinach', name: 'ほうれん草', category: '共通', mode: 'per100g', macros: {kcal:18, p:2.2, f:0.4, c:3.1}, units: [{label:'皿', grams:80, step:0.5, defaultQty:1}, {label:'束', grams:200, step:0.5, defaultQty:0.5}, {label:'g', grams:1, step:10, defaultQty:80}] },
+      { id: 'komatsuna', name: '小松菜', category: '共通', mode: 'per100g', macros: {kcal:13, p:1.5, f:0.2, c:2.4}, units: [{label:'皿', grams:80, step:0.5, defaultQty:1}, {label:'束', grams:200, step:0.5, defaultQty:0.5}, {label:'g', grams:1, step:10, defaultQty:80}] },
+      { id: 'tomato', name: 'トマト', category: '共通', mode: 'per100g', macros: {kcal:20, p:0.7, f:0.1, c:4.7}, units: [{label:'個', grams:150, step:1, defaultQty:1}, {label:'皿', grams:100, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:100}] },
+      { id: 'avocado', name: 'アボカド', category: '共通', mode: 'per100g', macros: {kcal:176, p:2.1, f:17.5, c:7.9}, units: [{label:'半分', grams:70, step:1, defaultQty:1}, {label:'個', grams:140, step:0.5, defaultQty:0.5}, {label:'g', grams:1, step:10, defaultQty:70}] },
+      { id: 'tuna-can', name: 'ツナ缶', category: '共通', mode: 'per100g', macros: {kcal:267, p:17.7, f:21.7, c:0.1}, units: [{label:'缶', grams:70, step:1, defaultQty:1}, {label:'大さじ', grams:15, step:1, defaultQty:2}, {label:'g', grams:1, step:10, defaultQty:70}] },
+      { id: 'wakame', name: 'わかめ', category: '共通', mode: 'per100g', macros: {kcal:16, p:1.9, f:0.2, c:5.6}, units: [{label:'皿', grams:50, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:50}] },
       { id: 'kimchi', name: 'キムチ', category: '共通', mode: 'per100g', macros: {kcal:46, p:2.8, f:0.5, c:8.2}, units: [{label:'皿', grams:50, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:50}] },
       { id: 'oatmeal', name: 'オートミール', category: '朝', mode: 'per100g', macros: {kcal:350, p:13.7, f:5.7, c:69.1}, units: [{label:'食分', grams:30, step:1, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:30}] },
       { id: 'pasta', name: 'パスタ', category: '昼', mode: 'per100g', macros: {kcal:150, p:5.2, f:0.9, c:30.3}, units: [{label:'皿', grams:250, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:250}] },
@@ -2175,23 +2181,28 @@
 
     const QUICK_FOODS = {
       morning: ['banana', 'coffee', 'bread', 'oikos', 'soy-protein', 'whey-protein'],
-      lunch: ['rice', 'chicken-breast', 'salad-chicken', 'broccoli', 'pasta', 'udon'],
-      dinner: ['rice', 'salmon', 'mackerel', 'tofu', 'kimchi', 'sweet-potato']
+      lunch: ['rice', 'chicken-breast', 'salad-chicken', 'tuna-can', 'broccoli', 'tomato', 'pasta', 'udon'],
+      dinner: ['rice', 'salmon', 'mackerel', 'tofu', 'komatsuna', 'wakame', 'avocado', 'sweet-potato']
     };
 
     const TOPPING_SETS = {
       natto: ['egg', 'kimchi', 'miso-soup', 'rice'],
-      rice: ['natto', 'egg', 'kimchi', 'miso-soup'],
-      tofu: ['kimchi', 'egg', 'miso-soup'],
+      rice: ['natto', 'egg', 'tuna-can', 'wakame', 'miso-soup'],
+      tofu: ['kimchi', 'wakame', 'tomato', 'egg'],
       bihidas: ['banana', 'mix-nuts', 'raisin', 'whey-protein'],
       banana: ['bihidas', 'mix-nuts', 'soy-protein'],
       bread: ['egg', 'milk', 'coffee'],
-      'chicken-breast': ['rice', 'broccoli', 'miso-soup'],
-      'salad-chicken': ['rice', 'broccoli', 'egg'],
-      salmon: ['rice', 'miso-soup', 'broccoli'],
-      mackerel: ['rice', 'miso-soup', 'broccoli'],
-      pasta: ['egg', 'broccoli', 'salad-chicken'],
-      udon: ['egg', 'tofu', 'miso-soup']
+      'chicken-breast': ['rice', 'broccoli', 'spinach', 'tomato'],
+      'salad-chicken': ['rice', 'broccoli', 'egg', 'avocado'],
+      salmon: ['rice', 'miso-soup', 'komatsuna', 'wakame'],
+      mackerel: ['rice', 'miso-soup', 'komatsuna', 'wakame'],
+      pasta: ['egg', 'broccoli', 'salad-chicken', 'tomato'],
+      udon: ['egg', 'tofu', 'wakame', 'miso-soup'],
+      'tuna-can': ['rice', 'tomato', 'avocado', 'wakame'],
+      spinach: ['egg', 'chicken-breast', 'rice'],
+      komatsuna: ['salmon', 'mackerel', 'tofu'],
+      avocado: ['salad-chicken', 'tomato', 'egg'],
+      wakame: ['tofu', 'miso-soup', 'rice']
     };
 
     const ESTIMATE_PRESETS = {
