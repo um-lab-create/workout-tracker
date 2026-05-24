@@ -1106,7 +1106,7 @@
         return;
       }
       root.innerHTML = suggestions.map(item => `
-        <a class="suggest-card" href="meal.html?date=${encodeURIComponent(selectedDate)}&panel=builder">
+        <a class="suggest-card" href="meal.html?date=${encodeURIComponent(selectedDate)}&timing=${suggestTimingKey()}&panel=builder&food=${encodeURIComponent(item.foodId)}">
           <div>
             <div class="suggest-title">${item.nutrientLabel}: ${item.foodName}</div>
             <div class="suggest-copy">${item.reason} / 目安の${item.foodPct}%ぶん</div>
@@ -1203,12 +1203,21 @@
         const value = foodValueForNutrient(food, item.key);
         const pct = item.meta.target ? Math.round((value / item.meta.target) * 100) : 0;
         return {
+          foodId: food.id,
           nutrientLabel: item.meta.label,
           foodName: food.name,
           foodPct: pct,
           reason: food.mode === 'perUnit' ? `1${food.unitLabel || '個'}` : defaultFoodUnitLabel(food)
         };
       }).filter(Boolean);
+    }
+
+    function suggestTimingKey() {
+      if (selectedDate !== todayStr()) return 'dinner';
+      const hour = new Date().getHours();
+      if (hour < 11) return 'morning';
+      if (hour < 16) return 'lunch';
+      return 'dinner';
     }
 
     function bestFoodForNutrient(key) {

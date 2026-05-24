@@ -4359,6 +4359,22 @@
         renderCurrentMeal();
         renderDayBoard();
       }
+      const timing = params.get('timing');
+      if (timing && TIMINGS[timing]) {
+        persistCurrentTimingDraft();
+        currentTiming = timing;
+        loadCurrentTimingDraft();
+        renderTimingGrid();
+        renderHeroTitle();
+        renderHabitCard();
+        renderRecentGrid();
+        renderQuickGrid();
+        renderProductGrid();
+        renderRecipeGrid();
+        renderFoodSelector();
+        renderCurrentMeal();
+        renderDayBoard();
+      }
       const panel = params.get('panel');
       if (panel === 'product') {
         openProductManager();
@@ -4371,6 +4387,19 @@
       } else if (panel === 'builder') {
         openBuilder();
       }
+      const foodId = params.get('food');
+      if (foodId) {
+        selectFoodFromLaunch(foodId);
+      }
+    }
+
+    function selectFoodFromLaunch(foodId) {
+      const food = getFoodById(foodId);
+      if (!food) return;
+      document.getElementById('foodSelect').value = food.id;
+      document.getElementById('foodSearch').value = food.name;
+      syncUnitOptions(food);
+      renderSearchResults();
     }
 
     initialize();
