@@ -484,6 +484,16 @@
       background: rgba(255,255,255,.04);
       display: grid;
       gap: 10px;
+      width: 100%;
+      text-align: left;
+    }
+
+    .food-card-button {
+      cursor: pointer;
+    }
+
+    .food-card-button:active {
+      transform: translateY(1px) scale(.995);
     }
 
     .food-card-head {
@@ -566,6 +576,153 @@
       padding: 10px 6px;
     }
 
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 16px 14px calc(var(--safe-bottom) + 16px);
+      background: rgba(0,0,0,.58);
+      backdrop-filter: blur(10px);
+    }
+
+    .sheet-backdrop.is-open {
+      display: flex;
+    }
+
+    .detail-sheet {
+      width: min(100%, 560px);
+      max-height: min(82vh, 720px);
+      overflow: auto;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background:
+        radial-gradient(360px 220px at 90% 0%, rgba(88,216,255,.13), transparent 62%),
+        rgba(18,19,23,.98);
+      box-shadow: 0 26px 90px rgba(0,0,0,.55);
+    }
+
+    .detail-inner {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .detail-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .detail-title {
+      font-size: 23px;
+      line-height: 1.05;
+      font-weight: 950;
+      letter-spacing: -.03em;
+    }
+
+    .detail-sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+
+    .detail-close {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.08);
+      font-size: 20px;
+      font-weight: 950;
+    }
+
+    .detail-macro-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .detail-macro {
+      min-height: 72px;
+      padding: 10px;
+      border-radius: 17px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .detail-macro strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 18px;
+      line-height: 1;
+      font-weight: 950;
+      color: var(--accent-2);
+    }
+
+    .detail-tags,
+    .detail-lines {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .detail-line {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .detail-tag {
+      min-height: 36px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(88,216,255,.16);
+      background: rgba(88,216,255,.10);
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1.25;
+    }
+
+    .detail-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .detail-action {
+      min-height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .detail-action.primary {
+      background: linear-gradient(135deg, var(--accent-2), #f7ff6b);
+      color: #0a0a0f;
+    }
+
     .dock {
       position: fixed;
       left: 14px;
@@ -624,6 +781,10 @@
       .hero-grid,
       .macro-grid,
       .nutrient-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .detail-macro-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
@@ -766,6 +927,12 @@
     </div>
   </div>
 
+  <div class="sheet-backdrop" id="foodDetailBackdrop" onclick="closeFoodDetail(event)">
+    <section class="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="foodDetailTitle" onclick="event.stopPropagation()">
+      <div class="detail-inner" id="foodDetailContent"></div>
+    </section>
+  </div>
+
   <script src="nutrition-db.js"></script>
   <script>
     'use strict';
@@ -779,6 +946,7 @@
       lunch: { label: '昼ごはん' },
       dinner: { label: '夜ごはん' }
     };
+    let renderedFoodProfiles = [];
     const NUTRIENT_META = NUTRITION_DB ? NUTRITION_DB.META : {};
 
     let selectedDate = readInitialDate();
@@ -787,6 +955,9 @@
 
     function boot() {
       bindDateControls();
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeFoodDetail();
+      });
       renderAll();
     }
 
@@ -954,12 +1125,21 @@
           if (!foodTotals[foodName]) {
             foodTotals[foodName] = {
               name: foodName,
+              id: portion.foodId,
               nutrients: NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {},
               kcal: 0,
-              review: false
+              review: false,
+              portions: []
             };
           }
+          foodTotals[foodName].id = foodTotals[foodName].id || portion.foodId;
           foodTotals[foodName].review = foodTotals[foodName].review || Boolean(portion.pendingReview);
+          foodTotals[foodName].portions.push({
+            qty: portion.qty,
+            unit: portion.unit,
+            grams: portion.grams,
+            review: Boolean(portion.pendingReview)
+          });
           Object.keys(nutrients).forEach(key => {
             nutrients[key] += portion.nutrients[key] || 0;
             foodTotals[foodName].nutrients[key] += portion.nutrients[key] || 0;
@@ -1122,13 +1302,15 @@
         .sort((a, b) => b.kcal - a.kcal)
         .slice(0, 12);
       if (!foods.length) {
+        renderedFoodProfiles = [];
         root.innerHTML = '<div class="empty">まだありません。</div>';
         return;
       }
-      root.innerHTML = foods.map(food => {
+      renderedFoodProfiles = foods;
+      root.innerHTML = foods.map((food, index) => {
         const strengths = foodStrengths(food.nutrients).slice(0, 4);
         return `
-          <div class="food-card">
+          <button class="food-card food-card-button" type="button" onclick="openFoodDetail(${index})">
             <div class="food-card-head">
               <div>
                 <div class="food-name">${food.name}</div>
@@ -1139,9 +1321,56 @@
             <div class="food-tags">
               ${strengths.length ? strengths.map(item => `<div class="food-tag">${item.label} ${item.pct}%</div>`).join('') : '<div class="food-tag">栄養DB未整備</div>'}
             </div>
-          </div>
+          </button>
         `;
       }).join('');
+    }
+
+    function openFoodDetail(index) {
+      const food = renderedFoodProfiles[index];
+      if (!food) return;
+      const nutrients = food.nutrients || {};
+      const p = nutrients.protein || 0;
+      const f = nutrients.fat || 0;
+      const c = nutrients.carb || 0;
+      const strengths = foodStrengths(nutrients).slice(0, 10);
+      const portionLines = (food.portions || []).map(portion => {
+        const grams = portion.grams ? ` / 約${Math.round(portion.grams)}g` : '';
+        const review = portion.review ? ' / 要確認' : '';
+        return `<span class="detail-line">${formatQty(portion.qty)}${portion.unit || ''}${grams}${review}</span>`;
+      }).join('');
+      const addUrl = food.id
+        ? `meal.html?date=${encodeURIComponent(selectedDate)}&timing=${suggestTimingKey()}&panel=builder&food=${encodeURIComponent(food.id)}`
+        : `meal.html?date=${encodeURIComponent(selectedDate)}&panel=builder`;
+      document.getElementById('foodDetailContent').innerHTML = `
+        <div class="detail-top">
+          <div>
+            <div class="detail-title" id="foodDetailTitle">${food.name}</div>
+            <div class="detail-sub">${Math.round(food.kcal)}kcal / ${food.review ? '概算を含む' : '構造化データから計算'}</div>
+          </div>
+          <button class="detail-close" type="button" onclick="closeFoodDetail()">×</button>
+        </div>
+        <div class="detail-macro-grid">
+          <div class="detail-macro"><div class="card-label">kcal</div><strong>${Math.round(food.kcal)}</strong></div>
+          <div class="detail-macro"><div class="card-label">Protein</div><strong>${formatNutrient('protein', p)}g</strong></div>
+          <div class="detail-macro"><div class="card-label">Fat</div><strong>${formatNutrient('fat', f)}g</strong></div>
+          <div class="detail-macro"><div class="card-label">Carb</div><strong>${formatNutrient('carb', c)}g</strong></div>
+        </div>
+        <div class="detail-lines">${portionLines || '<span class="detail-line">分量データなし</span>'}</div>
+        <div class="detail-tags">
+          ${strengths.length ? strengths.map(item => `<div class="detail-tag">${item.label}<br>${formatNutrient(item.key, item.value)}${NUTRIENT_META[item.key].unit} / ${item.pct}%</div>`).join('') : '<div class="detail-tag">栄養DB未整備</div>'}
+        </div>
+        <div class="detail-actions">
+          <a class="detail-action primary" href="${addUrl}">この食品を足す</a>
+          <button class="detail-action" type="button" onclick="closeFoodDetail()">閉じる</button>
+        </div>
+      `;
+      document.getElementById('foodDetailBackdrop').classList.add('is-open');
+    }
+
+    function closeFoodDetail(event) {
+      if (event && event.target && event.target.id !== 'foodDetailBackdrop') return;
+      document.getElementById('foodDetailBackdrop').classList.remove('is-open');
     }
 
     function renderContributions(state) {
