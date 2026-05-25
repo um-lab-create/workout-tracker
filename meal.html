@@ -2067,6 +2067,12 @@
         <div class="field-group">
           <div class="field-label"><span>バーコード / SKU</span></div>
           <input class="text-input" id="productBarcode" placeholder="任意">
+          <div class="action-row" style="margin-top:8px">
+            <button class="ghost-btn" type="button" onclick="lookupProductBarcode()">バーコード検索</button>
+            <button class="ghost-btn" type="button" onclick="scanBarcodeImage()">画像から読む</button>
+          </div>
+          <input id="barcodeImageInput" type="file" accept="image/*" capture="environment" style="display:none">
+          <div class="helper-text" id="barcodeLookupStatus">外部DBは候補です。保存前にラベルで確認してください。</div>
         </div>
 
         <div class="field-group">
@@ -2077,6 +2083,16 @@
             <input class="text-input" id="productF" type="number" inputmode="decimal" placeholder="F">
             <input class="text-input" id="productC" type="number" inputmode="decimal" placeholder="C">
           </div>
+          <div class="summary-grid" style="margin-top:8px">
+            <input class="text-input" id="productSalt" type="number" inputmode="decimal" placeholder="塩分g">
+            <input class="text-input" id="productFiber" type="number" inputmode="decimal" placeholder="食物繊維g">
+            <input class="text-input" id="productSatFat" type="number" inputmode="decimal" placeholder="飽和脂肪g">
+            <input class="text-input" id="productServing" placeholder="内容量 例: 200ml">
+          </div>
+          <label class="helper-text" style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <input id="productVerified" type="checkbox">
+            ラベル確認済みとして保存
+          </label>
         </div>
 
         <div class="action-row">
@@ -2172,7 +2188,8 @@
       { id: 'prod-base-bread', name: 'BASE BREAD チョコ', brand: 'BASE FOOD', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '袋', macrosPerUnit: { kcal: 255, p: 13.5, f: 8.5, c: 31.5 }, defaultQty: 1, step: 1, keywords: ['パン', 'ベースブレッド'] },
       { id: 'prod-salad-chicken-herb', name: 'サラダチキン ハーブ', brand: 'セブン', category: '昼', entryType: 'product', mode: 'perUnit', unitLabel: 'パック', macrosPerUnit: { kcal: 115, p: 24.5, f: 1.2, c: 1.1 }, defaultQty: 1, step: 1, keywords: ['鶏胸肉', 'コンビニ'] },
       { id: 'prod-in-jelly-protein', name: 'inゼリー プロテイン', brand: '森永', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 112, p: 10, f: 0, c: 17.5 }, defaultQty: 1, step: 1, keywords: ['ゼリー', '補食'] },
-      { id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', brand: 'グリコ', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, defaultQty: 1, step: 1, keywords: ['アーモンドミルク', '飲料'] }
+      { id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', brand: 'グリコ', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, defaultQty: 1, step: 1, keywords: ['アーモンドミルク', '飲料'] },
+      { id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本', brand: 'カゴメ', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 61, p: 2.1, f: 0, c: 14.2 }, nutrientsPerUnit: { fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 }, source: 'kagome-official-2026-05', verified: true, defaultQty: 1, step: 1, keywords: ['野菜ジュース', 'カゴメ', '野菜一日これ一本', '飲料'] }
     ];
 
     const DEFAULT_PRESETS = {
@@ -2747,10 +2764,11 @@
     }
 
     function summarizeRecipe(recipe) {
-      return (recipe.items || []).map(item => {
+      const itemText = (recipe.items || []).map(item => {
         const food = getFoodById(item.foodId);
         return `${food ? food.name : item.foodId} ${formatQty(item.qty)}${item.unit}`;
       }).join('、');
+      return recipe.servings ? `${formatQty(recipe.servings)}食分: ${itemText}` : itemText;
     }
 
     function hasFood(foodId) {
@@ -3650,13 +3668,25 @@
     function applyRecipe(recipeId) {
       const recipe = getAllRecipes().find(entry => entry.id === recipeId);
       if (!recipe) return;
+      const servings = Number(recipe.servings) || 1;
+      let eatServings = 1;
+      if (servings !== 1) {
+        const answer = window.prompt(`何食分食べましたか？\n作成量: ${formatQty(servings)}食分`, '1');
+        if (!answer) return;
+        eatServings = Number(answer);
+        if (!Number.isFinite(eatServings) || eatServings <= 0) {
+          showToast('食べた量を数値で入れてください', 'warn');
+          return;
+        }
+      }
+      const ratio = eatServings / servings;
       recipe.items.forEach(item => {
         const food = getFoodById(item.foodId);
-        if (food) currentMeal.push(createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }));
+        if (food) currentMeal.push(createMealItem(food, (Number(item.qty) || 0) * ratio, item.unit, { pendingReview: item.pendingReview }));
       });
       renderCurrentMeal();
       persistCurrentTimingDraft();
-      showToast(`${recipe.name} を追加しました`);
+      showToast(`${recipe.name} ${servings === 1 ? '' : `${formatQty(eatServings)}食分`}を追加しました`);
     }
 
     function reuseRecord(recordId) {
@@ -3794,10 +3824,17 @@
       }
       const name = window.prompt('自作メニュー名を入力してください', `${TIMINGS[currentTiming].title}メニュー`);
       if (!name) return;
+      const servingsInput = window.prompt('作った量は何食分ですか？\n例: 3食分作って、あとで1食分だけ食べる', '1');
+      const servings = Number(servingsInput || 1);
+      if (!Number.isFinite(servings) || servings <= 0) {
+        showToast('食数を数値で入れてください', 'warn');
+        return;
+      }
       customRecipes.unshift({
         id: `recipe-${Date.now()}`,
         name: name.trim(),
         timingKey: currentTiming,
+        servings,
         items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }))
       });
       saveRecipes();
@@ -4052,6 +4089,12 @@
       document.getElementById('productP').value = '';
       document.getElementById('productF').value = '';
       document.getElementById('productC').value = '';
+      document.getElementById('productSalt').value = '';
+      document.getElementById('productFiber').value = '';
+      document.getElementById('productSatFat').value = '';
+      document.getElementById('productServing').value = '';
+      document.getElementById('productVerified').checked = false;
+      document.getElementById('barcodeLookupStatus').textContent = '外部DBは候補です。保存前にラベルで確認してください。';
     }
 
     function saveCustomFood() {
@@ -4098,6 +4141,110 @@
       showToast('独自食材を保存しました');
     }
 
+    function normalizeBarcode(raw) {
+      return String(raw || '').replace(/\D/g, '');
+    }
+
+    async function lookupProductBarcode() {
+      const code = normalizeBarcode(document.getElementById('productBarcode').value);
+      const status = document.getElementById('barcodeLookupStatus');
+      if (!code || code.length < 8) {
+        showToast('バーコードを入力してください', 'warn');
+        return;
+      }
+      status.textContent = 'Open Food Facts を検索中...';
+      status.dataset.source = '';
+      try {
+        const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=code,status,product_name,brands,quantity,serving_size,nutriments,nutrition_data_per`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data || data.status !== 1 || !data.product) {
+          status.textContent = '外部DBに未登録。バーコードだけ保持して手入力してください。';
+          status.dataset.source = 'barcode-manual';
+          showToast('外部DBに商品がありませんでした', 'warn');
+          return;
+        }
+        applyOpenFoodFactsProduct(data.product, code);
+        status.textContent = 'Open Food Facts から候補を反映しました。必ずラベルで確認してください。';
+        status.dataset.source = 'openfoodfacts';
+        showToast('候補を反映しました');
+      } catch (err) {
+        status.textContent = '外部DB検索に失敗。手入力で登録できます。';
+        status.dataset.source = 'barcode-error';
+        showToast('バーコード検索に失敗しました', 'warn');
+      }
+    }
+
+    function applyOpenFoodFactsProduct(product, code) {
+      const nutriments = product.nutriments || {};
+      const unitInfo = product.serving_size || product.quantity || '';
+      document.getElementById('productBarcode').value = normalizeBarcode(product.code || code);
+      document.getElementById('productName').value = product.product_name || document.getElementById('productName').value;
+      document.getElementById('productBrand').value = product.brands || document.getElementById('productBrand').value;
+      document.getElementById('productUnit').value = guessProductUnit(unitInfo);
+      document.getElementById('productServing').value = unitInfo;
+      document.getElementById('productKcal').value = offNutrient(nutriments, 'energy-kcal');
+      document.getElementById('productP').value = offNutrient(nutriments, 'proteins');
+      document.getElementById('productF').value = offNutrient(nutriments, 'fat');
+      document.getElementById('productC').value = offNutrient(nutriments, 'carbohydrates');
+      document.getElementById('productSalt').value = offNutrient(nutriments, 'salt');
+      document.getElementById('productFiber').value = offNutrient(nutriments, 'fiber');
+      document.getElementById('productSatFat').value = offNutrient(nutriments, 'saturated-fat');
+      document.getElementById('productVerified').checked = false;
+    }
+
+    function offNutrient(nutriments, key) {
+      const serving = Number(nutriments[`${key}_serving`]);
+      if (Number.isFinite(serving)) return roundNutrition(serving);
+      const per100 = Number(nutriments[`${key}_100g`]);
+      if (Number.isFinite(per100)) return roundNutrition(per100);
+      return '';
+    }
+
+    function roundNutrition(value) {
+      return Math.round(Number(value || 0) * 100) / 100;
+    }
+
+    function guessProductUnit(text) {
+      const normalized = String(text || '').toLowerCase();
+      if (normalized.includes('ml') || normalized.includes('cl') || normalized.includes('l')) return '本';
+      if (normalized.includes('package') || normalized.includes('pack')) return '袋';
+      return '個';
+    }
+
+    async function scanBarcodeImage() {
+      const input = document.getElementById('barcodeImageInput');
+      if (!('BarcodeDetector' in window)) {
+        showToast('このブラウザは画像バーコード読取に未対応です', 'warn');
+        document.getElementById('barcodeLookupStatus').textContent = 'このブラウザは画像読取に未対応です。数字で入力してください。';
+        return;
+      }
+      input.click();
+    }
+
+    async function handleBarcodeImage(file) {
+      if (!file || !('BarcodeDetector' in window)) return;
+      const status = document.getElementById('barcodeLookupStatus');
+      try {
+        status.textContent = '画像からバーコードを読取中...';
+        const bitmap = await createImageBitmap(file);
+        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+        const codes = await detector.detect(bitmap);
+        if (!codes.length) {
+          status.textContent = 'バーコードを読み取れませんでした。数字で入力してください。';
+          showToast('バーコードを読めませんでした', 'warn');
+          return;
+        }
+        document.getElementById('productBarcode').value = normalizeBarcode(codes[0].rawValue);
+        status.textContent = 'バーコードを読み取りました。外部DBを検索できます。';
+        await lookupProductBarcode();
+      } catch (err) {
+        status.textContent = '画像読取に失敗。数字で入力してください。';
+        showToast('画像読取に失敗しました', 'warn');
+      }
+    }
+
     function saveProduct() {
       const name = document.getElementById('productName').value.trim();
       const brand = document.getElementById('productBrand').value.trim();
@@ -4108,6 +4255,11 @@
       const p = Number(document.getElementById('productP').value);
       const f = Number(document.getElementById('productF').value);
       const c = Number(document.getElementById('productC').value);
+      const salt = Number(document.getElementById('productSalt').value);
+      const fiber = Number(document.getElementById('productFiber').value);
+      const saturatedFat = Number(document.getElementById('productSatFat').value);
+      const serving = document.getElementById('productServing').value.trim();
+      const verified = document.getElementById('productVerified').checked;
 
       if (!name || !unit) {
         showToast('商品名と単位は必須です', 'warn');
@@ -4123,12 +4275,20 @@
         mode: 'perUnit',
         unitLabel: unit,
         barcode,
-        keywords: [brand, barcode].filter(Boolean),
+        serving,
+        source: document.getElementById('barcodeLookupStatus').dataset.source || 'manual',
+        verified,
+        keywords: [brand, barcode, serving].filter(Boolean),
         macrosPerUnit: {
           kcal: Number.isFinite(kcal) ? kcal : 0,
           p: Number.isFinite(p) ? p : 0,
           f: Number.isFinite(f) ? f : 0,
           c: Number.isFinite(c) ? c : 0
+        },
+        nutrientsPerUnit: {
+          salt: Number.isFinite(salt) ? salt : 0,
+          fiber: Number.isFinite(fiber) ? fiber : 0,
+          saturatedFat: Number.isFinite(saturatedFat) ? saturatedFat : 0
         },
         defaultQty: 1,
         step: 1
@@ -4188,9 +4348,9 @@
           <div class="manage-card-top">
             <div>
               <div class="item-name">${product.name}</div>
-              <div class="item-meta">${product.brand || '独自商品'} / 1${product.unitLabel} / ${product.macrosPerUnit.kcal}kcal</div>
+              <div class="item-meta">${product.brand || '独自商品'} / 1${product.unitLabel}${product.serving ? ` / ${product.serving}` : ''} / ${product.macrosPerUnit.kcal}kcal${product.barcode ? ` / ${product.barcode}` : ''}</div>
             </div>
-            <div class="preset-badge">商品</div>
+            <div class="preset-badge">${product.verified ? '確認済' : '要確認'}</div>
           </div>
           <div class="manage-actions">
             <button type="button" class="manage-btn" onclick="editProduct('${product.id}')">編集</button>
@@ -4213,6 +4373,13 @@
       document.getElementById('productP').value = product.macrosPerUnit.p;
       document.getElementById('productF').value = product.macrosPerUnit.f;
       document.getElementById('productC').value = product.macrosPerUnit.c;
+      document.getElementById('productSalt').value = product.nutrientsPerUnit && product.nutrientsPerUnit.salt || '';
+      document.getElementById('productFiber').value = product.nutrientsPerUnit && product.nutrientsPerUnit.fiber || '';
+      document.getElementById('productSatFat').value = product.nutrientsPerUnit && product.nutrientsPerUnit.saturatedFat || '';
+      document.getElementById('productServing').value = product.serving || '';
+      document.getElementById('productVerified').checked = Boolean(product.verified);
+      document.getElementById('barcodeLookupStatus').dataset.source = product.source || 'manual';
+      document.getElementById('barcodeLookupStatus').textContent = product.source === 'openfoodfacts' ? 'Open Food Facts 由来。ラベル確認後に保存してください。' : '登録済み商品の編集です。';
     }
 
     function deleteProduct(productId) {
@@ -4462,6 +4629,10 @@
 
       document.getElementById('qtyInput').addEventListener('input', updateUnitHint);
       document.getElementById('mealNote').addEventListener('input', persistCurrentTimingDraft);
+      document.getElementById('barcodeImageInput').addEventListener('change', event => {
+        handleBarcodeImage(event.target.files && event.target.files[0]);
+        event.target.value = '';
+      });
       document.getElementById('recordDateInput').addEventListener('change', event => {
         if (event.target.value) setRecordDate(event.target.value);
       });

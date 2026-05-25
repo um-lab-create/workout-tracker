@@ -120,7 +120,8 @@
     'prod-base-bread': definePerUnit({ id: 'prod-base-bread', name: 'BASE BREAD チョコ', unitLabel: '袋', perUnit: { energy: 255, protein: 13.5, fat: 8.5, saturatedFat: 2.1, carb: 31.5, fiber: 6.5, salt: 0.4, Na: 160, K: 210, Ca: 120, Fe: 1.5, Zn: 1.0, vitB1: 0.4, vitB2: 0.2, niacin: 2.0, vitB6: 0.2, folate: 80 } }),
     'prod-salad-chicken-herb': definePerUnit({ id: 'prod-salad-chicken-herb', name: 'サラダチキン ハーブ', unitLabel: 'パック', perUnit: { energy: 115, protein: 24.5, fat: 1.2, carb: 1.1, salt: 1.5, Na: 590, K: 360, P: 220, Fe: 0.5, niacin: 12.0, vitB6: 0.7 } }),
     'prod-in-jelly-protein': definePerUnit({ id: 'prod-in-jelly-protein', name: 'inゼリー プロテイン', unitLabel: '個', perUnit: { energy: 112, protein: 10, carb: 17.5, K: 80 } }),
-    'prod-ameal': definePerUnit({ id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', unitLabel: '本', perUnit: { energy: 80, protein: 1.4, fat: 6.2, carb: 3.9, fiber: 1.2, Ca: 180, Fe: 0.6, K: 120, vitE: 6.0 } })
+    'prod-ameal': definePerUnit({ id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', unitLabel: '本', perUnit: { energy: 80, protein: 1.4, fat: 6.2, carb: 3.9, fiber: 1.2, Ca: 180, Fe: 0.6, K: 120, vitE: 6.0 } }),
+    'prod-kagome-yasai-ichinichi': definePerUnit({ id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本', unitLabel: '本', perUnit: { energy: 61, protein: 2.1, fat: 0, carb: 14.2, fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 } })
   };
 
   function getFood(id) {
@@ -131,6 +132,7 @@
     if (!food) return null;
     if (FOODS[food.id]) return FOODS[food.id];
     if (food.mode === 'perUnit') {
+      var extra = food.nutrientsPerUnit || {};
       return definePerUnit({
         id: food.id,
         name: food.name,
@@ -140,7 +142,19 @@
           energy: food.macrosPerUnit && food.macrosPerUnit.kcal || 0,
           protein: food.macrosPerUnit && food.macrosPerUnit.p || 0,
           fat: food.macrosPerUnit && food.macrosPerUnit.f || 0,
-          carb: food.macrosPerUnit && food.macrosPerUnit.c || 0
+          carb: food.macrosPerUnit && food.macrosPerUnit.c || 0,
+          saturatedFat: extra.saturatedFat || 0,
+          fiber: extra.fiber || 0,
+          salt: extra.salt || 0,
+          Na: extra.Na || 0,
+          K: extra.K || 0,
+          Ca: extra.Ca || 0,
+          Mg: extra.Mg || 0,
+          Fe: extra.Fe || 0,
+          vitA: extra.vitA || 0,
+          vitE: extra.vitE || 0,
+          vitK: extra.vitK || 0,
+          folate: extra.folate || 0
         }
       });
     }
