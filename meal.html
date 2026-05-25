@@ -1430,6 +1430,54 @@
       flex-shrink: 0;
     }
 
+    .scanner-shell {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      border: 1px solid rgba(200,255,66,.22);
+      background: #05070a;
+      aspect-ratio: 4 / 3;
+    }
+
+    .scanner-video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .scanner-frame {
+      position: absolute;
+      left: 9%;
+      right: 9%;
+      top: 34%;
+      height: 26%;
+      border: 2px solid var(--accent-2);
+      border-radius: 18px;
+      box-shadow: 0 0 0 999px rgba(0,0,0,.28), 0 0 32px rgba(200,255,66,.25);
+      pointer-events: none;
+    }
+
+    .scanner-line {
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      top: 50%;
+      height: 2px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, var(--accent-2), transparent);
+      box-shadow: 0 0 18px rgba(200,255,66,.65);
+      pointer-events: none;
+    }
+
+    .scanner-status {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      font-weight: 800;
+    }
+
     .manage-list {
       display: grid;
       gap: 10px;
@@ -2069,7 +2117,7 @@
           <input class="text-input" id="productBarcode" placeholder="任意">
           <div class="action-row" style="margin-top:8px">
             <button class="ghost-btn" type="button" onclick="lookupProductBarcode()">バーコード検索</button>
-            <button class="ghost-btn" type="button" onclick="scanBarcodeImage()">画像から読む</button>
+            <button class="ghost-btn" type="button" onclick="openBarcodeScanner()">カメラでスキャン</button>
           </div>
           <input id="barcodeImageInput" type="file" accept="image/*" capture="environment" style="display:none">
           <div class="helper-text" id="barcodeLookupStatus">外部DBは候補です。保存前にラベルで確認してください。</div>
@@ -2105,6 +2153,28 @@
     </div>
   </div>
 
+  <div class="modal" id="barcodeScannerModal">
+    <div class="sheet">
+      <div class="sheet-head">
+        <div>
+          <div class="sheet-title">バーコードをスキャン</div>
+          <div class="sheet-copy">JAN/EAN の線を枠の中に合わせます。読めない場合は数字入力に戻れます。</div>
+        </div>
+        <button class="close-btn" type="button" onclick="closeBarcodeScanner()">×</button>
+      </div>
+      <div class="scanner-shell">
+        <video class="scanner-video" id="barcodeVideo" muted playsinline></video>
+        <div class="scanner-frame"></div>
+        <div class="scanner-line"></div>
+      </div>
+      <div class="scanner-status" id="scannerStatus">カメラを準備しています...</div>
+      <div class="action-row" style="margin-top:12px">
+        <button class="ghost-btn" type="button" onclick="scanBarcodeImage()">写真から読む</button>
+        <button class="ghost-btn" type="button" onclick="closeBarcodeScanner()">数字入力へ戻る</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="recipeModal">
     <div class="sheet">
       <div class="sheet-head">
@@ -2126,6 +2196,7 @@
   <div class="toast" id="toast"></div>
 
   <script src="nutrition-db.js"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
     const AUTH_STORE = 'hs:write-auth:v1';
@@ -2272,6 +2343,11 @@
         }
       ]
     };
+
+    let barcodeReader = null;
+    let barcodeControls = null;
+    let barcodeScannerActive = false;
+    const ZXING_SCRIPT_URL = 'https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js';
 
     function backToCockpit() {
       if (document.referrer && document.referrer.includes(location.host) && window.history.length > 1) {
@@ -3876,6 +3952,10 @@
     }
 
     function closeModal(id) {
+      if (id === 'barcodeScannerModal') {
+        closeBarcodeScanner();
+        return;
+      }
       document.getElementById(id).classList.remove('show');
     }
 
@@ -4213,30 +4293,106 @@
       return '個';
     }
 
+    async function openBarcodeScanner() {
+      openModal('barcodeScannerModal');
+      setScannerStatus('カメラを準備しています...');
+      try {
+        await ensureZxing();
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('camera-not-supported');
+        }
+        barcodeScannerActive = true;
+        barcodeReader = new ZXingBrowser.BrowserMultiFormatReader();
+        const video = document.getElementById('barcodeVideo');
+        barcodeControls = await barcodeReader.decodeFromConstraints({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        }, video, (result, error, controls) => {
+          if (!barcodeScannerActive) return;
+          if (result) {
+            const code = normalizeBarcode(result.getText ? result.getText() : result.text);
+            if (code) handleBarcodeDetected(code, controls);
+          }
+        });
+        setScannerStatus('バーコードを枠に合わせてください。読み取れない場合は写真か数字入力へ。');
+      } catch (err) {
+        barcodeScannerActive = false;
+        setScannerStatus('カメラを起動できませんでした。写真から読むか、数字で入力してください。');
+        showToast('カメラを起動できませんでした', 'warn');
+      }
+    }
+
+    async function ensureZxing() {
+      if (window.ZXingBrowser && window.ZXingBrowser.BrowserMultiFormatReader) return;
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${ZXING_SCRIPT_URL}"]`);
+        if (existing) {
+          existing.addEventListener('load', resolve, { once: true });
+          existing.addEventListener('error', reject, { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = ZXING_SCRIPT_URL;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+      if (!window.ZXingBrowser || !window.ZXingBrowser.BrowserMultiFormatReader) {
+        throw new Error('zxing-load-failed');
+      }
+    }
+
+    function setScannerStatus(message) {
+      const el = document.getElementById('scannerStatus');
+      if (el) el.textContent = message;
+    }
+
+    async function handleBarcodeDetected(code, controls = barcodeControls) {
+      if (!code) return;
+      barcodeScannerActive = false;
+      if (controls && typeof controls.stop === 'function') controls.stop();
+      barcodeControls = null;
+      document.getElementById('productBarcode').value = code;
+      document.getElementById('barcodeLookupStatus').textContent = `${code} を読み取りました。外部DBを検索します。`;
+      setScannerStatus(`${code} を読み取りました。`);
+      closeModal('barcodeScannerModal');
+      await lookupProductBarcode();
+    }
+
+    function closeBarcodeScanner() {
+      barcodeScannerActive = false;
+      if (barcodeControls && typeof barcodeControls.stop === 'function') barcodeControls.stop();
+      barcodeControls = null;
+      const video = document.getElementById('barcodeVideo');
+      if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+      document.getElementById('barcodeScannerModal').classList.remove('show');
+    }
+
     async function scanBarcodeImage() {
       const input = document.getElementById('barcodeImageInput');
-      if (!('BarcodeDetector' in window)) {
-        showToast('このブラウザは画像バーコード読取に未対応です', 'warn');
-        document.getElementById('barcodeLookupStatus').textContent = 'このブラウザは画像読取に未対応です。数字で入力してください。';
-        return;
-      }
       input.click();
     }
 
     async function handleBarcodeImage(file) {
-      if (!file || !('BarcodeDetector' in window)) return;
+      if (!file) return;
       const status = document.getElementById('barcodeLookupStatus');
       try {
+        await ensureZxing();
         status.textContent = '画像からバーコードを読取中...';
-        const bitmap = await createImageBitmap(file);
-        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
-        const codes = await detector.detect(bitmap);
-        if (!codes.length) {
-          status.textContent = 'バーコードを読み取れませんでした。数字で入力してください。';
-          showToast('バーコードを読めませんでした', 'warn');
-          return;
-        }
-        document.getElementById('productBarcode').value = normalizeBarcode(codes[0].rawValue);
+        const url = URL.createObjectURL(file);
+        const reader = new ZXingBrowser.BrowserMultiFormatReader();
+        const result = await reader.decodeFromImageUrl(url);
+        URL.revokeObjectURL(url);
+        const code = normalizeBarcode(result.getText ? result.getText() : result.text);
+        if (!code) throw new Error('empty-code');
+        document.getElementById('productBarcode').value = code;
         status.textContent = 'バーコードを読み取りました。外部DBを検索できます。';
         await lookupProductBarcode();
       } catch (err) {
