@@ -269,6 +269,7 @@ button:disabled {
 }
 
 .record .section-icon { background: var(--accent-soft); color: var(--accent); }
+.daily .section-icon { background: rgba(200,255,66,.14); color: var(--accent); }
 .actions .section-icon { background: var(--orange-soft); color: var(--orange); }
 .views .section-icon { background: var(--blue-soft); color: var(--blue); }
 .recent .section-icon { background: rgba(255,255,255,.06); color: var(--ink); }
@@ -367,6 +368,82 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.daily-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.daily-card {
+  min-height: 116px;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.075);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
+    rgba(18,19,24,.92);
+  text-decoration: none;
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+}
+
+.daily-card:active {
+  transform: scale(.97);
+}
+
+.daily-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.daily-label {
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.daily-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.daily-status.ok {
+  color: var(--ok);
+  border-color: rgba(66,231,155,.34);
+}
+
+.daily-status.warn {
+  color: var(--warn);
+  border-color: rgba(255,209,90,.34);
+}
+
+.daily-value {
+  font-size: 25px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: -.03em;
+}
+
+.daily-copy {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 750;
 }
 
 .stat-grid {
@@ -803,6 +880,55 @@ button:disabled {
     </div>
   </section>
 
+  <section class="section daily" id="dailyHub">
+    <div class="section-head">
+      <div class="section-title"><span class="section-icon">今</span>今日の記録</div>
+      <div class="section-note" id="dailyHubDate">今日</div>
+    </div>
+    <div class="daily-grid">
+      <a class="daily-card" id="dailyMealCard" href="meal.html" data-track-key="meal" data-track-label="今日の食事" data-track-kind="launch">
+        <div class="daily-top">
+          <div class="daily-label">Meal</div>
+          <div class="daily-status" id="dailyMealStatus">未入力</div>
+        </div>
+        <div>
+          <div class="daily-value" id="dailyMealValue">0/3</div>
+          <div class="daily-copy" id="dailyMealCopy">朝昼夜の記録</div>
+        </div>
+      </a>
+      <a class="daily-card" id="dailyNutritionCard" href="day.html" data-track-key="meal-day" data-track-label="今日の栄養" data-track-kind="view">
+        <div class="daily-top">
+          <div class="daily-label">Nutrition</div>
+          <div class="daily-status" id="dailyNutritionStatus">待機</div>
+        </div>
+        <div>
+          <div class="daily-value" id="dailyNutritionValue">0kcal</div>
+          <div class="daily-copy" id="dailyNutritionCopy">PFC と主要栄養</div>
+        </div>
+      </a>
+      <a class="daily-card" id="dailyWorkoutCard" href="workout.html" data-track-key="workout" data-track-label="今日の筋トレ" data-track-kind="launch">
+        <div class="daily-top">
+          <div class="daily-label">Workout</div>
+          <div class="daily-status" id="dailyWorkoutStatus">未記録</div>
+        </div>
+        <div>
+          <div class="daily-value" id="dailyWorkoutValue">0</div>
+          <div class="daily-copy" id="dailyWorkoutCopy">今日の種目数</div>
+        </div>
+      </a>
+      <a class="daily-card" id="dailyHealthCard" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch">
+        <div class="daily-top">
+          <div class="daily-label">Health</div>
+          <div class="daily-status" id="dailyHealthStatus">任意</div>
+        </div>
+        <div>
+          <div class="daily-value" id="dailyHealthValue">取込</div>
+          <div class="daily-copy" id="dailyHealthCopy">Apple Health zip</div>
+        </div>
+      </a>
+    </div>
+  </section>
+
   <section class="section record" id="record">
     <div class="section-head">
       <div class="section-title"><span class="section-icon">記</span>すぐ記録</div>
@@ -997,9 +1123,12 @@ const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const AUTH_STORE = 'hs:write-auth:v1';
 const RECENT_STORE = 'cockpit_recent_v2';
 const MEAL_PRESET_STORE = 'meal_presets_v3';
+const MEAL_RECORD_STORE = 'meal_recs_v3';
 const MEAL_PRODUCT_STORE = 'meal_products_v1';
 const MEAL_RECIPE_STORE = 'meal_recipes_v1';
 const MEAL_DRAFT_STORE = 'meal_draft_v4';
+const WORKOUT_HISTORY_STORE = 'wt:history:v2';
+const WORKOUT_QUEUE_STORE = 'wt:queue:v2';
 const BASE_PRODUCT_COUNT = 6;
 
 const TRACKED_TARGETS = {
@@ -1018,6 +1147,7 @@ function boot() {
   renderToday();
   renderInstallState();
   renderPinState();
+  renderDailyHub();
   renderMealBase();
   renderRecentList();
   bindTrackedLaunches();
@@ -1026,12 +1156,21 @@ function boot() {
 }
 
 function renderToday() {
+  const info = todayInfo();
+  document.getElementById('todayChip').textContent = `${info.date} (${info.day})`;
+}
+
+function todayInfo() {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const date = String(now.getDate()).padStart(2, '0');
-  const day = JAPANESE_DAYS[now.getDay()];
-  document.getElementById('todayChip').textContent = `${year}-${month}-${date} (${day})`;
+  const iso = `${year}-${month}-${date}`;
+  return {
+    date: iso,
+    day: JAPANESE_DAYS[now.getDay()],
+    label: `${now.getMonth() + 1}/${now.getDate()} (${JAPANESE_DAYS[now.getDay()]})`
+  };
 }
 
 function renderInstallState() {
@@ -1125,6 +1264,78 @@ function countReviewFlags(drafts) {
     const items = draft && Array.isArray(draft.items) ? draft.items : [];
     return total + items.filter(function(item) { return item && item.pendingReview; }).length;
   }, 0);
+}
+
+function draftKey(dateStr, timingKey) {
+  return `${dateStr}:${timingKey}`;
+}
+
+function getMealDraftFor(drafts, dateStr, timingKey) {
+  return drafts[draftKey(dateStr, timingKey)] || drafts[timingKey] || null;
+}
+
+function mealItemCount(entry) {
+  if (!entry) return 0;
+  if (Array.isArray(entry.items) && entry.items.length) return entry.items.length;
+  if (Array.isArray(entry.structuredItems) && entry.structuredItems.length) return entry.structuredItems.length;
+  return 0;
+}
+
+function mealDraftHasContent(draft) {
+  return mealItemCount(draft) > 0 || Boolean(draft && String(draft.note || '').trim());
+}
+
+function nutritionEnergy(entry) {
+  if (!entry) return 0;
+  if (Number.isFinite(Number(entry.kcal))) return Number(entry.kcal) || 0;
+  const items = Array.isArray(entry.structuredItems) ? entry.structuredItems : [];
+  return items.reduce((sum, item) => sum + Number(item && item.nutrients && item.nutrients.energy || 0), 0);
+}
+
+function renderDailyHub() {
+  const today = todayInfo();
+  const timings = ['morning', 'lunch', 'dinner'];
+  const records = storageGet(MEAL_RECORD_STORE, []).filter(record => record && record.date === today.date);
+  const drafts = storageGet(MEAL_DRAFT_STORE, {});
+  const workoutHistory = storageGet(WORKOUT_HISTORY_STORE, []);
+  const workoutQueue = storageGet(WORKOUT_QUEUE_STORE, []);
+  const recent = loadRecent();
+
+  const savedTimings = new Set(records.map(record => record.timingKey || record.timing).filter(Boolean));
+  const draftTimings = timings.filter(timing => !savedTimings.has(timing) && mealDraftHasContent(getMealDraftFor(drafts, today.date, timing)));
+  const mealCount = Math.min(3, savedTimings.size + draftTimings.length);
+  const kcal = Math.round(records.reduce((sum, record) => sum + nutritionEnergy(record), 0) + draftTimings.reduce((sum, timing) => sum + nutritionEnergy(getMealDraftFor(drafts, today.date, timing)), 0));
+  const reviewCount = records.reduce((sum, record) => sum + Number(record.reviewCount || 0), 0) + draftTimings.reduce((sum, timing) => sum + countReviewFlags({ [timing]: getMealDraftFor(drafts, today.date, timing) }), 0);
+
+  const todaysWorkouts = workoutHistory.filter(item => item && item.日付 === today.date);
+  const queuedToday = workoutQueue.filter(item => item && item.日付 === today.date).length;
+  const latestWorkout = todaysWorkouts[0];
+  const healthRecent = recent.find(item => item.key === 'health-import');
+
+  document.getElementById('dailyHubDate').textContent = today.label;
+  document.getElementById('dailyMealCard').href = `meal.html?date=${encodeURIComponent(today.date)}`;
+  document.getElementById('dailyNutritionCard').href = `day.html?date=${encodeURIComponent(today.date)}`;
+  document.getElementById('dailyMealValue').textContent = `${mealCount}/3`;
+  document.getElementById('dailyMealCopy').textContent = reviewCount ? `要確認 ${reviewCount}件 / ${kcal || 0}kcal` : `${kcal || 0}kcal`;
+  setDailyStatus('dailyMealStatus', mealCount >= 3 ? 'ok' : mealCount ? 'warn' : '', mealCount >= 3 ? '完了' : mealCount ? '途中' : '未入力');
+
+  document.getElementById('dailyNutritionValue').textContent = `${kcal || 0}kcal`;
+  document.getElementById('dailyNutritionCopy').textContent = mealCount ? `食事 ${mealCount}/3 から分析` : '食事記録後に分析';
+  setDailyStatus('dailyNutritionStatus', mealCount ? 'ok' : '', mealCount ? '表示可' : '待機');
+
+  document.getElementById('dailyWorkoutValue').textContent = String(todaysWorkouts.length);
+  document.getElementById('dailyWorkoutCopy').textContent = latestWorkout ? `${latestWorkout.種目 || '記録'}${queuedToday ? ` / 再送待ち${queuedToday}` : ''}` : '今日の種目数';
+  setDailyStatus('dailyWorkoutStatus', todaysWorkouts.length ? 'ok' : queuedToday ? 'warn' : '', todaysWorkouts.length ? '記録済み' : queuedToday ? '再送待ち' : '未記録');
+
+  document.getElementById('dailyHealthValue').textContent = healthRecent ? relativeTimeLabel(healthRecent.at) : '取込';
+  document.getElementById('dailyHealthCopy').textContent = healthRecent ? '最後に開いた時間' : 'Apple Health zip';
+  setDailyStatus('dailyHealthStatus', healthRecent ? 'ok' : '', healthRecent ? '最近' : '任意');
+}
+
+function setDailyStatus(id, tone, label) {
+  const node = document.getElementById(id);
+  node.className = `daily-status ${tone || ''}`;
+  node.textContent = label;
 }
 
 function renderMealBase() {
