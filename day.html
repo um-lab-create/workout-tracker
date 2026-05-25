@@ -439,6 +439,71 @@
       font-weight: 950;
     }
 
+    .ranking-board {
+      display: grid;
+      gap: 12px;
+    }
+
+    .ranking-column {
+      display: grid;
+      gap: 8px;
+    }
+
+    .ranking-kicker {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .ranking-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(255,255,255,.04);
+    }
+
+    .ranking-card.low {
+      border-color: rgba(255,209,90,.20);
+      background: linear-gradient(135deg, rgba(255,209,90,.08), rgba(255,255,255,.03));
+    }
+
+    .ranking-card.high {
+      border-color: rgba(255,109,138,.22);
+      background: linear-gradient(135deg, rgba(255,109,138,.08), rgba(255,255,255,.03));
+    }
+
+    .ranking-card.good {
+      border-color: rgba(64,255,157,.18);
+      background: linear-gradient(135deg, rgba(64,255,157,.08), rgba(255,255,255,.03));
+    }
+
+    .ranking-name {
+      font-size: 13px;
+      line-height: 1.3;
+      font-weight: 950;
+    }
+
+    .ranking-copy {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .ranking-pct {
+      min-width: 48px;
+      text-align: right;
+      color: var(--accent-2);
+      font-size: 16px;
+      font-weight: 950;
+      letter-spacing: -.03em;
+    }
+
     .nutrient-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1023,6 +1088,14 @@
 
     <section class="panel">
       <div class="section-head">
+        <div class="section-title">栄養ランキング</div>
+        <div class="section-note">不足・過剰・強み</div>
+      </div>
+      <div class="ranking-board" id="nutrientRanking"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
         <div class="section-title">主要栄養</div>
         <div class="section-note">暫定目安つき</div>
       </div>
@@ -1338,6 +1411,7 @@
       renderHero(state);
       renderMacros(state);
       renderNutritionJudgement(state);
+      renderNutrientRanking(state);
       renderNutrients(state);
       renderSuggestions(state);
       renderTimings(state);
@@ -1396,6 +1470,34 @@
         : '<div class="empty">今日の入力範囲では、大きな修正ポイントはありません。</div>';
     }
 
+    function renderNutrientRanking(state) {
+      const root = document.getElementById('nutrientRanking');
+      const ranking = buildNutrientRanking(state);
+      if (!state.totals.meals) {
+        root.innerHTML = '<div class="empty">食事を記録すると、不足・過剰・強みをランキングします。</div>';
+        return;
+      }
+      const sections = [
+        { title: '不足トップ', kind: 'low', rows: ranking.low, empty: '大きな不足は目立ちません。' },
+        { title: '多すぎ注意', kind: 'high', rows: ranking.high, empty: '塩分・飽和脂肪酸は目安内です。' },
+        { title: '満たせている栄養', kind: 'good', rows: ranking.good, empty: 'まだ十分に満たせた栄養が少なめです。' }
+      ];
+      root.innerHTML = sections.map(section => `
+        <div class="ranking-column">
+          <div class="ranking-kicker">${section.title}</div>
+          ${section.rows.length ? section.rows.map(item => `
+            <div class="ranking-card ${section.kind}">
+              <div>
+                <div class="ranking-name">${item.label}</div>
+                <div class="ranking-copy">${item.copy}</div>
+              </div>
+              <div class="ranking-pct">${item.pct}%</div>
+            </div>
+          `).join('') : `<div class="empty">${section.empty}</div>`}
+        </div>
+      `).join('');
+    }
+
     function renderNutrients(state) {
       const root = document.getElementById('nutrientGrid');
       root.innerHTML = Object.entries(NUTRIENT_META).map(([key, meta]) => {
@@ -1416,6 +1518,56 @@
           </div>
         `;
       }).join('');
+    }
+
+    function buildNutrientRanking(state) {
+      const important = new Set(['protein', 'fiber', 'Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3']);
+      const excessKeys = new Set(['salt', 'saturatedFat']);
+      const rows = Object.entries(NUTRIENT_META)
+        .filter(([key, meta]) => meta.target && (important.has(key) || excessKeys.has(key)))
+        .map(([key, meta]) => {
+          const value = state.nutrients[key] || 0;
+          const pct = Math.round((value / meta.target) * 100);
+          const leaders = topContributors(state.contributions[key]).slice(0, 2);
+          const leaderText = leaders.length
+            ? `主な食品: ${leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、')}`
+            : '主な食品: まだ記録なし';
+          const food = !excessKeys.has(key) ? bestFoodForNutrient(key) : null;
+          const foodText = food ? `候補: ${food.name} ${defaultFoodUnitLabel(food)}` : '';
+          return { key, meta, value, pct, leaderText, foodText };
+        });
+
+      const low = rows
+        .filter(item => important.has(item.key) && item.pct < 100)
+        .sort((a, b) => a.pct - b.pct)
+        .slice(0, 5)
+        .map(item => ({
+          label: item.meta.label,
+          pct: item.pct,
+          copy: `${item.leaderText}${item.foodText ? ` / ${item.foodText}` : ''}`
+        }));
+
+      const high = rows
+        .filter(item => excessKeys.has(item.key) && item.pct > 100)
+        .sort((a, b) => b.pct - a.pct)
+        .slice(0, 3)
+        .map(item => ({
+          label: item.meta.label,
+          pct: item.pct,
+          copy: `${item.leaderText} / 次は薄味・低脂質寄り`
+        }));
+
+      const good = rows
+        .filter(item => important.has(item.key) && item.pct >= 100)
+        .sort((a, b) => b.pct - a.pct)
+        .slice(0, 5)
+        .map(item => ({
+          label: item.meta.label,
+          pct: item.pct,
+          copy: item.leaderText
+        }));
+
+      return { low, high, good };
     }
 
     function buildNutritionJudgement(state) {
