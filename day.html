@@ -1140,8 +1140,39 @@
             <option value="bulk">筋肉増量寄り</option>
           </select>
         </label>
+        <div class="target-grid">
+          <label class="target-field">
+            <span class="target-label">年齢</span>
+            <input id="profileAgeInput" type="number" inputmode="numeric" min="18" max="100" step="1">
+          </label>
+          <label class="target-field">
+            <span class="target-label">身長cm</span>
+            <input id="profileHeightInput" type="number" inputmode="decimal" min="120" max="220" step="0.5">
+          </label>
+          <label class="target-field">
+            <span class="target-label">体重kg</span>
+            <input id="profileWeightInput" type="number" inputmode="decimal" min="35" max="180" step="0.1">
+          </label>
+          <label class="target-field">
+            <span class="target-label">活動</span>
+            <select id="profileActivitySelect">
+              <option value="1.5">低め</option>
+              <option value="1.75">普通</option>
+              <option value="2">高め</option>
+            </select>
+          </label>
+        </div>
+        <label class="target-field">
+          <span class="target-label">がんばり方</span>
+          <select id="profileEffortSelect">
+            <option value="balanced">バランス 7:3</option>
+            <option value="diet">食事中心 10:0</option>
+            <option value="exercise">運動中心 3:7</option>
+          </select>
+        </label>
         <div class="target-actions">
           <button class="target-button primary" type="button" onclick="saveTargetSettings()">保存</button>
+          <button class="target-button" type="button" onclick="estimateTargetsFromProfile()">推定する</button>
           <button class="target-button" type="button" onclick="resetTargetSettings()">標準へ戻す</button>
         </div>
         <div class="target-summary" id="targetSummary">目標を設定すると、判定スコア・PFC・不足率に反映します。</div>
@@ -1272,11 +1303,19 @@
     const TIMING_LABELS = {
       morning: { label: '朝ごはん' },
       lunch: { label: '昼ごはん' },
-      dinner: { label: '夜ごはん' }
+      dinner: { label: '夜ごはん' },
+      snack: { label: '間食' }
     };
     let renderedFoodProfiles = [];
     const NUTRIENT_META = NUTRITION_DB ? NUTRITION_DB.META : {};
-    const DEFAULT_TARGETS = { goal: 'maintain', energy: 2200, protein: 110, fat: 60, carb: 300 };
+    const DEFAULT_TARGETS = {
+      goal: 'maintain',
+      energy: 2200,
+      protein: 110,
+      fat: 60,
+      carb: 300,
+      profile: { age: 40, sex: 'male', height: 170, weight: 70, activity: 1.75, effort: 'balanced' }
+    };
 
     let selectedDate = readInitialDate();
     let targetSettings = loadTargetSettings();
@@ -1341,12 +1380,27 @@
 
     function normalizeTargets(source) {
       const goal = ['maintain', 'cut', 'bulk'].includes(source && source.goal) ? source.goal : DEFAULT_TARGETS.goal;
+      const profile = normalizeProfile(source && source.profile);
       return {
         goal,
         energy: clampNumber(source && source.energy, 1000, 5000, DEFAULT_TARGETS.energy),
         protein: clampNumber(source && source.protein, 40, 260, DEFAULT_TARGETS.protein),
         fat: clampNumber(source && source.fat, 20, 180, DEFAULT_TARGETS.fat),
-        carb: clampNumber(source && source.carb, 80, 700, DEFAULT_TARGETS.carb)
+        carb: clampNumber(source && source.carb, 80, 700, DEFAULT_TARGETS.carb),
+        profile
+      };
+    }
+
+    function normalizeProfile(source) {
+      const base = DEFAULT_TARGETS.profile;
+      const effort = ['diet', 'balanced', 'exercise'].includes(source && source.effort) ? source.effort : base.effort;
+      return {
+        age: clampNumber(source && source.age, 18, 100, base.age),
+        sex: 'male',
+        height: clampNumber(source && source.height, 120, 220, base.height),
+        weight: clampNumber(source && source.weight, 35, 180, base.weight),
+        activity: clampNumber(source && source.activity, 1.3, 2.2, base.activity),
+        effort
       };
     }
 
@@ -1362,6 +1416,11 @@
       document.getElementById('targetFatInput').value = targetSettings.fat;
       document.getElementById('targetCarbInput').value = targetSettings.carb;
       document.getElementById('targetGoalSelect').value = targetSettings.goal;
+      document.getElementById('profileAgeInput').value = targetSettings.profile.age;
+      document.getElementById('profileHeightInput').value = targetSettings.profile.height;
+      document.getElementById('profileWeightInput').value = targetSettings.profile.weight;
+      document.getElementById('profileActivitySelect').value = String(targetSettings.profile.activity);
+      document.getElementById('profileEffortSelect').value = targetSettings.profile.effort;
       renderTargetSummary();
     }
 
@@ -1371,7 +1430,8 @@
         energy: document.getElementById('targetEnergyInput').value,
         protein: document.getElementById('targetProteinInput').value,
         fat: document.getElementById('targetFatInput').value,
-        carb: document.getElementById('targetCarbInput').value
+        carb: document.getElementById('targetCarbInput').value,
+        profile: readProfileForm()
       });
       storageSet(TARGET_STORE, targetSettings);
       hydrateTargetForm();
@@ -1387,7 +1447,36 @@
 
     function renderTargetSummary() {
       const label = targetSettings.goal === 'cut' ? '減量寄り' : targetSettings.goal === 'bulk' ? '筋肉増量寄り' : '維持・健康管理';
-      document.getElementById('targetSummary').textContent = `${label}: ${targetSettings.energy}kcal / P${targetSettings.protein}g / F${targetSettings.fat}g / C${targetSettings.carb}g`;
+      const p = targetSettings.profile;
+      document.getElementById('targetSummary').textContent = `${label}: ${targetSettings.energy}kcal / P${targetSettings.protein}g / F${targetSettings.fat}g / C${targetSettings.carb}g（${p.age}歳 ${p.height}cm ${p.weight}kg 活動${p.activity}）`;
+    }
+
+    function readProfileForm() {
+      return {
+        age: document.getElementById('profileAgeInput').value,
+        sex: 'male',
+        height: document.getElementById('profileHeightInput').value,
+        weight: document.getElementById('profileWeightInput').value,
+        activity: document.getElementById('profileActivitySelect').value,
+        effort: document.getElementById('profileEffortSelect').value
+      };
+    }
+
+    function estimateTargetsFromProfile() {
+      const profile = normalizeProfile(readProfileForm());
+      const basal = ((0.1238 + 0.0481 * profile.weight + 0.0234 * profile.height - 0.0138 * profile.age - 0.5473 * 1) * 1000) / 4.186;
+      let energy = Math.round((basal * profile.activity) / 10) * 10;
+      const goal = document.getElementById('targetGoalSelect').value;
+      if (goal === 'cut') energy -= 230;
+      if (goal === 'bulk') energy += 150;
+      energy = clampNumber(energy, 1000, 5000, DEFAULT_TARGETS.energy);
+      const protein = Math.round((energy * 0.18 / 4) / 5) * 5;
+      const fat = Math.round((energy * 0.25 / 9) / 5) * 5;
+      const carb = Math.round((energy * 0.55 / 4) / 10) * 10;
+      targetSettings = normalizeTargets({ goal, energy, protein, fat, carb, profile });
+      storageSet(TARGET_STORE, targetSettings);
+      hydrateTargetForm();
+      renderAll();
     }
 
     function bindDateControls() {
@@ -1597,7 +1686,7 @@
       const macroSum = state.totals.p + state.totals.f + state.totals.c;
       document.getElementById('heroKcal').textContent = Math.round(state.totals.kcal);
       document.getElementById('heroKcalSub').textContent = state.totals.meals
-        ? `${targetPct('energy', state.totals.kcal)}% / 目標 ${targetSettings.energy}kcal / ${state.totals.meals}/3食`
+        ? `${targetPct('energy', state.totals.kcal)}% / 目標 ${targetSettings.energy}kcal / ${state.totals.meals}/4食`
         : `目標 ${targetSettings.energy}kcal`;
       document.getElementById('heroPfc').textContent = `${Math.round(state.totals.p)}/${Math.round(state.totals.f)}/${Math.round(state.totals.c)}`;
       document.getElementById('heroCoverage').textContent = `${state.coverage}%`;

@@ -265,6 +265,17 @@
       border-radius: 999px;
     }
 
+    .compact-menu-btn {
+      min-width: 44px;
+      min-height: 44px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 950;
+    }
+
     .habit-strip {
       display: grid;
       gap: 8px;
@@ -331,13 +342,13 @@
     .timing-grid {
       position: relative;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       margin-top: 14px;
     }
 
     .timing-btn {
-      min-height: 72px;
+      min-height: 64px;
       border-radius: 18px;
       border: 1px solid rgba(255,255,255,.075);
       background: rgba(0,0,0,.22);
@@ -374,8 +385,138 @@
 
     .timing-title {
       margin-top: 10px;
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 900;
+    }
+
+    .day-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .day-line-main {
+      min-width: 0;
+      font-size: 16px;
+      line-height: 1.25;
+      font-weight: 950;
+    }
+
+    .day-line-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .day-link {
+      flex: 0 0 auto;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(88,216,255,.22);
+      background: rgba(88,216,255,.10);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .quick-add-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .candidate-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .candidate-chip {
+      min-height: 70px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(255,255,255,.045);
+      padding: 11px;
+      text-align: left;
+      display: grid;
+      align-content: space-between;
+      gap: 8px;
+      transition: transform .12s ease, border-color .12s ease;
+    }
+
+    .candidate-chip:active { transform: scale(.97); }
+    .candidate-chip.habit {
+      border-color: rgba(245,158,11,.36);
+      background: linear-gradient(145deg, rgba(245,158,11,.18), rgba(255,255,255,.04));
+    }
+
+    .candidate-chip.smart {
+      border-color: rgba(88,216,255,.22);
+      background: linear-gradient(145deg, rgba(88,216,255,.12), rgba(255,255,255,.04));
+    }
+
+    .candidate-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .candidate-kind {
+      color: var(--accent-2);
+      font-size: 10px;
+      font-weight: 950;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .candidate-plus {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255,255,255,.10);
+      font-weight: 950;
+    }
+
+    .candidate-name {
+      font-size: 13px;
+      line-height: 1.25;
+      font-weight: 950;
+    }
+
+    .candidate-copy {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+
+    .search-cta {
+      min-height: 54px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(245,158,11,.92), rgba(255,217,120,.98));
+      color: #0a0a0f;
+      font-size: 15px;
+      font-weight: 950;
+      box-shadow: 0 18px 40px rgba(245,158,11,.16);
+    }
+
+    .legacy-panel {
+      display: none;
     }
 
     .panel {
@@ -1641,6 +1782,10 @@
       }
       .brand-main { font-size: 26px; }
       .hero-copy h1 { font-size: 21px; }
+      .timing-grid { gap: 7px; }
+      .timing-btn { min-height: 58px; padding: 9px; border-radius: 16px; }
+      .timing-emoji { width: 26px; height: 26px; font-size: 12px; }
+      .timing-title { font-size: 11px; margin-top: 7px; }
       .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .smart-grid { grid-template-columns: 1fr; }
       .preset-grid { grid-template-columns: 1fr; }
@@ -1653,6 +1798,7 @@
       .portion-row,
       .topping-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .candidate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .modal { padding-left: 8px; padding-right: 8px; }
       .sheet { border-radius: 22px; padding: 14px; }
       .dock-row { grid-template-columns: 1fr; }
@@ -1676,8 +1822,7 @@
         <div class="chip" id="todayChip">--</div>
         <div class="chip" id="syncChip">待機中</div>
         <div class="header-tools">
-          <button class="mini-btn" type="button" onclick="openPresetManager()">固定</button>
-          <button class="mini-btn" type="button" onclick="openProductManager()">DB</button>
+          <button class="compact-menu-btn" type="button" aria-label="管理メニュー" onclick="openManageMenu()">⋯</button>
         </div>
       </div>
     </header>
@@ -1691,13 +1836,6 @@
       </div>
 
       <div class="timing-grid" id="timingGrid"></div>
-      <div class="action-strip">
-        <button class="action-pill" type="button" onclick="openPresetManager()"><strong>定</strong><span>固定</span></button>
-        <button class="action-pill" type="button" onclick="openBuilder()"><strong>＋</strong><span>追加</span></button>
-        <button class="action-pill" type="button" onclick="openProductManager()"><strong>商</strong><span>商品</span></button>
-        <button class="action-pill" type="button" onclick="openHistory()"><strong>時</strong><span>履歴</span></button>
-        <button class="action-pill" type="button" onclick="openRecipeManager()"><strong>献</strong><span>メニュー</span></button>
-      </div>
       <div class="date-strip">
         <div class="date-head">
           <div class="date-title">
@@ -1710,27 +1848,23 @@
             <input class="date-input" id="recordDateInput" type="date">
           </div>
         </div>
-        <div class="habit-strip">
-          <div class="habit-card">
-            <div class="habit-copy">
-              <div class="habit-name" id="habitTitle">普段の食事なし</div>
-              <div class="habit-detail" id="habitDetail">このタイミングの定番を決めておくと、未入力日に自動で下書きされます。</div>
-            </div>
-            <div class="header-tools">
-              <button class="mini-btn" type="button" onclick="applyHabitPlan()">置く</button>
-              <button class="mini-btn" type="button" onclick="saveCurrentAsHabit()">今を普段にする</button>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
 
     <section class="panel">
       <div class="section-head">
-        <div class="section-title">1日の合計</div>
-        <button class="mini-btn" type="button" onclick="openDayView()">詳しく</button>
+        <div class="section-title">今日の合計</div>
       </div>
-      <div class="panel-body day-board">
+      <div class="panel-body">
+        <div class="day-line">
+          <div class="day-line-main">
+            <span id="dayLineKcal">0</span> kcal
+            <div class="day-line-sub" id="dayLineMeta">P0 F0 C0 / 不足チェック待ち</div>
+          </div>
+          <a class="day-link" id="dayDetailLink" href="day.html">詳しく</a>
+        </div>
+      </div>
+      <div class="panel-body day-board legacy-panel">
         <div class="day-grid">
           <div class="day-card"><div class="day-label">kcal</div><div class="day-value" id="dayKcal">0</div><div class="day-sub" id="dayKcalSub">0/3 食</div></div>
           <div class="day-card"><div class="day-label">P</div><div class="day-value" id="dayProtein">0g</div><div class="day-sub" id="dayProteinSub">0%</div></div>
@@ -1759,6 +1893,29 @@
 
     <section class="panel">
       <div class="section-head">
+        <div class="section-title" id="currentMealTitle">今の食事</div>
+        <div class="header-tools">
+          <button class="mini-btn" type="button" onclick="saveCurrentAsHabit()">普段にする</button>
+          <button class="mini-btn" type="button" onclick="clearCurrentMeal()">クリア</button>
+        </div>
+      </div>
+      <div class="items" id="currentItems"></div>
+      <div class="empty-state" id="currentEmpty">まだ空です</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">ワンタップで追加</div>
+        <button class="mini-btn" type="button" onclick="openPresetManager()">固定編集</button>
+      </div>
+      <div class="panel-body quick-add-panel">
+        <div class="candidate-grid" id="candidateGrid"></div>
+        <button class="search-cta" type="button" onclick="openBuilder()">食材・商品・メニューを検索</button>
+      </div>
+    </section>
+
+    <section class="panel legacy-panel">
+      <div class="section-head">
         <div class="section-title">固定・最近</div>
         <button class="mini-btn" type="button" onclick="openPresetManager()">編集</button>
       </div>
@@ -1768,7 +1925,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel legacy-panel">
       <div class="section-head">
         <div class="section-title">よく足す</div>
         <button class="mini-btn" type="button" onclick="openBuilder()">探す</button>
@@ -1778,7 +1935,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel legacy-panel">
       <div class="section-head">
         <div class="section-title">商品・メニュー</div>
         <div class="header-tools">
@@ -1792,7 +1949,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel legacy-panel">
       <div class="section-head">
         <div class="section-title">次に足す</div>
       </div>
@@ -1804,7 +1961,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel legacy-panel">
       <div class="section-head">
         <div class="section-title">現在の食事</div>
         <div class="header-tools">
@@ -1812,8 +1969,6 @@
           <button class="mini-btn" type="button" onclick="clearCurrentMeal()">クリア</button>
         </div>
       </div>
-      <div class="items" id="currentItems"></div>
-      <div class="empty-state" id="currentEmpty">まだ空です</div>
       <div class="panel-body">
         <div class="summary-grid">
           <div class="summary-card"><div class="summary-value" id="sumKcal">0</div><div class="summary-label">kcal</div></div>
@@ -1880,6 +2035,40 @@
       <div class="dock-actions">
         <button class="dock-mini" type="button" onclick="openBuilder()">＋</button>
         <button class="save-btn" id="saveMealButton" type="button" onclick="saveMeal()">記録する</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="manageMenuModal">
+    <div class="sheet">
+      <div class="sheet-head">
+        <div>
+          <div class="sheet-title">管理メニュー</div>
+          <div class="sheet-copy">普段は記録だけ。編集や登録はここから開きます。</div>
+        </div>
+        <button class="close-btn" type="button" onclick="closeModal('manageMenuModal')">×</button>
+      </div>
+      <div class="manage-list">
+        <button class="result-card" type="button" onclick="openPresetManagerFromMenu()">
+          <div class="result-head"><div class="result-name">固定項目の編集</div><div class="preset-badge">よく使う</div></div>
+          <div class="result-meta">朝・昼・夜・間食の定番セットを作る、直す、上書きする。</div>
+        </button>
+        <button class="result-card" type="button" onclick="openProductManagerFromMenu()">
+          <div class="result-head"><div class="result-name">商品DB</div><div class="preset-badge">バーコード</div></div>
+          <div class="result-meta">市販品を検索・登録。カメラでバーコードも読めます。</div>
+        </button>
+        <button class="result-card" type="button" onclick="openRecipeManagerFromMenu()">
+          <div class="result-head"><div class="result-name">自作メニュー</div><div class="preset-badge">作り置き</div></div>
+          <div class="result-meta">複数食材をまとめて保存し、食べた食数で追加。</div>
+        </button>
+        <button class="result-card" type="button" onclick="openCustomFoodManagerFromMenu()">
+          <div class="result-head"><div class="result-name">独自食材</div><div class="preset-badge">概算</div></div>
+          <div class="result-meta">DBにない食材を要確認つきで登録。</div>
+        </button>
+        <button class="result-card" type="button" onclick="openHistoryFromMenu()">
+          <div class="result-head"><div class="result-name">履歴</div><div class="preset-badge">再利用</div></div>
+          <div class="result-meta">過去の記録を呼び出して、今日の食事に再利用。</div>
+        </button>
       </div>
     </div>
   </div>
@@ -2212,7 +2401,8 @@
     const TIMINGS = {
       morning: { label: '朝', title: '朝ごはん', icon: '朝' },
       lunch: { label: '昼', title: '昼ごはん', icon: '昼' },
-      dinner: { label: '夜', title: '夜ごはん', icon: '夜' }
+      dinner: { label: '夜', title: '夜ごはん', icon: '夜' },
+      snack: { label: '間食', title: '間食', icon: '間' }
     };
 
     const BASE_FOODS = [
@@ -2341,6 +2531,24 @@
             { foodId: 'egg', qty: 1, unit: '個' }
           ]
         }
+      ],
+      snack: [
+        {
+          id: 'preset-snack-protein',
+          name: 'プロテイン補食',
+          items: [
+            { foodId: 'whey-protein', qty: 1, unit: '食分' },
+            { foodId: 'banana', qty: 1, unit: '本' }
+          ]
+        },
+        {
+          id: 'preset-snack-light',
+          name: '軽い間食',
+          items: [
+            { foodId: 'prod-kagome-yasai-ichinichi', qty: 1, unit: '本' },
+            { foodId: 'protein-bar', qty: 1, unit: '本' }
+          ]
+        }
       ]
     };
 
@@ -2360,7 +2568,8 @@
     const QUICK_FOODS = {
       morning: ['banana', 'coffee', 'bread', 'oikos', 'soy-protein', 'whey-protein'],
       lunch: ['rice', 'chicken-breast', 'salad-chicken', 'tuna-can', 'broccoli', 'tomato', 'pasta', 'udon'],
-      dinner: ['rice', 'salmon', 'mackerel', 'tofu', 'komatsuna', 'wakame', 'avocado', 'sweet-potato']
+      dinner: ['rice', 'salmon', 'mackerel', 'tofu', 'komatsuna', 'wakame', 'avocado', 'sweet-potato'],
+      snack: ['whey-protein', 'soy-protein', 'banana', 'protein-bar', 'prod-kagome-yasai-ichinichi', 'prod-in-jelly-protein', 'mix-nuts', 'oikos']
     };
 
     const TOPPING_SETS = {
@@ -2398,6 +2607,11 @@
         light: { kcal: 320, p: 20, f: 12, c: 35 },
         normal: { kcal: 620, p: 32, f: 22, c: 72 },
         heavy: { kcal: 850, p: 42, f: 32, c: 100 }
+      },
+      snack: {
+        light: { kcal: 120, p: 6, f: 3, c: 16 },
+        normal: { kcal: 220, p: 14, f: 6, c: 28 },
+        heavy: { kcal: 380, p: 24, f: 12, c: 46 }
       }
     };
 
@@ -2471,7 +2685,12 @@
 
     function loadPresets() {
       const stored = storageGet(PRESET_STORE, null);
-      if (stored && stored.morning && stored.lunch && stored.dinner) return stored;
+      if (stored && stored.morning && stored.lunch && stored.dinner && stored.snack) return stored;
+      if (stored && stored.morning && stored.lunch && stored.dinner) {
+        stored.snack = clone(DEFAULT_PRESETS.snack);
+        storageSet(PRESET_STORE, stored);
+        return stored;
+      }
       const seeded = clone(DEFAULT_PRESETS);
       storageSet(PRESET_STORE, seeded);
       return seeded;
@@ -2511,11 +2730,17 @@
 
     function loadHabits() {
       const stored = storageGet(HABIT_STORE, null);
-      if (stored && stored.morning && stored.lunch && stored.dinner) return stored;
+      if (stored && stored.morning && stored.lunch && stored.dinner && stored.snack) return stored;
+      if (stored && stored.morning && stored.lunch && stored.dinner) {
+        stored.snack = { presetId: 'preset-snack-protein' };
+        storageSet(HABIT_STORE, stored);
+        return stored;
+      }
       const seeded = {
         morning: { presetId: 'preset-morning-fixed' },
         lunch: { presetId: 'preset-lunch-chicken' },
-        dinner: { presetId: 'preset-dinner-salmon' }
+        dinner: { presetId: 'preset-dinner-salmon' },
+        snack: { presetId: 'preset-snack-protein' }
       };
       storageSet(HABIT_STORE, seeded);
       return seeded;
@@ -2870,6 +3095,12 @@
           { id: 'rice', tag: 'C', copy: '少し主食を足す', when: totals => totals.c < 35 && !hasFood('rice') && !hasFood('sweet-potato') },
           { id: 'kimchi', tag: '副', copy: '副菜を追加', when: () => !hasFood('kimchi') },
           { id: 'tofu', tag: '軽', copy: '軽めにたんぱく質を足す', when: totals => totals.kcal < 450 && !hasFood('tofu') }
+        ],
+        snack: [
+          { id: 'whey-protein', tag: 'P', copy: 'たんぱく質を手早く足す', when: totals => totals.p < 18 && !hasFood('whey-protein') && !hasFood('soy-protein') },
+          { id: 'prod-kagome-yasai-ichinichi', tag: '野', copy: '野菜系の補助を入れる', when: () => !hasFood('prod-kagome-yasai-ichinichi') },
+          { id: 'banana', tag: 'C', copy: '運動前後の炭水化物', when: totals => totals.c < 25 && !hasFood('banana') },
+          { id: 'mix-nuts', tag: '脂', copy: '少量で腹持ちを足す', when: totals => totals.kcal < 250 && !hasFood('mix-nuts') }
         ]
       };
     }
@@ -2918,12 +3149,17 @@
       const title = TIMINGS[currentTiming].title;
       document.getElementById('heroTitle').textContent = title;
       document.getElementById('dockTiming').textContent = title;
+      const currentTitle = document.getElementById('currentMealTitle');
+      if (currentTitle) currentTitle.textContent = `今の${title}`;
     }
 
     function renderHabitCard() {
       const preset = getHabitPreset();
-      document.getElementById('habitTitle').textContent = preset ? preset.name : '普段の食事なし';
-      document.getElementById('habitDetail').textContent = preset
+      const title = document.getElementById('habitTitle');
+      const detail = document.getElementById('habitDetail');
+      if (!title || !detail) return;
+      title.textContent = preset ? preset.name : '普段の食事なし';
+      detail.textContent = preset
         ? `${preset.items.length}品 / 未入力日はこれを先に置きます`
         : 'このタイミングの定番を決めておくと、未入力日に自動で下書きされます。';
     }
@@ -2934,7 +3170,7 @@
 
     function getDaySnapshot(dateStr) {
       const totals = { kcal: 0, protein: 0, fat: 0, carb: 0, count: 0 };
-      const byTiming = { morning: 0, lunch: 0, dinner: 0 };
+      const byTiming = Object.fromEntries(Object.keys(TIMINGS).map(key => [key, 0]));
       const records = getRecordsForDate(dateStr);
       records.forEach(record => {
         totals.kcal += Number(record.kcal) || 0;
@@ -2982,9 +3218,13 @@
       const pctP = macroSum ? Math.round((totals.protein / macroSum) * 100) : 0;
       const pctF = macroSum ? Math.round((totals.fat / macroSum) * 100) : 0;
       const pctC = macroSum ? Math.round((totals.carb / macroSum) * 100) : 0;
-      const dayMax = Math.max(byTiming.morning, byTiming.lunch, byTiming.dinner, 1);
+      const dayMax = Math.max(...Object.values(byTiming), 1);
+      const gapHint = buildMealGapHint(totals);
+      document.getElementById('dayLineKcal').textContent = Math.round(totals.kcal);
+      document.getElementById('dayLineMeta').textContent = `P${Math.round(totals.protein)} F${Math.round(totals.fat)} C${Math.round(totals.carb)} / ${gapHint}`;
+      document.getElementById('dayDetailLink').href = `day.html?date=${encodeURIComponent(selectedDate)}`;
       document.getElementById('dayKcal').textContent = Math.round(totals.kcal);
-      document.getElementById('dayKcalSub').textContent = `${totals.count}/3 食`;
+      document.getElementById('dayKcalSub').textContent = `${totals.count}/4 食`;
       document.getElementById('dayProtein').textContent = `${Math.round(totals.protein)}g`;
       document.getElementById('dayProteinSub').textContent = `${pctP}%`;
       document.getElementById('dayFat').textContent = `${Math.round(totals.fat)}g`;
@@ -2995,6 +3235,14 @@
         document.getElementById(`day${suffix}Fill`).style.width = `${Math.round((byTiming[key] / dayMax) * 100)}%`;
         document.getElementById(`day${suffix}Val`).textContent = `${Math.round(byTiming[key])}kcal`;
       });
+    }
+
+    function buildMealGapHint(totals) {
+      const gaps = [];
+      if ((Number(totals.protein) || 0) < 80) gaps.push('たんぱく質');
+      if ((Number(totals.kcal) || 0) < 1600) gaps.push('kcal');
+      if ((Number(totals.carb) || 0) < 160) gaps.push('炭水化物');
+      return gaps.length ? `不足:${gaps.slice(0, 2).join('・')}` : '不足なし';
     }
 
     function renderPresetGrid() {
@@ -3125,6 +3373,103 @@
           </button>
         `;
       }).join('');
+    }
+
+    function findLastFoodUse(foodId) {
+      const records = getRecords().slice().reverse();
+      for (const record of records) {
+        const item = (record.items || []).find(entry => entry.foodId === foodId);
+        if (item) return item;
+      }
+      return null;
+    }
+
+    function defaultQuickPortion(food) {
+      const previous = findLastFoodUse(food.id);
+      if (previous) {
+        return { qty: Number(previous.qty) || 1, unit: previous.unit, pendingReview: Boolean(previous.pendingReview), source: '前回量' };
+      }
+      const unit = getDefaultUnit(food);
+      return { qty: unit && unit.defaultQty || 1, unit: unit && unit.label || food.unitLabel || '個', pendingReview: true, source: '標準量' };
+    }
+
+    function smartSuggestions() {
+      const totals = mealTotals();
+      return (suggestionTemplates()[currentTiming] || [])
+        .filter(entry => entry.when(totals))
+        .slice(0, 4)
+        .map(entry => ({ ...entry, food: getFoodById(entry.id) }))
+        .filter(entry => entry.food);
+    }
+
+    function renderCandidateGrid() {
+      const root = document.getElementById('candidateGrid');
+      if (!root) return;
+      const entries = [];
+      const habit = getHabitPreset();
+      if (!currentMeal.length && habit) {
+        entries.push({
+          type: 'habit',
+          kind: '置く',
+          name: habit.name,
+          copy: `${habit.items.length}品をまとめて置く`,
+          action: 'applyHabitPlan()'
+        });
+      }
+
+      getRecentRecordsForTiming().slice(0, 2).forEach(record => {
+        entries.push({
+          type: 'recent',
+          kind: '最近',
+          name: record.title || record.timing,
+          copy: record.memo || `${record.kcal || 0}kcal`,
+          action: `reuseRecord('${record.id}')`
+        });
+      });
+
+      (QUICK_FOODS[currentTiming] || []).slice(0, 6).forEach(id => {
+        const food = getFoodById(id);
+        if (!food || hasFood(id)) return;
+        const portion = defaultQuickPortion(food);
+        const kcal = calcFoodPortion(food, portion.qty, portion.unit).kcal;
+        entries.push({
+          type: 'quick',
+          kind: portion.source,
+          name: food.name,
+          copy: `${formatQty(portion.qty)}${portion.unit} / ${Math.round(kcal)}kcal${portion.pendingReview ? ' / 要確認' : ''}`,
+          action: `quickAddFood('${food.id}')`
+        });
+      });
+
+      smartSuggestions().forEach(entry => {
+        const portion = defaultQuickPortion(entry.food);
+        entries.push({
+          type: 'smart',
+          kind: entry.tag,
+          name: entry.food.name,
+          copy: entry.copy || `${formatQty(portion.qty)}${portion.unit}`,
+          action: `quickAddFood('${entry.food.id}')`
+        });
+      });
+
+      if (!entries.length) {
+        root.innerHTML = `
+          <button type="button" class="candidate-chip habit" onclick="openBuilder()">
+            <div class="candidate-top"><span class="candidate-kind">検索</span><span class="candidate-plus">＋</span></div>
+            <div class="candidate-name">食材を追加</div>
+            <div class="candidate-copy">候補がないので検索から追加</div>
+          </button>
+        `;
+        return;
+      }
+
+      root.innerHTML = entries.slice(0, 8).map(entry => `
+        <button type="button" class="candidate-chip ${entry.type}" onclick="${entry.action}">
+          <div class="candidate-top"><span class="candidate-kind">${entry.kind}</span><span class="candidate-plus">＋</span></div>
+          <div class="candidate-name">${entry.name}</div>
+          <div class="candidate-copy">${entry.copy}</div>
+        </button>
+      `).join('');
     }
 
     function renderFoodSelector() {
@@ -3384,8 +3729,13 @@
       if (!currentMeal.length) {
         root.innerHTML = '';
         empty.style.display = 'block';
+        const habit = getHabitPreset();
+        empty.innerHTML = habit
+          ? `<button class="search-cta" type="button" onclick="applyHabitPlan()">普段の${TIMINGS[currentTiming].title}を置く</button>`
+          : '<button class="search-cta" type="button" onclick="openBuilder()">最初の1品を追加</button>';
         renderSummary();
         renderSmartGrid();
+        renderCandidateGrid();
         renderDayBoard();
         return;
       }
@@ -3416,6 +3766,7 @@
       `).join('');
       renderSummary();
       renderSmartGrid();
+      renderCandidateGrid();
       renderDayBoard();
     }
 
@@ -3655,11 +4006,11 @@
     function quickAddFood(foodId) {
       const food = getFoodById(foodId);
       if (!food) return;
-      const unit = getDefaultUnit(food);
-      currentMeal.push(createMealItem(food, unit.defaultQty || 1, unit.label));
+      const portion = defaultQuickPortion(food);
+      currentMeal.push(createMealItem(food, portion.qty, portion.unit, { pendingReview: portion.pendingReview }));
       renderCurrentMeal();
       renderRecipeGrid();
-      showToast(`${food.name} を追加しました`);
+      showToast(`${food.name} を追加しました${portion.pendingReview ? '（要確認）' : ''}`);
       persistCurrentTimingDraft();
     }
 
@@ -3949,6 +4300,35 @@
 
     function openModal(id) {
       document.getElementById(id).classList.add('show');
+    }
+
+    function openManageMenu() {
+      openModal('manageMenuModal');
+    }
+
+    function openPresetManagerFromMenu() {
+      closeModal('manageMenuModal');
+      openPresetManager();
+    }
+
+    function openProductManagerFromMenu() {
+      closeModal('manageMenuModal');
+      openProductManager();
+    }
+
+    function openRecipeManagerFromMenu() {
+      closeModal('manageMenuModal');
+      openRecipeManager();
+    }
+
+    function openCustomFoodManagerFromMenu() {
+      closeModal('manageMenuModal');
+      openCustomFoodManager();
+    }
+
+    function openHistoryFromMenu() {
+      closeModal('manageMenuModal');
+      openHistory();
     }
 
     function closeModal(id) {
@@ -4609,15 +4989,37 @@
       updateUnitHint();
     }
 
-    async function sendToSheet(record) {
+    function buildMealDetailRows(record) {
+      return currentMeal.map(item => ({
+        date: record.date,
+        timing: record.timing,
+        timingKey: record.timingKey,
+        recordId: record.id,
+        foodId: item.foodId,
+        name: item.name,
+        qty: Number(item.qty) || 0,
+        unit: item.unit,
+        grams: item.grams == null ? '' : Math.round((Number(item.grams) || 0) * 10) / 10,
+        pendingReview: Boolean(item.pendingReview)
+      }));
+    }
+
+    async function postAuthedPayload(payload) {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildAuthedPayload(payload))
+      });
+    }
+
+    async function sendToSheet(record, detailRows = []) {
       setSyncStatus('syncing', '送信中');
       try {
-        await fetch(GAS_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildAuthedPayload({ sheet: '食事ログ', ...record }))
-        });
+        await postAuthedPayload({ sheet: '食事ログ', ...record });
+        if (detailRows.length) {
+          await postAuthedPayload({ sheet: '食事明細', rows: detailRows });
+        }
         setSyncStatus('synced', '同期済み');
         setTimeout(() => setSyncStatus('', '待機中'), 2800);
         return true;
@@ -4675,14 +5077,16 @@
       saveRecords(records);
 
       const ok = await sendToSheet({
+        id: record.id,
         date: record.date,
         timing: record.timing,
+        timingKey: record.timingKey,
         memo: record.memo,
         kcal: record.kcal,
         protein: record.protein,
         fat: record.fat,
         carb: record.carb
-      });
+      }, buildMealDetailRows(record));
 
       if (ok) {
         const latest = getRecords();
