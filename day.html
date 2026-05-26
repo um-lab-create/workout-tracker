@@ -76,6 +76,17 @@
       padding: 0 12px;
     }
 
+    select {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(10,10,15,.9);
+      color: var(--ink);
+      border-radius: 999px;
+      min-height: 36px;
+      padding: 0 34px 0 12px;
+      font: inherit;
+    }
+
     .app {
       width: min(100%, 560px);
       margin: 0 auto;
@@ -293,6 +304,64 @@
     .panel {
       margin-top: 14px;
       padding: 14px;
+    }
+
+    .target-card {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,.075);
+      background: rgba(0,0,0,.22);
+    }
+
+    .target-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .target-field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .target-label {
+      color: var(--dim);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .target-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .target-button {
+      min-height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.09);
+      background: rgba(255,255,255,.06);
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .target-button.primary {
+      background: linear-gradient(135deg, rgba(200,255,66,.95), rgba(88,216,255,.86));
+      color: #07100d;
+      border-color: transparent;
+    }
+
+    .target-summary {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      font-weight: 800;
     }
 
     .section-head {
@@ -966,7 +1035,8 @@
     @media (max-width: 600px) {
       .hero-grid,
       .macro-grid,
-      .nutrient-grid {
+      .nutrient-grid,
+      .target-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
@@ -1018,7 +1088,7 @@
         <div class="hero-card">
           <div class="card-label">kcal</div>
           <div class="card-value" id="heroKcal">0</div>
-          <div class="card-copy" id="heroCount">0/3 食</div>
+          <div class="card-copy" id="heroKcalSub">目標 0kcal</div>
         </div>
         <div class="hero-card">
           <div class="card-label">PFC</div>
@@ -1035,6 +1105,46 @@
           <div class="card-value" id="heroReview">0</div>
           <div class="card-copy">量が曖昧</div>
         </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">目標設定</div>
+        <div class="section-note">判定に反映</div>
+      </div>
+      <div class="target-card">
+        <div class="target-grid">
+          <label class="target-field">
+            <span class="target-label">kcal</span>
+            <input id="targetEnergyInput" type="number" inputmode="numeric" min="1000" step="50">
+          </label>
+          <label class="target-field">
+            <span class="target-label">Protein</span>
+            <input id="targetProteinInput" type="number" inputmode="decimal" min="0" step="5">
+          </label>
+          <label class="target-field">
+            <span class="target-label">Fat</span>
+            <input id="targetFatInput" type="number" inputmode="decimal" min="0" step="5">
+          </label>
+          <label class="target-field">
+            <span class="target-label">Carb</span>
+            <input id="targetCarbInput" type="number" inputmode="decimal" min="0" step="10">
+          </label>
+        </div>
+        <label class="target-field">
+          <span class="target-label">目的</span>
+          <select id="targetGoalSelect">
+            <option value="maintain">維持・健康管理</option>
+            <option value="cut">減量寄り</option>
+            <option value="bulk">筋肉増量寄り</option>
+          </select>
+        </label>
+        <div class="target-actions">
+          <button class="target-button primary" type="button" onclick="saveTargetSettings()">保存</button>
+          <button class="target-button" type="button" onclick="resetTargetSettings()">標準へ戻す</button>
+        </div>
+        <div class="target-summary" id="targetSummary">目標を設定すると、判定スコア・PFC・不足率に反映します。</div>
       </div>
     </section>
 
@@ -1156,6 +1266,7 @@
 
     const RECORD_STORE = 'meal_recs_v3';
     const DRAFT_STORE = 'meal_draft_v4';
+    const TARGET_STORE = 'nutrition_targets_v1';
     const NUTRITION_DB = window.HSNutritionDB || null;
     const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
     const TIMING_LABELS = {
@@ -1165,8 +1276,10 @@
     };
     let renderedFoodProfiles = [];
     const NUTRIENT_META = NUTRITION_DB ? NUTRITION_DB.META : {};
+    const DEFAULT_TARGETS = { goal: 'maintain', energy: 2200, protein: 110, fat: 60, carb: 300 };
 
     let selectedDate = readInitialDate();
+    let targetSettings = loadTargetSettings();
 
     boot();
 
@@ -1175,6 +1288,7 @@
       document.addEventListener('keydown', event => {
         if (event.key === 'Escape') closeFoodDetail();
       });
+      hydrateTargetForm();
       renderAll();
     }
 
@@ -1214,6 +1328,66 @@
       } catch {
         return fallback;
       }
+    }
+
+    function storageSet(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function loadTargetSettings() {
+      const saved = storageGet(TARGET_STORE, null);
+      return normalizeTargets(saved || DEFAULT_TARGETS);
+    }
+
+    function normalizeTargets(source) {
+      const goal = ['maintain', 'cut', 'bulk'].includes(source && source.goal) ? source.goal : DEFAULT_TARGETS.goal;
+      return {
+        goal,
+        energy: clampNumber(source && source.energy, 1000, 5000, DEFAULT_TARGETS.energy),
+        protein: clampNumber(source && source.protein, 40, 260, DEFAULT_TARGETS.protein),
+        fat: clampNumber(source && source.fat, 20, 180, DEFAULT_TARGETS.fat),
+        carb: clampNumber(source && source.carb, 80, 700, DEFAULT_TARGETS.carb)
+      };
+    }
+
+    function clampNumber(value, min, max, fallback) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return fallback;
+      return Math.max(min, Math.min(max, num));
+    }
+
+    function hydrateTargetForm() {
+      document.getElementById('targetEnergyInput').value = targetSettings.energy;
+      document.getElementById('targetProteinInput').value = targetSettings.protein;
+      document.getElementById('targetFatInput').value = targetSettings.fat;
+      document.getElementById('targetCarbInput').value = targetSettings.carb;
+      document.getElementById('targetGoalSelect').value = targetSettings.goal;
+      renderTargetSummary();
+    }
+
+    function saveTargetSettings() {
+      targetSettings = normalizeTargets({
+        goal: document.getElementById('targetGoalSelect').value,
+        energy: document.getElementById('targetEnergyInput').value,
+        protein: document.getElementById('targetProteinInput').value,
+        fat: document.getElementById('targetFatInput').value,
+        carb: document.getElementById('targetCarbInput').value
+      });
+      storageSet(TARGET_STORE, targetSettings);
+      hydrateTargetForm();
+      renderAll();
+    }
+
+    function resetTargetSettings() {
+      targetSettings = { ...DEFAULT_TARGETS };
+      storageSet(TARGET_STORE, targetSettings);
+      hydrateTargetForm();
+      renderAll();
+    }
+
+    function renderTargetSummary() {
+      const label = targetSettings.goal === 'cut' ? '減量寄り' : targetSettings.goal === 'bulk' ? '筋肉増量寄り' : '維持・健康管理';
+      document.getElementById('targetSummary').textContent = `${label}: ${targetSettings.energy}kcal / P${targetSettings.protein}g / F${targetSettings.fat}g / C${targetSettings.carb}g`;
     }
 
     function bindDateControls() {
@@ -1422,27 +1596,25 @@
     function renderHero(state) {
       const macroSum = state.totals.p + state.totals.f + state.totals.c;
       document.getElementById('heroKcal').textContent = Math.round(state.totals.kcal);
-      document.getElementById('heroCount').textContent = `${state.totals.meals}/3 食`;
+      document.getElementById('heroKcalSub').textContent = state.totals.meals
+        ? `${targetPct('energy', state.totals.kcal)}% / 目標 ${targetSettings.energy}kcal / ${state.totals.meals}/3食`
+        : `目標 ${targetSettings.energy}kcal`;
       document.getElementById('heroPfc').textContent = `${Math.round(state.totals.p)}/${Math.round(state.totals.f)}/${Math.round(state.totals.c)}`;
       document.getElementById('heroCoverage').textContent = `${state.coverage}%`;
       document.getElementById('heroReview').textContent = String(state.totals.reviewCount);
       document.getElementById('coverageChip').textContent = `栄養DB ${state.coverage}%`;
       if (!macroSum && !state.totals.meals) {
-        document.getElementById('heroCount').textContent = 'まだ未入力';
+        document.getElementById('heroKcalSub').textContent = `まだ未入力 / 目標 ${targetSettings.energy}kcal`;
       }
     }
 
     function renderMacros(state) {
-      const macroSum = state.totals.p + state.totals.f + state.totals.c;
-      const pctP = macroSum ? Math.round((state.totals.p / macroSum) * 100) : 0;
-      const pctF = macroSum ? Math.round((state.totals.f / macroSum) * 100) : 0;
-      const pctC = macroSum ? Math.round((state.totals.c / macroSum) * 100) : 0;
       document.getElementById('macroP').textContent = `${Math.round(state.totals.p)}g`;
       document.getElementById('macroF').textContent = `${Math.round(state.totals.f)}g`;
       document.getElementById('macroC').textContent = `${Math.round(state.totals.c)}g`;
-      document.getElementById('macroPSub').textContent = `${pctP}%`;
-      document.getElementById('macroFSub').textContent = `${pctF}%`;
-      document.getElementById('macroCSub').textContent = `${pctC}%`;
+      document.getElementById('macroPSub').textContent = `${targetPct('protein', state.totals.p)}% / 目標${targetSettings.protein}g`;
+      document.getElementById('macroFSub').textContent = `${targetPct('fat', state.totals.f)}% / 目標${targetSettings.fat}g`;
+      document.getElementById('macroCSub').textContent = `${targetPct('carb', state.totals.c)}% / 目標${targetSettings.carb}g`;
       document.getElementById('macroMeals').textContent = String(state.totals.meals);
     }
 
@@ -1514,7 +1686,7 @@
             </div>
             <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
             <div class="track"><div class="fill" style="width:${pct}%"></div></div>
-            <div class="nutrient-meta">${rawPct}% / 目安 ${meta.target}${meta.unit} / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
+            <div class="nutrient-meta">${rawPct}% / 目安 ${formatNutrient(key, targetValue(key))}${meta.unit} / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
           </div>
         `;
       }).join('');
@@ -1524,10 +1696,10 @@
       const important = new Set(['protein', 'fiber', 'Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3']);
       const excessKeys = new Set(['salt', 'saturatedFat']);
       const rows = Object.entries(NUTRIENT_META)
-        .filter(([key, meta]) => meta.target && (important.has(key) || excessKeys.has(key)))
+        .filter(([key, meta]) => targetValue(key) && (important.has(key) || excessKeys.has(key)))
         .map(([key, meta]) => {
           const value = state.nutrients[key] || 0;
-          const pct = Math.round((value / meta.target) * 100);
+          const pct = targetPct(key, value);
           const leaders = topContributors(state.contributions[key]).slice(0, 2);
           const leaderText = leaders.length
             ? `主な食品: ${leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、')}`
@@ -1587,8 +1759,8 @@
 
       const energyPct = targetPct('energy', state.nutrients.energy || state.totals.kcal || 0);
       const energyScore = bandScore(energyPct, 80, 115, 45, 155);
-      const pfc = pfcRatios(state);
-      const pfcScore = Math.round((rangeScore(pfc.p, 20, 30, 10, 45) + rangeScore(pfc.f, 20, 30, 10, 45) + rangeScore(pfc.c, 40, 60, 25, 75)) / 3);
+      const pfc = pfcProgress(state);
+      const pfcScore = Math.round((adequacyScore(pfc.p) + adequacyScore(pfc.f) + adequacyScore(pfc.c)) / 3);
       const microKeys = importantMicronutrientKeys();
       const microScore = Math.round(microKeys.reduce((sum, key) => sum + adequacyScore(targetPct(key, state.nutrients[key] || 0)), 0) / microKeys.length);
       const excessScore = Math.round((excessNutrientScore('salt', state) + excessNutrientScore('saturatedFat', state)) / 2);
@@ -1608,8 +1780,22 @@
     }
 
     function targetPct(key, value) {
+      const override = targetOverride(key);
+      if (override) return Math.round((Number(value || 0) / override) * 100);
       const meta = NUTRIENT_META[key];
       return meta && meta.target ? Math.round((Number(value || 0) / meta.target) * 100) : 0;
+    }
+
+    function targetValue(key) {
+      return targetOverride(key) || (NUTRIENT_META[key] && NUTRIENT_META[key].target) || 0;
+    }
+
+    function targetOverride(key) {
+      if (key === 'energy') return targetSettings.energy;
+      if (key === 'protein') return targetSettings.protein;
+      if (key === 'fat') return targetSettings.fat;
+      if (key === 'carb') return targetSettings.carb;
+      return 0;
     }
 
     function clampScore(value) {
@@ -1654,6 +1840,14 @@
       };
     }
 
+    function pfcProgress(state) {
+      return {
+        p: targetPct('protein', state.totals.p || 0),
+        f: targetPct('fat', state.totals.f || 0),
+        c: targetPct('carb', state.totals.c || 0)
+      };
+    }
+
     function importantMicronutrientKeys() {
       return ['fiber', 'Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3'];
     }
@@ -1666,9 +1860,9 @@
         priorities.push({ title: 'エネルギー多め', copy: `目安の${context.energyPct}%です。追加するなら野菜・海藻寄りが安全です。` });
       }
 
-      if (context.pfc.p < 20) priorities.push({ title: 'たんぱく質比率が低め', copy: `P比率 ${context.pfc.p}% です。鶏胸肉・魚・豆腐系を優先。` });
-      if (context.pfc.f > 35) priorities.push({ title: '脂質比率が高め', copy: `F比率 ${context.pfc.f}% です。次の1品は低脂質寄りに。` });
-      if (context.pfc.c > 65) priorities.push({ title: '炭水化物比率が高め', copy: `C比率 ${context.pfc.c}% です。主食追加より主菜・副菜を優先。` });
+      if (context.pfc.p < 75) priorities.push({ title: 'たんぱく質が不足', copy: `目標の${context.pfc.p}%です。鶏胸肉・魚・豆腐系を優先。` });
+      if (context.pfc.f > 130) priorities.push({ title: '脂質が多め', copy: `目標の${context.pfc.f}%です。次の1品は低脂質寄りに。` });
+      if (context.pfc.c > 130) priorities.push({ title: '炭水化物が多め', copy: `目標の${context.pfc.c}%です。主食追加より主菜・副菜を優先。` });
 
       importantMicronutrientKeys()
         .map(key => ({ key, meta: NUTRIENT_META[key], pct: targetPct(key, state.nutrients[key] || 0) }))
