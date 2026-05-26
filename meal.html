@@ -2627,6 +2627,7 @@
     let editingCustomFoodId = null;
     let editingProductId = null;
     let editingPresetId = null;
+    let editingRecordId = null;
     let searchScope = 'all';
     let isSaving = false;
     let selectedDate = todayStr();
@@ -2681,6 +2682,12 @@
 
     function saveRecords(records) {
       storageSet(RECORD_STORE, records);
+    }
+
+    function findSavedRecordForTiming(dateStr, timingKey) {
+      return getRecords()
+        .filter(record => record.date === dateStr && record.timingKey === timingKey)
+        .sort((a, b) => String(b.updatedAt || b.createdAt || b.id).localeCompare(String(a.updatedAt || a.createdAt || a.id)))[0] || null;
     }
 
     function loadPresets() {
@@ -3803,6 +3810,10 @@
       document.getElementById('nutritionFatVal').textContent = `${fatPct}%`;
       document.getElementById('nutritionCarbVal').textContent = `${carbPct}%`;
       document.getElementById('nutritionReviewVal').textContent = `${totals.review}件`;
+      const saveButton = document.getElementById('saveMealButton');
+      if (saveButton && !isSaving) {
+        saveButton.textContent = editingRecordId ? '更新する' : '記録する';
+      }
     }
 
     function renderHistory() {
@@ -3906,17 +3917,22 @@
     function loadCurrentTimingDraft() {
       const key = draftKey(selectedDate, currentTiming);
       const draft = drafts[key] || { items: [], structuredItems: [], note: '' };
-      const hasSavedRecord = getRecords().some(record => record.date === selectedDate && record.timingKey === currentTiming);
+      const savedRecord = findSavedRecordForTiming(selectedDate, currentTiming);
+      editingRecordId = savedRecord ? savedRecord.id : null;
       let sourceItems = draft.items || [];
       let sourceNote = draft.note || '';
-      if (!sourceItems.length && !hasSavedRecord) {
+      if (!sourceItems.length && savedRecord) {
+        sourceItems = savedRecord.items || [];
+        sourceNote = savedRecord.note || '';
+      }
+      if (!sourceItems.length && !savedRecord) {
         const habitPreset = getHabitPreset();
         if (habitPreset) {
           sourceItems = habitPreset.items || [];
           sourceNote = '';
         }
       }
-      currentMeal = restoreMealItems(sourceItems, draft.structuredItems || []);
+      currentMeal = restoreMealItems(sourceItems, sourceItems === draft.items ? (draft.structuredItems || []) : (savedRecord && savedRecord.structuredItems) || []);
       document.getElementById('mealNote').value = sourceNote;
     }
 
@@ -5054,7 +5070,7 @@
       if (note) memoParts.push(`メモ: ${note}`);
 
       const record = {
-        id: `rec-${Date.now()}`,
+        id: editingRecordId || `rec-${Date.now()}`,
         date: selectedDate,
         timing: timing.label,
         timingKey: currentTiming,
@@ -5069,11 +5085,18 @@
         fat: Math.round(totals.f),
         carb: Math.round(totals.c),
         reviewCount: totals.review,
-        synced: false
+        synced: false,
+        createdAt: editingRecordId ? (findSavedRecordForTiming(selectedDate, currentTiming)?.createdAt || editingRecordId) : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       const records = getRecords();
-      records.push(record);
+      const recordIndex = records.findIndex(entry => entry.id === record.id);
+      if (recordIndex >= 0) {
+        records[recordIndex] = record;
+      } else {
+        records.push(record);
+      }
       saveRecords(records);
 
       const ok = await sendToSheet({
@@ -5098,20 +5121,19 @@
       }
 
       if (ok) {
-        currentMeal = [];
-        document.getElementById('mealNote').value = '';
+        editingRecordId = record.id;
         renderCurrentMeal();
         renderHistory();
         renderRecentGrid();
         renderDayBoard();
         persistCurrentTimingDraft();
-        showToast(`${timing.title}を記録しました`);
+        showToast(`${timing.title}を${recordIndex >= 0 ? '更新' : '記録'}しました`);
       } else {
         showToast('送信を確認できませんでした', 'warn');
       }
       isSaving = false;
       document.getElementById('saveMealButton').disabled = false;
-      document.getElementById('saveMealButton').textContent = '記録する';
+      document.getElementById('saveMealButton').textContent = editingRecordId ? '更新する' : '記録する';
     }
 
     function bindEvents() {

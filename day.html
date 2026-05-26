@@ -336,7 +336,7 @@
 
     .target-actions {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
 
@@ -1136,6 +1136,7 @@
           <span class="target-label">目的</span>
           <select id="targetGoalSelect">
             <option value="maintain">維持・健康管理</option>
+            <option value="recomp">リコンポ</option>
             <option value="cut">減量寄り</option>
             <option value="bulk">筋肉増量寄り</option>
           </select>
@@ -1172,6 +1173,7 @@
         </label>
         <div class="target-actions">
           <button class="target-button primary" type="button" onclick="saveTargetSettings()">保存</button>
+          <button class="target-button" type="button" onclick="syncFromServer(true)">同期</button>
           <button class="target-button" type="button" onclick="estimateTargetsFromProfile()">推定する</button>
           <button class="target-button" type="button" onclick="resetTargetSettings()">標準へ戻す</button>
         </div>
@@ -1298,6 +1300,10 @@
     const RECORD_STORE = 'meal_recs_v3';
     const DRAFT_STORE = 'meal_draft_v4';
     const TARGET_STORE = 'nutrition_targets_v1';
+    const SERVER_RECORD_STORE = 'meal_server_records_v1';
+    const READ_AUTH_STORE = 'hs:read-auth:v1';
+    const WRITE_AUTH_STORE = 'hs:write-auth:v1';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
     const NUTRITION_DB = window.HSNutritionDB || null;
     const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
     const TIMING_LABELS = {
@@ -1309,12 +1315,12 @@
     let renderedFoodProfiles = [];
     const NUTRIENT_META = NUTRITION_DB ? NUTRITION_DB.META : {};
     const DEFAULT_TARGETS = {
-      goal: 'maintain',
-      energy: 2200,
-      protein: 110,
-      fat: 60,
-      carb: 300,
-      profile: { age: 40, sex: 'male', height: 170, weight: 70, activity: 1.75, effort: 'balanced' }
+      goal: 'recomp',
+      energy: 2540,
+      protein: 115,
+      fat: 70,
+      carb: 350,
+      profile: { age: 25, sex: 'male', height: 171, weight: 67, activity: 1.75, effort: 'balanced' }
     };
 
     let selectedDate = readInitialDate();
@@ -1329,6 +1335,7 @@
       });
       hydrateTargetForm();
       renderAll();
+      syncFromServer(false);
     }
 
     function readInitialDate() {
@@ -1373,13 +1380,246 @@
       localStorage.setItem(key, JSON.stringify(value));
     }
 
+    function getServerRecords() {
+      return storageGet(SERVER_RECORD_STORE, []);
+    }
+
+    function saveServerRecords(records) {
+      storageSet(SERVER_RECORD_STORE, Array.isArray(records) ? records : []);
+    }
+
+    function loadReadPin() {
+      const saved = storageGet(READ_AUTH_STORE, null);
+      return saved && saved.pin ? String(saved.pin) : '';
+    }
+
+    function saveReadPin(pin) {
+      localStorage.setItem(READ_AUTH_STORE, JSON.stringify({ pin, savedAt: Date.now() }));
+    }
+
+    function loadWritePin() {
+      const saved = storageGet(WRITE_AUTH_STORE, null);
+      return saved && saved.pin ? String(saved.pin) : '';
+    }
+
+    function saveWritePin(pin) {
+      localStorage.setItem(WRITE_AUTH_STORE, JSON.stringify({ pin, savedAt: Date.now() }));
+    }
+
+    function promptForWritePin() {
+      const current = loadWritePin();
+      if (current) return current;
+      const value = window.prompt('WRITE_PIN を入力してください', '');
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return '';
+      saveWritePin(trimmed);
+      return trimmed;
+    }
+
+    function promptForReadPin(force = false) {
+      const current = loadReadPin();
+      if (current && !force) return current;
+      const value = window.prompt('READ_PIN を入力してください', current || '');
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return '';
+      saveReadPin(trimmed);
+      return trimmed;
+    }
+
+    async function postJsonReadable(payload) {
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify(payload)
+      });
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error('サーバー応答をJSONとして読めませんでした');
+      }
+    }
+
+    async function readServer(read, payload = {}, forcePrompt = false) {
+      const readPin = promptForReadPin(forcePrompt);
+      if (!readPin) throw new Error('READ_PIN が未入力です');
+      const data = await postJsonReadable({ read, readPin, authTs: Date.now(), ...payload });
+      if (!data || data.status !== 'ok') {
+        throw new Error(data && data.message ? data.message : 'サーバー読取に失敗しました');
+      }
+      return data;
+    }
+
+    function setTargetSummaryNote(note) {
+      const el = document.getElementById('targetSummary');
+      if (!el) return;
+      el.dataset.note = note || '';
+      renderTargetSummary();
+    }
+
+    async function syncFromServer(forcePrompt = false) {
+      if (!forcePrompt && !loadReadPin()) return;
+      setTargetSummaryNote('同期中...');
+      try {
+        const from = shiftDate(selectedDate, -7);
+        const to = shiftDate(selectedDate, 7);
+        const settingsData = await readServer('settings', {}, forcePrompt);
+        const detailsData = await readServer('meal_details', { from, to }, false);
+        if (settingsData.settings) {
+          targetSettings = normalizeTargets(settingsToTargets(settingsData.settings));
+          storageSet(TARGET_STORE, targetSettings);
+          hydrateTargetForm();
+        }
+        saveServerRecords(serverRowsToRecords(detailsData.rows || []));
+        renderAll();
+        setTargetSummaryNote('サーバー同期済み');
+      } catch (err) {
+        setTargetSummaryNote(`同期未完了: ${err.message || err}`);
+      }
+    }
+
+    function settingsToTargets(settings) {
+      const get = (...keys) => {
+        for (const key of keys) {
+          if (settings[key] !== undefined && settings[key] !== '') return settings[key];
+        }
+        return undefined;
+      };
+      const activityRaw = String(get('身体活動レベル', '活動レベル') || '');
+      const effortRaw = String(get('がんばり方') || '');
+      const goalRaw = String(get('目的') || '');
+      const activity = activityRaw.includes('低') ? 1.5 : activityRaw.includes('高') ? 2 : (Number(activityRaw) || DEFAULT_TARGETS.profile.activity);
+      const effort = effortRaw.includes('食事') ? 'diet' : effortRaw.includes('運動') ? 'exercise' : 'balanced';
+      const goal = goalRaw.includes('減') ? 'cut' : goalRaw.includes('増') ? 'bulk' : goalRaw.includes('リコンポ') ? 'recomp' : DEFAULT_TARGETS.goal;
+      return {
+        goal,
+        energy: get('目標kcal'),
+        protein: get('目標P_g'),
+        fat: get('目標F_g'),
+        carb: get('目標C_g'),
+        profile: {
+          age: get('年齢'),
+          sex: 'male',
+          height: get('身長cm'),
+          weight: get('現体重kg', '体重kg'),
+          activity,
+          effort
+        }
+      };
+    }
+
+    function activityLabel(value) {
+      const num = Number(value);
+      if (num <= 1.55) return '低い';
+      if (num >= 1.95) return '高い';
+      return '普通';
+    }
+
+    function effortLabel(value) {
+      if (value === 'diet') return '食事中心=10:0';
+      if (value === 'exercise') return '運動中心=3:7';
+      return 'バランス=7:3';
+    }
+
+    function goalLabel(value) {
+      if (value === 'cut') return '減量寄り';
+      if (value === 'bulk') return '筋肉増量寄り';
+      if (value === 'recomp') return 'リコンポ';
+      return '維持・健康管理';
+    }
+
+    function targetsToSettings(targets) {
+      const profile = targets.profile;
+      return {
+        '年齢': profile.age,
+        '性別': '男性',
+        '身長cm': profile.height,
+        '現体重kg': profile.weight,
+        '体重kg': profile.weight,
+        '身体活動レベル': activityLabel(profile.activity),
+        '活動レベル': activityLabel(profile.activity),
+        'がんばり方': effortLabel(profile.effort),
+        '目的': goalLabel(targets.goal),
+        '目標kcal': targets.energy,
+        '目標P_g': targets.protein,
+        '目標F_g': targets.fat,
+        '目標C_g': targets.carb
+      };
+    }
+
+    async function saveSettingsToServer() {
+      const pin = promptForWritePin();
+      if (!pin) return;
+      await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({
+          sheet: '設定',
+          settings: targetsToSettings(targetSettings),
+          authPin: pin,
+          authTs: Date.now(),
+          authNonce: `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+        })
+      });
+    }
+
+    function serverRowsToRecords(rows) {
+      const grouped = {};
+      (rows || []).forEach(row => {
+        const date = normalizeServerDate(row['日付']);
+        const timingKey = row['区分キー'] || timingKeyFromLabel(row['区分']);
+        const recordId = row.recordId || row['recordId'] || `${date}-${timingKey}`;
+        if (!date || !timingKey || !recordId) return;
+        grouped[recordId] = grouped[recordId] || {
+          id: recordId,
+          date,
+          timingKey,
+          timing: row['区分'] || TIMING_LABELS[timingKey]?.label || timingKey,
+          title: TIMING_LABELS[timingKey]?.label || row['区分'] || timingKey,
+          items: [],
+          structuredItems: [],
+          synced: true,
+          source: 'server'
+        };
+        grouped[recordId].items.push({
+          foodId: row.foodId || row['foodId'],
+          name: row['名前'],
+          qty: Number(row['量']) || 0,
+          unit: row['単位'],
+          grams: Number(row['グラム換算']) || 0,
+          pendingReview: String(row['要確認フラグ']).toLowerCase() === 'true' || row['要確認フラグ'] === true
+        });
+      });
+      return Object.values(grouped).map(record => ({
+        ...record,
+        memo: summarizeItems(record.items),
+        structuredItems: record.items.map(structureItem).filter(Boolean)
+      }));
+    }
+
+    function normalizeServerDate(value) {
+      if (!value) return '';
+      const str = String(value);
+      const match = str.match(/\d{4}-\d{2}-\d{2}/);
+      return match ? match[0] : str.slice(0, 10);
+    }
+
+    function timingKeyFromLabel(label) {
+      const text = String(label || '');
+      if (text.includes('朝')) return 'morning';
+      if (text.includes('昼')) return 'lunch';
+      if (text.includes('夜')) return 'dinner';
+      if (text.includes('間')) return 'snack';
+      return '';
+    }
+
     function loadTargetSettings() {
       const saved = storageGet(TARGET_STORE, null);
       return normalizeTargets(saved || DEFAULT_TARGETS);
     }
 
     function normalizeTargets(source) {
-      const goal = ['maintain', 'cut', 'bulk'].includes(source && source.goal) ? source.goal : DEFAULT_TARGETS.goal;
+      const goal = ['maintain', 'recomp', 'cut', 'bulk'].includes(source && source.goal) ? source.goal : DEFAULT_TARGETS.goal;
       const profile = normalizeProfile(source && source.profile);
       return {
         goal,
@@ -1436,6 +1676,9 @@
       storageSet(TARGET_STORE, targetSettings);
       hydrateTargetForm();
       renderAll();
+      saveSettingsToServer()
+        .then(() => setTargetSummaryNote('設定を保存しました'))
+        .catch(() => setTargetSummaryNote('ローカル保存済み（サーバー保存は未完了）'));
     }
 
     function resetTargetSettings() {
@@ -1446,9 +1689,10 @@
     }
 
     function renderTargetSummary() {
-      const label = targetSettings.goal === 'cut' ? '減量寄り' : targetSettings.goal === 'bulk' ? '筋肉増量寄り' : '維持・健康管理';
+      const label = goalLabel(targetSettings.goal);
       const p = targetSettings.profile;
-      document.getElementById('targetSummary').textContent = `${label}: ${targetSettings.energy}kcal / P${targetSettings.protein}g / F${targetSettings.fat}g / C${targetSettings.carb}g（${p.age}歳 ${p.height}cm ${p.weight}kg 活動${p.activity}）`;
+      const note = document.getElementById('targetSummary').dataset.note || '';
+      document.getElementById('targetSummary').textContent = `${label}: ${targetSettings.energy}kcal / P${targetSettings.protein}g / F${targetSettings.fat}g / C${targetSettings.carb}g（${p.age}歳 ${p.height}cm ${p.weight}kg 活動${p.activity}）${note ? ` / ${note}` : ''}`;
     }
 
     function readProfileForm() {
@@ -1467,7 +1711,9 @@
       const basal = ((0.1238 + 0.0481 * profile.weight + 0.0234 * profile.height - 0.0138 * profile.age - 0.5473 * 1) * 1000) / 4.186;
       let energy = Math.round((basal * profile.activity) / 10) * 10;
       const goal = document.getElementById('targetGoalSelect').value;
-      if (goal === 'cut') energy -= 230;
+      // メモ§6: 減量分の食事側 = 約230kcal/日 × がんばり方の食事配分（食事中心10:0=1.0 / バランス7:3=0.7 / 運動中心3:7=0.3）
+      const dietShare = profile.effort === 'diet' ? 1 : (profile.effort === 'exercise' ? 0.3 : 0.7);
+      if (goal === 'cut') energy -= Math.round(230 * dietShare);
       if (goal === 'bulk') energy += 150;
       energy = clampNumber(energy, 1000, 5000, DEFAULT_TARGETS.energy);
       const protein = Math.round((energy * 0.18 / 4) / 5) * 5;
@@ -1538,9 +1784,15 @@
     }
 
     function buildDayState() {
-      const records = getRecords().filter(record => record.date === selectedDate);
+      const localRecords = getRecords().filter(record => record.date === selectedDate);
+      const localRecordKeys = new Set(localRecords.map(record => `${record.timingKey}:${record.id}`));
+      const localTimingKeys = new Set(localRecords.map(record => record.timingKey));
+      const serverRecords = getServerRecords()
+        .filter(record => record.date === selectedDate)
+        .filter(record => !localRecordKeys.has(`${record.timingKey}:${record.id}`) && !localTimingKeys.has(record.timingKey));
+      const records = [...localRecords, ...serverRecords];
       const drafts = getDrafts();
-      const timingState = { morning: null, lunch: null, dinner: null };
+      const timingState = { morning: null, lunch: null, dinner: null, snack: null };
 
       records.forEach(record => {
         const items = getEntryItems(record);
