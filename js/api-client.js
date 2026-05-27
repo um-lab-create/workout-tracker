@@ -7,8 +7,8 @@
 // 定数
 // ----------------------------------------------------------------
 
-/** Apps Script Web App エンドポイント（全ページ共通） */
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwLkNl4uKEKPD3HPESlNj7hUjULlXdVuBHIWVSazuPujPy_S63wrEYE_--hiHK9BYfT/exec';
+/** Apps Script Web App エンドポイント（全ページ共通・本番デプロイ @8） */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
 
 // ----------------------------------------------------------------
 // 内部ヘルパー
