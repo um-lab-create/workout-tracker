@@ -1115,12 +1115,14 @@ button:disabled {
 
 <div class="toast" id="toast"></div>
 
+<script src="js/storage.js"></script>
+<script src="js/api-client.js"></script>
 <script>
 'use strict';
 
-const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
+const WEBHOOK = GAS_URL; // api-client.js の GAS_URL を参照
 const JAPANESE_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
-const AUTH_STORE = 'hs:write-auth:v1';
+const AUTH_STORE = LS_KEYS.WRITE_AUTH; // storage.js の LS_KEYS を参照
 const RECENT_STORE = 'cockpit_recent_v2';
 const MEAL_PRESET_STORE = 'meal_presets_v3';
 const MEAL_RECORD_STORE = 'meal_recs_v3';
@@ -1178,52 +1180,10 @@ function renderInstallState() {
   document.getElementById('installState').textContent = standalone ? 'Standalone' : 'Safari 推奨';
 }
 
-function loadWritePin() {
-  try {
-    const raw = localStorage.getItem(AUTH_STORE);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return typeof parsed.pin === 'string' ? parsed.pin : '';
-  } catch {
-    return '';
-  }
-}
+// loadWritePin / saveWritePin / makeAuthNonce / buildAuthedPayload
+// → api-client.js で定義済み（モジュールのグローバルを使用）
 
-function saveWritePin(pin) {
-  localStorage.setItem(AUTH_STORE, JSON.stringify({ pin: String(pin || '').trim(), savedAt: Date.now() }));
-}
-
-function promptWritePin() {
-  const current = loadWritePin();
-  const value = window.prompt('利用PINを入力してください。初回だけ端末に保存されます。', current);
-  const pin = String(value || '').trim();
-  if (!pin) {
-    const error = new Error('PIN が未入力です');
-    error.code = 'AUTH_REQUIRED';
-    throw error;
-  }
-  saveWritePin(pin);
-  renderPinState();
-  return pin;
-}
-
-function makeAuthNonce() {
-  const buffer = new Uint8Array(12);
-  if (window.crypto && window.crypto.getRandomValues) {
-    window.crypto.getRandomValues(buffer);
-    return Array.from(buffer, part => part.toString(16).padStart(2, '0')).join('');
-  }
-  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 14)}`;
-}
-
-function buildAuthedPayload(payload) {
-  const pin = loadWritePin() || promptWritePin();
-  return {
-    ...payload,
-    authPin: pin,
-    authTs: Date.now(),
-    authNonce: makeAuthNonce()
-  };
-}
+// storageGet → storage.js の alias を使用
 
 function renderPinState() {
   const hasPin = Boolean(loadWritePin());
@@ -1233,7 +1193,8 @@ function renderPinState() {
 
 function updateWritePin() {
   try {
-    promptWritePin();
+    promptWritePin(true); // force=true: 既存 PIN があっても再入力プロンプトを出す
+    renderPinState();     // PIN 保存後に UI を更新（index.html 固有の処理）
     showToast('この端末に利用PINを保存しました。', 'ok');
   } catch (error) {
     if (error && error.code === 'AUTH_REQUIRED') return;
@@ -1247,15 +1208,6 @@ function loadRecent() {
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
-  }
-}
-
-function storageGet(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
   }
 }
 

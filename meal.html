@@ -2385,6 +2385,9 @@
   <div class="toast" id="toast"></div>
 
   <script src="nutrition-db.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/api-client.js"></script>
+  <script src="js/nutrition-calc.js"></script>
   <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
@@ -2663,18 +2666,7 @@
       return `${dateStr}:${timingKey}`;
     }
 
-    function storageGet(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-      } catch (err) {
-        return fallback;
-      }
-    }
-
-    function storageSet(key, value) {
-      localStorage.setItem(key, JSON.stringify(value));
-    }
+    // storageGet / storageSet → storage.js の aliases を使用
 
     function getRecords() {
       return storageGet(RECORD_STORE, []);
@@ -2757,50 +2749,8 @@
       storageSet(HABIT_STORE, habits);
     }
 
-    function loadWritePin() {
-      try {
-        const raw = localStorage.getItem(AUTH_STORE);
-        if (!raw) return '';
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed.pin === 'string' ? parsed.pin : '';
-      } catch (err) {
-        return '';
-      }
-    }
-
-    function saveWritePin(pin) {
-      const trimmed = String(pin || '').trim();
-      if (!trimmed) throw Object.assign(new Error('PIN required'), { code: 'AUTH_REQUIRED' });
-      localStorage.setItem(AUTH_STORE, JSON.stringify({ pin: trimmed, savedAt: Date.now() }));
-      return trimmed;
-    }
-
-    function promptWritePin(force = false) {
-      const existing = loadWritePin();
-      if (existing && !force) return existing;
-      const entered = window.prompt('利用PINを入力してください');
-      if (!entered) throw Object.assign(new Error('PIN required'), { code: 'AUTH_REQUIRED' });
-      return saveWritePin(entered);
-    }
-
-    function makeAuthNonce() {
-      const buffer = new Uint8Array(12);
-      if (window.crypto && window.crypto.getRandomValues) {
-        window.crypto.getRandomValues(buffer);
-        return Array.from(buffer, part => part.toString(16).padStart(2, '0')).join('');
-      }
-      return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 14)}`;
-    }
-
-    function buildAuthedPayload(payload) {
-      const pin = loadWritePin() || promptWritePin();
-      return {
-        ...payload,
-        authPin: pin,
-        authTs: Date.now(),
-        authNonce: makeAuthNonce()
-      };
-    }
+    // loadWritePin / saveWritePin / promptWritePin / makeAuthNonce / buildAuthedPayload
+    // → api-client.js で定義済み（モジュールのグローバルを使用）
 
     function setSyncStatus(state, text) {
       const chip = document.getElementById('syncChip');
@@ -5020,21 +4970,14 @@
       }));
     }
 
-    async function postAuthedPayload(payload) {
-      await fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildAuthedPayload(payload))
-      });
-    }
+    // postAuthedPayload → api-client.js の postToSheet に統合
 
     async function sendToSheet(record, detailRows = []) {
       setSyncStatus('syncing', '送信中');
       try {
-        await postAuthedPayload({ sheet: '食事ログ', ...record });
+        await postToSheet({ sheet: '食事ログ', ...record });
         if (detailRows.length) {
-          await postAuthedPayload({ sheet: '食事明細', rows: detailRows });
+          await postToSheet({ sheet: '食事明細', rows: detailRows });
         }
         setSyncStatus('synced', '同期済み');
         setTimeout(() => setSyncStatus('', '待機中'), 2800);

@@ -959,12 +959,14 @@ body {
 
 <div class="toast" id="toast"></div>
 
+<script src="js/storage.js"></script>
+<script src="js/api-client.js"></script>
 <script>
 'use strict';
 
-const WEBHOOK = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
+const WEBHOOK = GAS_URL; // api-client.js の GAS_URL を参照
 const SHEET = '筋トレログ';
-const AUTH_STORE = 'hs:write-auth:v1';
+const AUTH_STORE = LS_KEYS.WRITE_AUTH; // storage.js の LS_KEYS を参照
 
 const STORE = {
   last: 'wt:lastValues:v2',
@@ -1034,56 +1036,8 @@ function mergeLastValues(primary, legacy) {
   return { ...(legacy || {}), ...(primary || {}) };
 }
 
-function loadWritePin() {
-  try {
-    const raw = localStorage.getItem(AUTH_STORE);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return typeof parsed.pin === 'string' ? parsed.pin : '';
-  } catch {
-    return '';
-  }
-}
-
-function saveWritePin(pin) {
-  localStorage.setItem(AUTH_STORE, JSON.stringify({ pin: String(pin || '').trim(), savedAt: Date.now() }));
-}
-
-function promptWritePin() {
-  const current = loadWritePin();
-  const value = window.prompt('利用PINを入力してください。初回だけ端末に保存されます。', current);
-  const pin = String(value || '').trim();
-  if (!pin) {
-    const error = new Error('PIN が未入力です');
-    error.code = 'AUTH_REQUIRED';
-    throw error;
-  }
-  saveWritePin(pin);
-  return pin;
-}
-
-function makeAuthNonce() {
-  const buffer = new Uint8Array(12);
-  if (window.crypto && window.crypto.getRandomValues) {
-    window.crypto.getRandomValues(buffer);
-    return Array.from(buffer, part => part.toString(16).padStart(2, '0')).join('');
-  }
-  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 14)}`;
-}
-
-function buildAuthedPayload(payload, options = {}) {
-  const pin = loadWritePin() || (options.allowPrompt === false ? '' : promptWritePin());
-  if (!pin) {
-    const error = new Error('PIN が未設定です');
-    error.code = 'AUTH_REQUIRED';
-    throw error;
-  }
-  return {
-    ...payload,
-    authPin: pin,
-    authTs: Date.now(),
-    authNonce: makeAuthNonce()
-  };
-}
+// loadWritePin / saveWritePin / promptWritePin / makeAuthNonce / buildAuthedPayload
+// → api-client.js で定義済み（モジュールのグローバルを使用）
 
 function exoById(id) {
   return EXERCISES.find(exercise => exercise.id === id) || EXERCISES[0];

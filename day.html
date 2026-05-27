@@ -1294,6 +1294,9 @@
   </div>
 
   <script src="nutrition-db.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/api-client.js"></script>
+  <script src="js/nutrition-calc.js"></script>
   <script>
     'use strict';
 
@@ -1367,18 +1370,7 @@
       return `${d.getMonth() + 1}/${d.getDate()} (${JAPANESE_DAYS[d.getDay()]})`;
     }
 
-    function storageGet(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-      } catch {
-        return fallback;
-      }
-    }
-
-    function storageSet(key, value) {
-      localStorage.setItem(key, JSON.stringify(value));
-    }
+    // storageGet / storageSet → storage.js の aliases を使用
 
     function getServerRecords() {
       return storageGet(SERVER_RECORD_STORE, []);
@@ -1388,67 +1380,10 @@
       storageSet(SERVER_RECORD_STORE, Array.isArray(records) ? records : []);
     }
 
-    function loadReadPin() {
-      const saved = storageGet(READ_AUTH_STORE, null);
-      return saved && saved.pin ? String(saved.pin) : '';
-    }
-
-    function saveReadPin(pin) {
-      localStorage.setItem(READ_AUTH_STORE, JSON.stringify({ pin, savedAt: Date.now() }));
-    }
-
-    function loadWritePin() {
-      const saved = storageGet(WRITE_AUTH_STORE, null);
-      return saved && saved.pin ? String(saved.pin) : '';
-    }
-
-    function saveWritePin(pin) {
-      localStorage.setItem(WRITE_AUTH_STORE, JSON.stringify({ pin, savedAt: Date.now() }));
-    }
-
-    function promptForWritePin() {
-      const current = loadWritePin();
-      if (current) return current;
-      const value = window.prompt('WRITE_PIN を入力してください', '');
-      const trimmed = String(value || '').trim();
-      if (!trimmed) return '';
-      saveWritePin(trimmed);
-      return trimmed;
-    }
-
-    function promptForReadPin(force = false) {
-      const current = loadReadPin();
-      if (current && !force) return current;
-      const value = window.prompt('READ_PIN を入力してください', current || '');
-      const trimmed = String(value || '').trim();
-      if (!trimmed) return '';
-      saveReadPin(trimmed);
-      return trimmed;
-    }
-
-    async function postJsonReadable(payload) {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        body: JSON.stringify(payload)
-      });
-      const text = await response.text();
-      try {
-        return JSON.parse(text);
-      } catch {
-        throw new Error('サーバー応答をJSONとして読めませんでした');
-      }
-    }
-
-    async function readServer(read, payload = {}, forcePrompt = false) {
-      const readPin = promptForReadPin(forcePrompt);
-      if (!readPin) throw new Error('READ_PIN が未入力です');
-      const data = await postJsonReadable({ read, readPin, authTs: Date.now(), ...payload });
-      if (!data || data.status !== 'ok') {
-        throw new Error(data && data.message ? data.message : 'サーバー読取に失敗しました');
-      }
-      return data;
-    }
+    // loadReadPin / saveReadPin / loadWritePin / saveWritePin /
+    // promptForReadPin / promptForWritePin / postJsonReadable / readServer
+    // → api-client.js で定義済み（モジュールのグローバルを使用）
+    // ※ day.html 内で readServer(...) と呼んでいた箇所は readFromSheet(...) に変更
 
     function setTargetSummaryNote(note) {
       const el = document.getElementById('targetSummary');
@@ -1463,8 +1398,8 @@
       try {
         const from = shiftDate(selectedDate, -7);
         const to = shiftDate(selectedDate, 7);
-        const settingsData = await readServer('settings', {}, forcePrompt);
-        const detailsData = await readServer('meal_details', { from, to }, false);
+        const settingsData = await readFromSheet('settings', {}, forcePrompt);
+        const detailsData = await readFromSheet('meal_details', { from, to }, false);
         if (settingsData.settings) {
           targetSettings = normalizeTargets(settingsToTargets(settingsData.settings));
           storageSet(TARGET_STORE, targetSettings);
@@ -1548,7 +1483,7 @@
     }
 
     async function saveSettingsToServer() {
-      const pin = promptForWritePin();
+      const pin = promptWritePin();  // api-client.js の promptWritePin を使用
       if (!pin) return;
       await fetch(GAS_URL, {
         method: 'POST',
@@ -1558,7 +1493,7 @@
           settings: targetsToSettings(targetSettings),
           authPin: pin,
           authTs: Date.now(),
-          authNonce: `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+          authNonce: makeAuthNonce()  // api-client.js の makeAuthNonce を使用
         })
       });
     }
