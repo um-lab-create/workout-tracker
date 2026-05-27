@@ -80,7 +80,7 @@
   }
 
   const FOODS = {
-    bihidas: definePer100g({ id: 'bihidas', name: 'ビヒダスヨーグルト', units: { '大スプーン': 15, '小スプーン': 5, '小鉢': 80, 'g': 1 }, per100g: { energy: 65, protein: 3.6, fat: 3.0, carb: 4.9, Ca: 120, K: 160 } }),
+    bihidas: definePer100g({ id: 'bihidas', name: 'ビヒダスヨーグルト', source: '八訂(プレーンヨーグルト相当・要product確認)', units: { '大スプーン': 15, '小スプーン': 5, '小鉢': 80, 'g': 1 }, per100g: { energy: 65, protein: 3.6, fat: 3.0, carb: 4.9, salt: 0.1, Na: 48, K: 160, Ca: 120, Mg: 12, P: 100, Zn: 0.4, vitA: 33, vitB1: 0.04, vitB2: 0.14, vitB6: 0.04, vitB12: 0.1, folate: 11, pantothenic: 0.49, vitC: 1 } }),
     banana: definePer100g({ id: 'banana', name: 'バナナ', units: { '本': 100, 'g': 1 }, per100g: { energy: 93, protein: 1.1, fat: 0.2, carb: 22.5, fiber: 1.1, K: 360, Ca: 6, Fe: 0.3, vitC: 16, Mg: 32, P: 27, Cu: 0.09, Mn: 0.26, vitA: 5, vitB1: 0.05, vitB2: 0.04, niacin: 0.7, vitB6: 0.38, folate: 26, pantothenic: 0.44, biotin: 1.4 } }),
     'soy-protein': definePer100g({ id: 'soy-protein', name: 'ソイプロテイン', units: { '食分': 30, 'g': 1 }, per100g: { energy: 380, protein: 80, fat: 6, carb: 8, fiber: 3.5, K: 1000, Ca: 220, Fe: 6.0, P: 700, Zn: 1.6, Cu: 0.4, Mg: 180, vitB1: 0.2, vitB2: 0.2, niacin: 1.0, vitB6: 0.2, folate: 80 } }),
     'whey-protein': definePer100g({ id: 'whey-protein', name: 'ホエイプロテイン', units: { '食分': 30, 'g': 1 }, per100g: { energy: 390, protein: 78, fat: 6, carb: 10, Ca: 450, K: 420, P: 320, Mg: 45, Zn: 1.2, vitB2: 0.7, vitB12: 0.8 } }),
