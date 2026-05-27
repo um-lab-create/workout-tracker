@@ -136,7 +136,10 @@
     'lemon-juice': definePer100g({ id: 'lemon-juice', name: 'レモン汁', source: '八訂', units: { '大さじ': 15, '小さじ': 5, 'ml': 1 }, per100g: { energy: 24, protein: 0.4, fat: 0.1, carb: 8.6, Na: 2, K: 100, Ca: 7, Mg: 8, P: 9, Fe: 0.1, vitB1: 0.04, vitB2: 0.02, vitB6: 0.05, folate: 19, pantothenic: 0.18, vitC: 50 } }),
     'red-wine': definePer100g({ id: 'red-wine', name: '赤ワイン', source: '八訂', units: { '杯': 120, 'ml': 1 }, per100g: { energy: 68, protein: 0.2, fat: 0, carb: 1.5, Na: 2, K: 110, Ca: 7, Mg: 9, P: 13, Fe: 0.4, Zn: 0.1, Mn: 0.15 } }),
     'mcd-cheeseburger': definePerUnit({ id: 'mcd-cheeseburger', name: 'マック チーズバーガー', source: 'マクドナルド公表値・要確認', unitLabel: '個', perUnit: { energy: 307, protein: 15.8, fat: 13.4, carb: 30.8, salt: 1.8, Na: 720, Ca: 130, Fe: 1.5 } }),
-    'mcd-fries-m': definePerUnit({ id: 'mcd-fries-m', name: 'マック ポテトM', source: 'マクドナルド公表値・要確認', unitLabel: '個', perUnit: { energy: 410, protein: 5.3, fat: 19.8, carb: 51.0, salt: 0.8, K: 690, vitC: 15 } })
+    'mcd-fries-m': definePerUnit({ id: 'mcd-fries-m', name: 'マック ポテトM', source: 'マクドナルド公表値・要確認', unitLabel: '個', perUnit: { energy: 410, protein: 5.3, fat: 19.8, carb: 51.0, salt: 0.8, K: 690, vitC: 15 } }),
+    'mcd-egg-cheese': definePerUnit({ id: 'mcd-egg-cheese', name: 'マック エグチ(エッグチーズバーガー)', source: 'マクドナルド公式', unitLabel: '個', perUnit: { energy: 387, protein: 22.1, fat: 18.9, carb: 31.2, salt: 2.0, Na: 790, Ca: 150, Fe: 2.0 } }),
+    'mcd-nugget': definePerUnit({ id: 'mcd-nugget', name: 'チキンマックナゲット', source: 'マクドナルド公式(5pc262kcalを1pc換算)', unitLabel: 'ピース', perUnit: { energy: 52, protein: 3.1, fat: 3.2, carb: 2.9, salt: 0.26, Na: 100 } }),
+    'mcd-fries-l': definePerUnit({ id: 'mcd-fries-l', name: 'マック ポテトL', source: 'マクドナルド公表値・要確認', unitLabel: '個', perUnit: { energy: 517, protein: 6.7, fat: 25.8, carb: 64.4, salt: 1.0, K: 1100, vitC: 24 } })
   };
 
   function getFood(id) {
