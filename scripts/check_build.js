@@ -17,7 +17,7 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const PAGES = ['index.html', 'workout.html', 'meal.html', 'day.html'];
+const PAGES = ['index.html', 'workout.html', 'meal.html', 'day.html', 'body.html'];
 
 let failed = 0;
 for (const page of PAGES) {
