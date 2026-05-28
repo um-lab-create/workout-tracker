@@ -73,7 +73,7 @@
     input {
       appearance: none;
       border: 1px solid var(--line);
-      background: rgba(10,10,15,.9);
+      background: var(--panel-strong);
       color: var(--ink);
       border-radius: 999px;
       min-height: 36px;
@@ -83,7 +83,7 @@
     select {
       appearance: none;
       border: 1px solid var(--line);
-      background: rgba(10,10,15,.9);
+      background: var(--panel-strong);
       color: var(--ink);
       border-radius: 999px;
       min-height: 36px;
@@ -155,10 +155,8 @@
     .hero,
     .panel {
       border: 1px solid var(--line);
-      border-radius: 26px;
-      background:
-        linear-gradient(145deg, rgba(0,0,0,.08), rgba(0,0,0,.02)),
-        rgba(20,21,25,.84);
+      border-radius: 24px;
+      background: var(--panel);
       box-shadow: var(--shadow);
     }
 
@@ -175,7 +173,7 @@
       width: 220px;
       height: 220px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(88,216,255,.22), transparent 68%);
+      background: radial-gradient(circle, rgba(255,138,42,.10), transparent 68%);
       pointer-events: none;
     }
 
@@ -255,8 +253,8 @@
 
     .date-btn.active {
       color: var(--ink);
-      border-color: rgba(88,216,255,.42);
-      background: linear-gradient(145deg, rgba(88,216,255,.18), rgba(88,216,255,.08));
+      border-color: rgba(255,138,42,.42);
+      background: linear-gradient(145deg, rgba(255,138,42,.18), rgba(255,138,42,.08));
     }
 
     .hero-grid,
@@ -279,7 +277,7 @@
       padding: 12px;
       border-radius: 18px;
       border: 1px solid rgba(0,0,0,.075);
-      background: rgba(0,0,0,.22);
+      background: rgba(0,0,0,.04);
     }
 
     .card-label {
@@ -316,7 +314,7 @@
       padding: 12px;
       border-radius: 22px;
       border: 1px solid rgba(0,0,0,.075);
-      background: rgba(0,0,0,.22);
+      background: rgba(0,0,0,.04);
     }
 
     .target-grid {
@@ -356,7 +354,7 @@
     }
 
     .target-button.primary {
-      background: linear-gradient(135deg, rgba(200,255,66,.95), rgba(88,216,255,.86));
+      background: linear-gradient(135deg, rgba(92,194,109,.95), rgba(255,138,42,.86));
       color: #07100d;
       border-color: transparent;
     }
@@ -408,10 +406,10 @@
       display: grid;
       place-items: center;
       border-radius: 28px;
-      border: 1px solid rgba(200,255,66,.22);
+      border: 1px solid rgba(92,194,109,.22);
       background:
-        radial-gradient(circle at 50% 45%, rgba(200,255,66,.20), transparent 62%),
-        rgba(0,0,0,.24);
+        radial-gradient(circle at 50% 45%, rgba(92,194,109,.20), transparent 62%),
+        rgba(0,0,0,.05);
     }
 
     .score-ring strong {
@@ -506,7 +504,7 @@
       display: grid;
       place-items: center;
       border-radius: 12px;
-      background: rgba(200,255,66,.14);
+      background: rgba(92,194,109,.14);
       color: var(--accent-2);
       font-size: 12px;
       font-weight: 950;
@@ -582,11 +580,14 @@
     }
 
     .nutrient-card {
-      padding: 12px;
-      border-radius: 18px;
-      border: 1px solid rgba(0,0,0,.075);
-      background: rgba(0,0,0,.22);
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
     }
+    .nutrient-vrow { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+    .nutrient-target-inline { font-size: 11px; color: var(--muted); font-weight: 700; }
 
     .nutrient-head {
       display: flex;
@@ -645,7 +646,41 @@
       inset: 0 auto 0 0;
       width: 0;
       border-radius: 999px;
-      background: linear-gradient(90deg, rgba(88,216,255,.95), rgba(200,255,66,.98));
+      background: var(--ok);
+      transition: width .5s ease;
+    }
+    /* 2026-05-27 (cowork) あすけん風の3ゾーンゲージ: 不足/適切(緑帯)/過剰 + 100%マーカー */
+    .gauge-track {
+      position: relative;
+      height: 12px;
+      margin: 10px 0 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.06);
+      overflow: hidden;
+    }
+    .gauge-zone {
+      position: absolute; top: 0; bottom: 0;
+      background: rgba(46,184,114,.20);
+    }
+    .gauge-track.normal .gauge-zone { left: 53.33%; width: 26.66%; }
+    .gauge-track.excess .gauge-zone { left: 0; width: 80%; }
+    .gauge-fill {
+      position: absolute; top: 0; bottom: 0; left: 0;
+      border-radius: 999px;
+      background: var(--ok);
+      transition: width .5s ease, background .3s ease;
+    }
+    .gauge-fill.low  { background: var(--warn); }
+    .gauge-fill.high { background: var(--danger); }
+    .gauge-mark {
+      position: absolute; top: -3px; bottom: -3px;
+      width: 2px;
+      background: rgba(0,0,0,.30);
+    }
+    .gauge-scale {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--dim); font-weight: 700;
+      margin-top: 2px;
     }
 
     .nutrient-meta {
@@ -787,8 +822,8 @@
       min-height: 26px;
       padding: 0 9px;
       border-radius: 999px;
-      background: rgba(88,216,255,.12);
-      border: 1px solid rgba(88,216,255,.16);
+      background: rgba(255,138,42,.12);
+      border: 1px solid rgba(255,138,42,.16);
       color: var(--ink);
       font-size: 11px;
       font-weight: 850;
@@ -858,7 +893,7 @@
       border-radius: 28px;
       border: 1px solid var(--line);
       background:
-        radial-gradient(360px 220px at 90% 0%, rgba(88,216,255,.13), transparent 62%),
+        radial-gradient(360px 220px at 90% 0%, rgba(255,138,42,.13), transparent 62%),
         rgba(18,19,23,.98);
       box-shadow: 0 26px 90px rgba(0,0,0,.55);
     }
@@ -915,7 +950,7 @@
       padding: 10px;
       border-radius: 17px;
       border: 1px solid rgba(0,0,0,.075);
-      background: rgba(0,0,0,.22);
+      background: rgba(0,0,0,.04);
     }
 
     .detail-macro strong {
@@ -951,8 +986,8 @@
       min-height: 36px;
       padding: 8px 10px;
       border-radius: 14px;
-      border: 1px solid rgba(88,216,255,.16);
-      background: rgba(88,216,255,.10);
+      border: 1px solid rgba(255,138,42,.16);
+      background: rgba(255,138,42,.10);
       font-size: 12px;
       font-weight: 900;
       line-height: 1.25;
@@ -993,9 +1028,9 @@
       padding: 10px;
       border-radius: 24px;
       border: 1px solid var(--line);
-      background: rgba(16,17,20,.92);
+      background: rgba(255,250,242,.95);
       backdrop-filter: blur(14px);
-      box-shadow: 0 20px 60px rgba(0,0,0,.42);
+      box-shadow: 0 12px 36px rgba(0,0,0,.10);
     }
 
     .dock-grid {
@@ -1032,8 +1067,8 @@
     }
 
     .dock-btn.is-active {
-      border-color: rgba(88,216,255,.28);
-      background: rgba(88,216,255,.14);
+      border-color: rgba(255,138,42,.28);
+      background: rgba(255,138,42,.14);
     }
 
     @media (max-width: 600px) {
@@ -2138,11 +2173,14 @@
 
     function renderNutrients(state) {
       const root = document.getElementById('nutrientGrid');
+      const EXCESS = new Set(['salt', 'saturatedFat']);
       root.innerHTML = Object.entries(NUTRIENT_META).map(([key, meta]) => {
         const value = state.nutrients[key] || 0;
         const rawPct = meta.target ? Math.round((value / meta.target) * 100) : 0;
-        const pct = Math.min(100, rawPct);
+        // バーは 0–150% の範囲を表示（それ以上は端で頭打ち）
+        const barPct = Math.min(100, Math.round((Math.min(rawPct, 150) / 150) * 100));
         const status = nutrientStatus(key, rawPct, value);
+        const isExcess = EXCESS.has(key);
         const leaders = topContributors(state.contributions[key]).slice(0, 2);
         return `
           <div class="nutrient-card">
@@ -2150,9 +2188,17 @@
               <div class="nutrient-name">${meta.label}</div>
               <div class="status-pill ${status.kind}">${status.label}</div>
             </div>
-            <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
-            <div class="track"><div class="fill" style="width:${pct}%"></div></div>
-            <div class="nutrient-meta">${rawPct}% / 目安 ${formatNutrient(key, targetValue(key))}${meta.unit} / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
+            <div class="nutrient-vrow">
+              <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
+              <div class="nutrient-target-inline">／ 目安 ${formatNutrient(key, targetValue(key))}${meta.unit}</div>
+            </div>
+            <div class="gauge-track ${isExcess ? 'excess' : 'normal'}">
+              <div class="gauge-zone"></div>
+              <div class="gauge-fill ${status.kind}" style="width:${barPct}%"></div>
+              <div class="gauge-mark" style="left:66.66%"></div>
+            </div>
+            <div class="gauge-scale"><span>0</span><span>適切</span><span>150%</span></div>
+            <div class="nutrient-meta">${rawPct}% / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
           </div>
         `;
       }).join('');
