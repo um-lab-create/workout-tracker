@@ -7,30 +7,32 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cockpit">
-<meta name="theme-color" content="#0a0a0f">
+<meta name="theme-color" content="#fff8ef">
 <title>Cockpit</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
 :root {
-  --bg: #0a0a0f;
-  --ink: #f7f4ea;
-  --muted: #aaa79d;
-  --dim: #6f6d67;
-  --line: rgba(255,255,255,.09);
-  --panel: rgba(22,23,28,.86);
-  --panel-strong: rgba(34,35,40,.96);
-  --glass: rgba(255,255,255,.05);
-  --accent: #c8ff42;
-  --accent-soft: rgba(200,255,66,.16);
-  --blue: #58d8ff;
-  --blue-soft: rgba(88,216,255,.14);
-  --orange: #ffb954;
-  --orange-soft: rgba(255,185,84,.14);
-  --ok: #42e79b;
-  --warn: #ffd15a;
-  --shadow: 0 24px 76px rgba(0,0,0,.45);
+  /* 2026-05-27 (cowork) Cockpitもライト暖色テーマに統一 */
+  --bg: #fff8ef;
+  --ink: #1b1d1f;
+  --muted: #6b6f76;
+  --dim: #a4a8af;
+  --line: rgba(0,0,0,.08);
+  --panel: #ffffff;
+  --panel-strong: #fffefc;
+  --glass: rgba(0,0,0,.04);
+  --accent: #ff8a2a;
+  --accent-soft: rgba(255,138,42,.12);
+  --blue: #2a8fff;
+  --blue-soft: rgba(42,143,255,.12);
+  --orange: #ff8a2a;
+  --orange-soft: rgba(255,138,42,.12);
+  --ok: #2eb872;
+  --warn: #e4a23a;
+  --bubble: #fff5e0;
+  --shadow: 0 6px 22px rgba(0,0,0,.07);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -43,7 +45,9 @@ body {
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Maru Gothic Pro", "Yu Gothic", "Noto Sans JP", "Hiragino Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: .01em;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -52,9 +56,9 @@ body {
   min-height: 100vh;
   padding: calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 112px);
   background:
-    radial-gradient(780px 420px at 18% -10%, rgba(200,255,66,.11), transparent 58%),
-    radial-gradient(680px 420px at 104% 20%, rgba(88,216,255,.11), transparent 60%),
-    linear-gradient(145deg, #08090d 0%, #111218 58%, #08090d 100%);
+    radial-gradient(780px 420px at 18% -10%, rgba(255,138,42,.07), transparent 58%),
+    radial-gradient(680px 420px at 104% 20%, rgba(92,194,109,.05), transparent 60%),
+    linear-gradient(145deg, #fffaf2 0%, #fff8ef 58%, #fffaf2 100%);
 }
 
 button,
@@ -121,7 +125,7 @@ button:disabled {
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255,255,255,.05);
+  background: rgba(0,0,0,.05);
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
@@ -133,10 +137,8 @@ button:disabled {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 30px;
-  padding: 16px;
-  background:
-    linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
-    rgba(20,21,25,.84);
+  padding: 18px;
+  background: var(--panel);
   box-shadow: var(--shadow);
 }
 
@@ -147,7 +149,7 @@ button:disabled {
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(200,255,66,.24), transparent 68%);
+  background: radial-gradient(circle, rgba(92,194,109,.24), transparent 68%);
   pointer-events: none;
 }
 
@@ -185,7 +187,7 @@ button:disabled {
   color: #0a0a0f;
   font-size: 26px;
   font-weight: 950;
-  box-shadow: 0 18px 40px rgba(200,255,66,.22);
+  box-shadow: 0 18px 40px rgba(92,194,109,.22);
 }
 
 .today-strip {
@@ -199,9 +201,9 @@ button:disabled {
 .today-card {
   min-height: 76px;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid rgba(0,0,0,.075);
   border-radius: 18px;
-  background: rgba(0,0,0,.22);
+  background: rgba(0,0,0,.04);
 }
 
 .today-label {
@@ -233,7 +235,7 @@ button:disabled {
   border-radius: 24px;
   padding: 14px;
   background: var(--panel);
-  box-shadow: 0 18px 56px rgba(0,0,0,.28);
+  box-shadow: 0 18px 56px rgba(0,0,0,.08);
 }
 
 .section-head {
@@ -269,11 +271,11 @@ button:disabled {
 }
 
 .record .section-icon { background: var(--accent-soft); color: var(--accent); }
-.daily .section-icon { background: rgba(200,255,66,.14); color: var(--accent); }
+.daily .section-icon { background: rgba(92,194,109,.14); color: var(--accent); }
 .actions .section-icon { background: var(--orange-soft); color: var(--orange); }
 .views .section-icon { background: var(--blue-soft); color: var(--blue); }
-.recent .section-icon { background: rgba(255,255,255,.06); color: var(--ink); }
-.meal-base .section-icon { background: rgba(88,216,255,.12); color: var(--blue); }
+.recent .section-icon { background: rgba(0,0,0,.06); color: var(--ink); }
+.meal-base .section-icon { background: rgba(42,143,255,.12); color: var(--blue); }
 
 .hero-actions {
   display: grid;
@@ -287,16 +289,16 @@ button:disabled {
   gap: 12px;
   min-height: 136px;
   padding: 14px;
-  border: 1px solid rgba(255,255,255,.08);
+  border: 1px solid rgba(0,0,0,.08);
   border-radius: 22px;
   text-decoration: none;
   background:
-    linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.02)),
-    rgba(18,19,24,.96);
+    linear-gradient(145deg, rgba(0,0,0,.07), rgba(0,0,0,.02)),
+    var(--panel);
 }
 
-.main-card[data-tone="record"] { border-color: rgba(200,255,66,.18); }
-.main-card[data-tone="meal"] { border-color: rgba(88,216,255,.18); }
+.main-card[data-tone="record"] { border-color: rgba(92,194,109,.18); }
+.main-card[data-tone="meal"] { border-color: rgba(42,143,255,.18); }
 .main-card[data-tone="health"] { border-color: rgba(255,185,84,.18); }
 
 .main-top {
@@ -320,7 +322,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: rgba(255,255,255,.06);
+  background: rgba(0,0,0,.06);
   font-size: 17px;
   font-weight: 950;
 }
@@ -352,7 +354,7 @@ button:disabled {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,.06);
+  background: rgba(0,0,0,.06);
   color: var(--muted);
   font-size: 11px;
   font-weight: 850;
@@ -380,10 +382,10 @@ button:disabled {
   min-height: 116px;
   padding: 12px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid rgba(0,0,0,.075);
   background:
-    linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
-    rgba(18,19,24,.92);
+    linear-gradient(145deg, rgba(0,0,0,.06), rgba(0,0,0,.018)),
+    var(--panel);
   text-decoration: none;
   display: grid;
   align-content: space-between;
@@ -415,8 +417,8 @@ button:disabled {
   min-height: 24px;
   padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(0,0,0,.05);
   color: var(--muted);
   font-size: 10px;
   font-weight: 900;
@@ -456,8 +458,8 @@ button:disabled {
   min-height: 90px;
   padding: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.075);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(0,0,0,.075);
+  background: rgba(0,0,0,.04);
 }
 
 .stat-label {
@@ -487,8 +489,8 @@ button:disabled {
   min-height: 88px;
   padding: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.075);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(0,0,0,.075);
+  background: rgba(0,0,0,.04);
   text-align: left;
 }
 
@@ -538,8 +540,8 @@ button:disabled {
   min-height: 72px;
   padding: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.075);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(0,0,0,.075);
+  background: rgba(0,0,0,.04);
   text-decoration: none;
   text-align: left;
 }
@@ -568,10 +570,10 @@ button:disabled {
   min-height: 84px;
   padding: 12px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid rgba(0,0,0,.075);
   background:
-    linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.018)),
-    rgba(18,19,24,.92);
+    linear-gradient(145deg, rgba(0,0,0,.06), rgba(0,0,0,.018)),
+    var(--panel);
   text-align: left;
 }
 
@@ -581,7 +583,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 16px;
-  background: rgba(255,255,255,.06);
+  background: rgba(0,0,0,.06);
   font-size: 18px;
   font-weight: 950;
 }
@@ -630,8 +632,8 @@ button:disabled {
   min-height: 78px;
   padding: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.075);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(0,0,0,.075);
+  background: rgba(0,0,0,.04);
   text-decoration: none;
 }
 
@@ -642,7 +644,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: rgba(255,255,255,.06);
+  background: rgba(0,0,0,.06);
   font-size: 15px;
   font-weight: 950;
 }
@@ -697,7 +699,7 @@ button:disabled {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255,255,255,.04);
+  background: rgba(0,0,0,.04);
 }
 
 .utility-copy strong {
@@ -723,7 +725,7 @@ button:disabled {
   min-height: 34px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(255,255,255,.07);
+  background: rgba(0,0,0,.07);
   color: var(--ink);
   font-size: 12px;
   font-weight: 850;
@@ -745,9 +747,9 @@ button:disabled {
   padding: 10px;
   border-radius: 24px;
   border: 1px solid var(--line);
-  background: rgba(16,17,20,.92);
+  background: rgba(255,250,242,.95);
   backdrop-filter: blur(14px);
-  box-shadow: 0 20px 60px rgba(0,0,0,.42);
+  box-shadow: 0 20px 60px rgba(0,0,0,.10);
 }
 
 .dock-grid {
@@ -759,8 +761,8 @@ button:disabled {
 .dock-btn {
   min-height: 56px;
   border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.06);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(0,0,0,.06);
+  background: rgba(0,0,0,.04);
   display: grid;
   place-items: center;
   gap: 2px;
@@ -773,8 +775,8 @@ button:disabled {
 }
 
 .dock-btn.is-active {
-  border-color: rgba(200,255,66,.28);
-  background: rgba(200,255,66,.12);
+  border-color: rgba(92,194,109,.28);
+  background: rgba(92,194,109,.12);
 }
 
 .dock-btn strong {
@@ -799,9 +801,9 @@ button:disabled {
   pointer-events: none;
   border-radius: 18px;
   padding: 14px 16px;
-  background: rgba(16,17,20,.95);
+  background: rgba(255,250,242,.95);
   border: 1px solid var(--line);
-  box-shadow: 0 18px 60px rgba(0,0,0,.45);
+  box-shadow: 0 18px 60px rgba(0,0,0,.10);
   color: var(--ink);
   font-size: 14px;
   line-height: 1.45;
