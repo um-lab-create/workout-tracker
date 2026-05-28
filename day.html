@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="日次栄養">
-  <meta name="theme-color" content="#0a0a0f">
+  <meta name="theme-color" content="#fff8ef">
   <title>日次栄養</title>
   <style>
     :root {
@@ -49,9 +49,9 @@
       min-height: 100vh;
       padding: calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 100px);
       background:
-        radial-gradient(760px 420px at 18% -10%, rgba(88,216,255,.14), transparent 58%),
-        radial-gradient(620px 380px at 104% 18%, rgba(200,255,66,.10), transparent 60%),
-        linear-gradient(145deg, #08090d 0%, #111218 58%, #08090d 100%);
+        radial-gradient(760px 420px at 18% -10%, rgba(255,138,42,.07), transparent 58%),
+        radial-gradient(620px 380px at 104% 18%, rgba(92,194,109,.05), transparent 60%),
+        linear-gradient(145deg, #fffaf2 0%, #fff8ef 58%, #fffaf2 100%);
     }
 
     button,
@@ -117,7 +117,7 @@
       place-items: center;
       border-radius: 12px;
       border: 1px solid var(--line);
-      background: rgba(255,255,255,.05);
+      background: rgba(0,0,0,.05);
       color: var(--ink);
       font-size: 18px;
       font-weight: 900;
@@ -145,7 +145,7 @@
       padding: 0 12px;
       border-radius: 999px;
       border: 1px solid var(--line);
-      background: rgba(255,255,255,.05);
+      background: rgba(0,0,0,.05);
       color: var(--muted);
       font-size: 12px;
       font-weight: 850;
@@ -157,7 +157,7 @@
       border: 1px solid var(--line);
       border-radius: 26px;
       background:
-        linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
+        linear-gradient(145deg, rgba(0,0,0,.08), rgba(0,0,0,.02)),
         rgba(20,21,25,.84);
       box-shadow: var(--shadow);
     }
@@ -247,7 +247,7 @@
       padding: 0 12px;
       border-radius: 999px;
       border: 1px solid var(--line);
-      background: rgba(255,255,255,.05);
+      background: rgba(0,0,0,.05);
       color: var(--muted);
       font-size: 12px;
       font-weight: 850;
@@ -278,7 +278,7 @@
       min-height: 88px;
       padding: 12px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.075);
+      border: 1px solid rgba(0,0,0,.075);
       background: rgba(0,0,0,.22);
     }
 
@@ -315,7 +315,7 @@
       gap: 12px;
       padding: 12px;
       border-radius: 22px;
-      border: 1px solid rgba(255,255,255,.075);
+      border: 1px solid rgba(0,0,0,.075);
       background: rgba(0,0,0,.22);
     }
 
@@ -349,8 +349,8 @@
       display: grid;
       place-items: center;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.09);
-      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(0,0,0,.09);
+      background: rgba(0,0,0,.06);
       font-size: 13px;
       font-weight: 950;
     }
@@ -453,7 +453,7 @@
       height: 9px;
       border-radius: 999px;
       overflow: hidden;
-      background: rgba(255,255,255,.06);
+      background: rgba(0,0,0,.06);
     }
 
     .score-fill {
@@ -482,8 +482,8 @@
       align-items: center;
       padding: 11px 12px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.075);
-      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(0,0,0,.075);
+      background: rgba(0,0,0,.04);
     }
 
     .priority-title {
@@ -535,23 +535,23 @@
       align-items: center;
       padding: 11px 12px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.075);
-      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(0,0,0,.075);
+      background: rgba(0,0,0,.04);
     }
 
     .ranking-card.low {
       border-color: rgba(255,209,90,.20);
-      background: linear-gradient(135deg, rgba(255,209,90,.08), rgba(255,255,255,.03));
+      background: linear-gradient(135deg, rgba(255,209,90,.08), rgba(0,0,0,.03));
     }
 
     .ranking-card.high {
       border-color: rgba(255,109,138,.22);
-      background: linear-gradient(135deg, rgba(255,109,138,.08), rgba(255,255,255,.03));
+      background: linear-gradient(135deg, rgba(255,109,138,.08), rgba(0,0,0,.03));
     }
 
     .ranking-card.good {
       border-color: rgba(64,255,157,.18);
-      background: linear-gradient(135deg, rgba(64,255,157,.08), rgba(255,255,255,.03));
+      background: linear-gradient(135deg, rgba(64,255,157,.08), rgba(0,0,0,.03));
     }
 
     .ranking-name {
@@ -584,7 +584,7 @@
     .nutrient-card {
       padding: 12px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.075);
+      border: 1px solid rgba(0,0,0,.075);
       background: rgba(0,0,0,.22);
     }
 
@@ -612,8 +612,8 @@
       min-height: 24px;
       padding: 0 8px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(0,0,0,.05);
       color: var(--muted);
       font-size: 10px;
       font-weight: 950;
@@ -637,7 +637,7 @@
       height: 10px;
       margin-top: 10px;
       border-radius: 999px;
-      background: rgba(255,255,255,.06);
+      background: rgba(0,0,0,.06);
     }
 
     .fill {
@@ -711,7 +711,7 @@
       padding: 12px;
       border-radius: 18px;
       border: 1px solid rgba(255,209,90,.16);
-      background: linear-gradient(145deg, rgba(255,209,90,.09), rgba(255,255,255,.035));
+      background: linear-gradient(145deg, rgba(255,209,90,.09), rgba(0,0,0,.035));
       text-decoration: none;
     }
 
@@ -739,8 +739,8 @@
     .food-card {
       padding: 12px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.075);
-      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(0,0,0,.075);
+      background: rgba(0,0,0,.04);
       display: grid;
       gap: 10px;
       width: 100%;
@@ -802,8 +802,8 @@
       min-height: 56px;
       padding: 12px;
       border-radius: 16px;
-      border: 1px solid rgba(255,255,255,.075);
-      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(0,0,0,.075);
+      background: rgba(0,0,0,.04);
     }
 
     .contrib-name {
@@ -898,8 +898,8 @@
       display: grid;
       place-items: center;
       border-radius: 15px;
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.08);
+      border: 1px solid rgba(0,0,0,.08);
       font-size: 20px;
       font-weight: 950;
     }
@@ -914,7 +914,7 @@
       min-height: 72px;
       padding: 10px;
       border-radius: 17px;
-      border: 1px solid rgba(255,255,255,.075);
+      border: 1px solid rgba(0,0,0,.075);
       background: rgba(0,0,0,.22);
     }
 
@@ -940,8 +940,8 @@
       min-height: 30px;
       padding: 0 10px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(0,0,0,.05);
       color: var(--muted);
       font-size: 12px;
       font-weight: 850;
@@ -969,8 +969,8 @@
       display: grid;
       place-items: center;
       border-radius: 16px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(0,0,0,.06);
       color: var(--ink);
       text-decoration: none;
       font-size: 13px;
@@ -1011,8 +1011,8 @@
     .dock-btn {
       min-height: 56px;
       border-radius: 16px;
-      border: 1px solid rgba(255,255,255,.06);
-      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(0,0,0,.06);
+      background: rgba(0,0,0,.04);
       display: grid;
       place-items: center;
       gap: 2px;
