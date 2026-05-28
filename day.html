@@ -6,9 +6,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="日次栄養">
+  <meta name="apple-mobile-web-app-title" content="今日の栄養">
   <meta name="theme-color" content="#fff8ef">
-  <title>日次栄養</title>
+  <title>今日の栄養</title>
   <style>
     :root {
       /* 2026-05-27 (cowork) ライト暖色テーマ。あすけんの「明るく続けたい」雰囲気に寄せる。 */
@@ -40,7 +40,10 @@
       min-height: 100%;
       background: var(--bg);
       color: var(--ink);
-      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      /* 2026-05-27 (cowork) 丸めで親しみのある日本語: Maru Gothic 優先、Yu/Noto/system にフォールバック */
+      font-family: "Hiragino Maru Gothic ProN", "Hiragino Maru Gothic Pro", "Yu Gothic", "Noto Sans JP", "Hiragino Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      letter-spacing: .01em;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
     }
@@ -161,7 +164,7 @@
     }
 
     .hero {
-      padding: 16px;
+      padding: 22px;
       overflow: hidden;
       position: relative;
     }
@@ -304,8 +307,8 @@
     }
 
     .panel {
-      margin-top: 14px;
-      padding: 14px;
+      margin-top: 18px;
+      padding: 20px;
     }
 
     .target-card {
@@ -1154,8 +1157,8 @@
         <div class="brand-row">
           <button class="subtle-nav" type="button" onclick="backToMeal()">‹</button>
           <div>
-            <div class="brand-main">日次栄養</div>
-            <div class="brand-sub">PFC と主要栄養をその日単位で確認</div>
+            <div class="brand-main">今日の栄養</div>
+            <div class="brand-sub">足りない栄養を見つけて、1品ずつ足していく</div>
           </div>
         </div>
       </div>
@@ -1166,7 +1169,7 @@
       <div class="hero-head">
         <div class="hero-copy">
           <h1 id="selectedDateLabel">-</h1>
-          <p>成人向けの暫定目安で表示。足りない栄養と、どの食品から入ったかを先に見る。</p>
+          <p>今日もおつかれさま。スコアと不足からヒントを出すので、1品ずつ足していこう。</p>
         </div>
         <div class="hero-mark">栄</div>
       </div>
@@ -1198,7 +1201,7 @@
             <div class="score-status idle" id="scoreStatus">未入力</div>
           </div>
         </div>
-        <div class="advice-bubble idle" id="scoreMessage">記録するとスコアとひとことが出ます。</div>
+        <div class="advice-bubble idle" id="scoreMessage">最初の1食を入れて今日を始めよう。</div>
       </div>
 
       <div class="hero-grid">
@@ -1399,7 +1402,7 @@
     <div class="dock-grid">
       <a class="dock-link" href="index.html"><div class="dock-btn"><strong>◎</strong><span>ホーム</span></div></a>
       <a class="dock-link" href="meal.html"><div class="dock-btn"><strong>食</strong><span>食事</span></div></a>
-      <a class="dock-link" href="day.html"><div class="dock-btn is-active"><strong>栄</strong><span>日次栄養</span></div></a>
+      <a class="dock-link" href="day.html"><div class="dock-btn is-active"><strong>栄</strong><span>栄養</span></div></a>
       <a class="dock-link" href="workout.html"><div class="dock-btn"><strong>筋</strong><span>筋トレ</span></div></a>
     </div>
   </div>
@@ -2007,7 +2010,7 @@
     // important セット(day.html ranking と整合)に対する不足を重視。キャラクターは入れず淡々と。
     function computeHealthScore(state) {
       if (!state || !state.totals || !state.totals.meals) {
-        return { score: null, kind: 'idle', message: 'まだ記録がありません。1食でも入れるとスコアが出ます。', lacks: 0, excs: 0 };
+        return { score: null, kind: 'idle', message: 'まだ記録がありません。最初の1食を入れて今日を始めよう。', lacks: 0, excs: 0 };
       }
       const T = targetSettings || {};
       let score = 100;
