@@ -1048,6 +1048,27 @@
         grid-template-columns: 1fr;
       }
     }
+  /* === 2026-05-27 (cowork) 達成感の演出: 今日のスコア + ひとこと === */
+  .score-panel {
+    background: var(--panel-strong);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    padding: 20px 22px;
+    margin: 16px 0 4px;
+    display: grid;
+    gap: 10px;
+  }
+  .score-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .score-label { font-size: 13px; color: var(--muted); font-weight: 800; letter-spacing: .02em; }
+  .score-value { font-size: 56px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+  .score-value.good { color: var(--ok); }
+  .score-value.mid  { color: var(--warn); }
+  .score-value.low  { color: #ff8fa3; }
+  .score-value.idle { color: var(--dim); }
+  .score-suffix { font-size: 16px; color: var(--muted); font-weight: 700; margin-left: 4px; }
+  .score-message { font-size: 14px; color: var(--ink); line-height: 1.55; font-weight: 600; }
+  .score-message.idle { color: var(--muted); font-weight: 500; }
+  .hero-grid { gap: 12px; }
   </style>
 </head>
 <body>
@@ -1082,6 +1103,14 @@
           </div>
           <input id="dateInput" type="date">
         </div>
+      </div>
+
+      <div class="score-panel">
+        <div class="score-row">
+          <div class="score-label">今日のスコア</div>
+          <div><span class="score-value idle" id="scoreValue">—</span><span class="score-suffix" id="scoreSuffix"></span></div>
+        </div>
+        <div class="score-message idle" id="scoreMessage">記録するとスコアとひとことが出ます。</div>
       </div>
 
       <div class="hero-grid">
@@ -1859,6 +1888,7 @@
       document.getElementById('todayBtn').classList.toggle('active', selectedDate === todayStr());
       document.getElementById('yesterdayBtn').classList.toggle('active', selectedDate === shiftDate(todayStr(), -1));
       renderHero(state);
+      renderScore(state);
       renderMacros(state);
       renderNutritionJudgement(state);
       renderNutrientRanking(state);
@@ -1881,6 +1911,105 @@
       document.getElementById('coverageChip').textContent = `栄養DB ${state.coverage}%`;
       if (!macroSum && !state.totals.meals) {
         document.getElementById('heroKcalSub').textContent = `まだ未入力 / 目標 ${targetSettings.energy}kcal`;
+      }
+    }
+
+    // === 2026-05-27 (cowork) 今日のスコア + ひとこと ===
+    // 「続けたくなる仕掛け」: kcal逸脱・PFC逸脱・不足/過剰栄養素の数からスコアを100点満点で算出。
+    // important セット(day.html ranking と整合)に対する不足を重視。キャラクターは入れず淡々と。
+    function computeHealthScore(state) {
+      if (!state || !state.totals || !state.totals.meals) {
+        return { score: null, kind: 'idle', message: 'まだ記録がありません。1食でも入れるとスコアが出ます。', lacks: 0, excs: 0 };
+      }
+      const T = targetSettings || {};
+      let score = 100;
+      const energy = state.nutrients.energy || 0;
+      const targetE = (T.energy || 2200);
+      const eDev = Math.abs(energy / targetE - 1);
+      if (eDev > 0.10) score -= Math.min(30, Math.round((eDev - 0.10) * 100));
+      ['protein','fat','carb'].forEach(k => {
+        const v = state.nutrients[k] || 0;
+        const t = (T[k] || 1);
+        const r = v / t;
+        if (r < 0.8 || r > 1.2) score -= 5;
+      });
+      const important = ['Ca','Fe','Mg','K','Zn','vitD','vitC','vitA','vitE','vitB1','vitB2','vitB6','vitB12','folate','fiber','n3','protein'];
+      const excess = ['salt','saturatedFat'];
+      let lacks = 0, excs = 0;
+      important.forEach(k => {
+        const v = state.nutrients[k] || 0;
+        const m = NUTRIENT_META[k] || {};
+        const t = m.target || 0;
+        if (t && v < t * 0.60) lacks++;
+      });
+      excess.forEach(k => {
+        const v = state.nutrients[k] || 0;
+        const m = NUTRIENT_META[k] || {};
+        const t = m.target || 0;
+        if (t && v > t * 1.20) excs++;
+      });
+      score -= Math.min(20, lacks * 3);
+      score -= Math.min(10, excs * 3);
+      score = Math.max(0, Math.min(100, Math.round(score)));
+      const kind = score >= 80 ? 'good' : score >= 60 ? 'mid' : 'low';
+      return { score, kind, lacks, excs, message: buildOneLineMessage(state, lacks, excs) };
+    }
+
+    // 自然言語のひとこと: kcal逸脱・最大不足ミクロ・過剰の有無 から1〜2文を生成
+    function buildOneLineMessage(state, lacks, excs) {
+      const T = targetSettings || {};
+      const parts = [];
+      const energy = state.nutrients.energy || 0;
+      const targetE = T.energy || 2200;
+      const eRatio = energy / targetE;
+      if (eRatio < 0.85) {
+        parts.push(`あと約${Math.max(0, Math.round(targetE - energy))}kcal`);
+      } else if (eRatio > 1.15) {
+        parts.push(`目標を${Math.round(energy - targetE)}kcal 超過`);
+      }
+      // 最も不足しているミクロ栄養素を1つ取り上げ、補う食材を併記
+      const watch = ['protein','Fe','Ca','Mg','vitC','vitA','vitB12','fiber','n3','Zn','vitD'];
+      let worst = { key: null, pct: 999, meta: null };
+      watch.forEach(k => {
+        const v = state.nutrients[k] || 0;
+        const m = NUTRIENT_META[k] || {};
+        const t = m.target || 0;
+        if (t) {
+          const pct = (v / t) * 100;
+          if (pct < worst.pct) worst = { key: k, pct, meta: m };
+        }
+      });
+      if (worst.key && worst.pct < 80) {
+        const m = worst.meta || {};
+        const food = (typeof bestFoodForNutrient === 'function') ? bestFoodForNutrient(worst.key) : null;
+        const foodName = food ? food.name : '関連食品';
+        parts.push(`${m.label}が${Math.round(worst.pct)}%、${foodName}を足すと届きます`);
+      } else if (excs > 0) {
+        parts.push('塩分または飽和脂肪酸が多め、次の食事は薄味・低脂質で');
+      } else if (parts.length === 0) {
+        parts.push('バランス良好。この調子で続けて');
+      }
+      return parts.join('。') + '。';
+    }
+
+    function renderScore(state) {
+      const r = computeHealthScore(state);
+      const el = document.getElementById('scoreValue');
+      const suf = document.getElementById('scoreSuffix');
+      const msg = document.getElementById('scoreMessage');
+      if (!el || !msg) return;
+      if (r.score === null) {
+        el.textContent = '—';
+        el.className = 'score-value idle';
+        if (suf) suf.textContent = '';
+        msg.textContent = r.message;
+        msg.className = 'score-message idle';
+      } else {
+        el.textContent = String(r.score);
+        el.className = 'score-value ' + r.kind;
+        if (suf) suf.textContent = ' / 100';
+        msg.textContent = r.message;
+        msg.className = 'score-message';
       }
     }
 

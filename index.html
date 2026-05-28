@@ -884,6 +884,7 @@ button:disabled {
     <div class="section-head">
       <div class="section-title"><span class="section-icon">今</span>今日の記録</div>
       <div class="section-note" id="dailyHubDate">今日</div>
+      <div class="section-note" id="streakChip" style="margin-left:8px;"></div>
     </div>
     <div class="daily-grid">
       <a class="daily-card" id="dailyMealCard" href="meal.html" data-track-key="meal" data-track-label="今日の食事" data-track-kind="launch">
@@ -1143,6 +1144,28 @@ const WORKOUT_HISTORY_STORE = 'wt:history:v2';
 const WORKOUT_QUEUE_STORE = 'wt:queue:v2';
 const BASE_PRODUCT_COUNT = 6;
 
+// === 2026-05-27 (cowork) 継続性の可視化: 食事記録の連続日数チップ ===
+function updateStreakChip() {
+  const el = document.getElementById('streakChip');
+  if (!el) return;
+  const recs = lsGet(MEAL_RECORD_STORE, []) || [];
+  if (!recs.length) { el.textContent = ''; return; }
+  const days = new Set();
+  recs.forEach(r => { if (r && r.date) days.add(String(r.date).slice(0, 10)); });
+  let streak = 0;
+  const cursor = new Date();
+  for (let i = 0; i < 400; i++) {
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, '0');
+    const d = String(cursor.getDate()).padStart(2, '0');
+    const iso = `${y}-${m}-${d}`;
+    if (days.has(iso)) { streak++; cursor.setDate(cursor.getDate() - 1); }
+    else if (streak === 0 && i === 0) { cursor.setDate(cursor.getDate() - 1); continue; } // 今日まだ無くても昨日まで遡る
+    else break;
+  }
+  el.textContent = streak > 0 ? `${streak}日連続` : '';
+}
+
 const TRACKED_TARGETS = {
   workout: { label: '筋トレ', href: 'workout.html', glyph: 'W', copy: '前回値からすぐ記録' },
   meal: { label: '食事', href: 'meal.html', glyph: 'M', copy: '固定・最近からすぐ記録' },
@@ -1275,6 +1298,7 @@ function renderDailyHub() {
   const healthRecent = recent.find(item => item.key === 'health-import');
 
   document.getElementById('dailyHubDate').textContent = today.label;
+  updateStreakChip();
   document.getElementById('dailyMealCard').href = `meal.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyNutritionCard').href = `day.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyMealValue').textContent = `${mealCount}/3`;
