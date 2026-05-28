@@ -276,34 +276,36 @@
     .hero-card,
     .macro-card,
     .timing-card {
-      min-height: 88px;
-      padding: 12px;
+      min-height: 96px;
+      padding: 14px 14px 12px;
       border-radius: 18px;
-      border: 1px solid rgba(0,0,0,.075);
-      background: rgba(0,0,0,.04);
+      border: 1px solid rgba(0,0,0,.06);
+      background: var(--panel);
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
     }
 
     .card-label {
-      color: var(--dim);
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: .08em;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
       text-transform: uppercase;
     }
 
     .card-value {
-      margin-top: 8px;
-      font-size: 23px;
+      margin-top: 10px;
+      font-size: 28px;
       line-height: 1;
       font-weight: 950;
+      letter-spacing: -.02em;
     }
 
     .card-copy {
-      margin-top: 6px;
+      margin-top: 8px;
       color: var(--muted);
       font-size: 11px;
-      line-height: 1.4;
-      font-weight: 700;
+      line-height: 1.45;
+      font-weight: 600;
     }
 
     .panel {
@@ -380,6 +382,18 @@
     .section-title {
       font-size: 16px;
       font-weight: 950;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    /* 2026-05-27 (cowork) セクション見出しに色丸アイコン（あすけん風の区切り） */
+    .section-title::before {
+      content: '';
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
     }
 
     .section-note {
@@ -1169,7 +1183,7 @@
       <div class="hero-head">
         <div class="hero-copy">
           <h1 id="selectedDateLabel">-</h1>
-          <p>今日もおつかれさま。スコアと不足からヒントを出すので、1品ずつ足していこう。</p>
+          <p>おつかれさま。<br>スコアと不足から、1品ずつ足そう。</p>
         </div>
         <div class="hero-mark">栄</div>
       </div>
