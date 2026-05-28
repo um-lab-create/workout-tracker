@@ -1640,6 +1640,10 @@
       margin-top: 10px;
     }
 
+    .result-section-label {
+      font-size: 11px; color: var(--muted); font-weight: 800;
+      letter-spacing: .04em; margin: 4px 2px 6px;
+    }
     .result-card {
       border-radius: 16px;
       border: 1px solid rgba(0,0,0,.07);
@@ -2999,18 +3003,29 @@
       return [...foodCandidates, ...recipeCandidates];
     }
 
+    // 2026-05-27 (cowork) 検索ゆらぎ吸収: ひらがな↔カタカナ・全角半角・空白除去・大小文字
+    function normalizeForSearch(s) {
+      return String(s || '')
+        .replace(/[ァ-ン]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60)) // カタカナ→ひらがな
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)) // 全角→半角
+        .replace(/\s+/g, '')
+        .toLowerCase();
+    }
+
     function matchesCandidate(candidate, query) {
-      const typed = query.trim().toLowerCase();
+      const typed = normalizeForSearch(query);
       if (!typed) return false;
-      const haystack = [
+      const haystack = normalizeForSearch([
         candidate.name,
         candidate.copy,
         candidate.food && candidate.food.brand,
         candidate.food && candidate.food.keywords && candidate.food.keywords.join(' '),
         candidate.food && candidate.food.barcode,
         candidate.recipe && summarizeRecipe(candidate.recipe)
-      ].filter(Boolean).join(' ').toLowerCase();
-      return haystack.includes(typed);
+      ].filter(Boolean).join(' '));
+      // 部分一致＋空白区切りの全AND
+      const tokens = typed.split(/\s+/).filter(Boolean);
+      return tokens.every(t => haystack.includes(t));
     }
 
     function calcFoodPortion(food, qty, unitLabel) {
@@ -3570,9 +3585,14 @@
         select.value = foods[0].id;
       }
       const current = resolveFoodSelection() || foods[0];
-      document.getElementById('foodSearch').value = current.name;
+      // 2026-05-27 (cowork) 検索入力は空で開始（前回選択名のpre-fillをやめる）
+      const searchEl = document.getElementById('foodSearch');
+      searchEl.value = '';
+      searchEl.setAttribute('placeholder', '食材・商品名（ひらがな/カタカナどちらでも）');
       syncUnitOptions(current);
       renderSearchResults();
+      // モーダル open 後にフォーカスが効くよう遅延
+      setTimeout(() => { try { searchEl.focus(); } catch(e){} }, 80);
     }
 
     function setSearchScope(scope) {
@@ -3586,11 +3606,42 @@
     function renderSearchResults() {
       const root = document.getElementById('searchResultList');
       const query = document.getElementById('foodSearch').value.trim();
+
+      // 2026-05-27 (cowork) 空クエリ時: 最近使った→よく使う→主要食材 の順で6件を提示（あすけん風）
       if (!query) {
-        root.innerHTML = '';
+        const recent = (lsGet(RECORD_STORE, []) || [])
+          .flatMap(rec => (rec.items || []).map(it => it.foodId))
+          .filter(Boolean);
+        const freq = {};
+        recent.forEach(id => { freq[id] = (freq[id] || 0) + 1; });
+        const ranked = Object.entries(freq).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+        const allCandidates = getSearchCandidates()
+          .filter(c => searchScope === 'all' || c.kind === searchScope);
+        const byId = {};
+        allCandidates.forEach(c => { byId[c.id] = c; });
+        const picks = [];
+        const seen = new Set();
+        ranked.forEach(id => { if (byId[id] && !seen.has(id)) { picks.push(byId[id]); seen.add(id); } });
+        // 不足分はベース食材から
+        allCandidates.forEach(c => { if (!seen.has(c.id) && picks.length < 6) { picks.push(c); seen.add(c.id); } });
+        if (!picks.length) {
+          root.innerHTML = '<div class="empty-state">食材名を入力してください。</div>';
+          renderEstimateCard(false);
+          return;
+        }
+        root.innerHTML = `<div class="result-section-label">よく使う・最近</div>` + picks.slice(0, 6).map(candidate => `
+          <button type="button" class="result-card" onclick="selectSearchCandidate('${candidate.kind}', '${candidate.id}')">
+            <div class="result-head">
+              <div class="result-name">${candidate.name}</div>
+              <div class="preset-badge">${candidate.kind === 'recipe' ? 'メニュー' : candidate.kind === 'product' ? '商品' : '食材'}</div>
+            </div>
+            <div class="result-meta">${candidate.copy}</div>
+          </button>
+        `).join('');
         renderEstimateCard(false);
         return;
       }
+
       const candidates = getSearchCandidates()
         .filter(candidate => searchScope === 'all' || candidate.kind === searchScope)
         .filter(candidate => matchesCandidate(candidate, query))
@@ -3691,7 +3742,13 @@
     function syncUnitOptions(food) {
       const select = document.getElementById('unitSelect');
       const units = getUnitsForFood(food);
-      select.innerHTML = units.map(unit => `<option value="${unit.label}">${unit.label}</option>`).join('');
+      // 2026-05-27 (cowork) 単位の隣に「(≈Ng)」を併記してグラム換算をひと目で
+      select.innerHTML = units.map(unit => {
+        const g = Number(unit.grams) || 0;
+        const isGramLike = /^g$|^ml$/i.test(String(unit.label || ''));
+        const tail = (!isGramLike && g > 0) ? ` (≈${g}g)` : '';
+        return `<option value="${unit.label}">${unit.label}${tail}</option>`;
+      }).join('');
       if (units[0]) {
         select.value = units[0].label;
         document.getElementById('qtyInput').value = units[0].defaultQty || 1;
