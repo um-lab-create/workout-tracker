@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="今日の栄養">
   <meta name="theme-color" content="#fff8ef">
   <title>今日の栄養</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css">
   <style>
     :root {
       /* 2026-05-27 (cowork) ライト暖色テーマ。あすけんの「明るく続けたい」雰囲気に寄せる。 */
@@ -1104,6 +1105,22 @@
         grid-template-columns: 1fr;
       }
     }
+  /* === 2026-05-27 (cowork) 体組成strip (body.html localStorage連携) === */
+  .body-strip {
+    background: var(--panel-strong);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 10px 14px;
+    margin: 12px 0 6px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 13px; font-weight: 700;
+  }
+  .body-strip .label { color: var(--muted); font-size: 11px; font-weight: 800; }
+  .body-strip .v { font-size: 18px; font-weight: 900; }
+  .body-strip .when { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 700; }
+  .body-strip .delta { color: var(--muted); font-size: 11px; font-weight: 700; }
+  .body-strip .delta.down { color: var(--ok); }
+  .body-strip .delta.up { color: var(--warn); }
   /* === 2026-05-27 (cowork) 大刷新v1: あすけん風の達成感ホーム === */
   .score-panel {
     background: var(--panel-strong);
@@ -1185,7 +1202,7 @@
           <h1 id="selectedDateLabel">-</h1>
           <p>おつかれさま。<br>スコアと不足から、1品ずつ足そう。</p>
         </div>
-        <div class="hero-mark">栄</div>
+        <div class="hero-mark"><i class="ti ti-leaf" aria-hidden="true"></i></div>
       </div>
 
       <div class="date-row">
@@ -1197,6 +1214,8 @@
           <input id="dateInput" type="date">
         </div>
       </div>
+
+      <div class="body-strip" id="dayBodyStrip" style="display:none"></div>
 
       <div class="score-panel">
         <div class="score-top">
@@ -1414,10 +1433,10 @@
 
   <div class="dock">
     <div class="dock-grid">
-      <a class="dock-link" href="index.html"><div class="dock-btn"><strong>◎</strong><span>ホーム</span></div></a>
-      <a class="dock-link" href="meal.html"><div class="dock-btn"><strong>食</strong><span>食事</span></div></a>
-      <a class="dock-link" href="day.html"><div class="dock-btn is-active"><strong>栄</strong><span>栄養</span></div></a>
-      <a class="dock-link" href="workout.html"><div class="dock-btn"><strong>筋</strong><span>筋トレ</span></div></a>
+      <a class="dock-link" href="index.html"><div class="dock-btn"><strong><i class="ti ti-home" aria-hidden="true"></i></strong><span>ホーム</span></div></a>
+      <a class="dock-link" href="meal.html"><div class="dock-btn"><strong><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i></strong><span>食事</span></div></a>
+      <a class="dock-link" href="day.html"><div class="dock-btn is-active"><strong><i class="ti ti-leaf" aria-hidden="true"></i></strong><span>栄養</span></div></a>
+      <a class="dock-link" href="workout.html"><div class="dock-btn"><strong><i class="ti ti-barbell" aria-hidden="true"></i></strong><span>筋トレ</span></div></a>
     </div>
   </div>
 
@@ -1994,6 +2013,7 @@
       document.getElementById('yesterdayBtn').classList.toggle('active', selectedDate === shiftDate(todayStr(), -1));
       renderHero(state);
       renderScore(state);
+      renderBodyStrip();
       renderMacros(state);
       renderNutritionJudgement(state);
       renderNutrientRanking(state);
@@ -2124,6 +2144,28 @@
         msg.textContent = r.message;
         msg.className = 'advice-bubble';
       }
+    }
+
+    // 2026-05-27 (cowork) body.htmlのlocalStorageから最新体重/体脂肪率を表示
+    function renderBodyStrip() {
+      const root = document.getElementById('dayBodyStrip');
+      if (!root) return;
+      const recs = (storageGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+      if (!recs.length) { root.style.display = 'none'; return; }
+      const latest = recs[0];
+      const prev = recs[1];
+      const dateStr = String(latest.date).slice(0, 10);
+      const days = Math.round((new Date(todayStr()) - new Date(dateStr)) / 86400000);
+      const when = days <= 0 ? '今日' : `${days}日前`;
+      let delta = '';
+      if (latest.weight && prev && prev.weight) {
+        const d = Math.round((latest.weight - prev.weight) * 10) / 10;
+        if (d !== 0) delta = `<span class="delta ${d < 0 ? 'down' : 'up'}">${d > 0 ? '+' : ''}${d}kg</span>`;
+      }
+      const w = latest.weight ? `<span class="label">体重</span><span class="v">${Number(latest.weight).toFixed(1)}kg</span>` : '';
+      const f = latest.fat ? `<span class="label">体脂肪</span><span class="v">${Number(latest.fat).toFixed(1)}%</span>` : '';
+      root.innerHTML = `${w}${f}${delta}<span class="when">${when}</span>`;
+      root.style.display = 'flex';
     }
 
     function renderMacros(state) {

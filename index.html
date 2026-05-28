@@ -12,6 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css">
 <style>
 :root {
   /* 2026-05-27 (cowork) Cockpitもライト暖色テーマに統一 */
@@ -963,7 +964,7 @@ button:disabled {
 
   <section class="section daily" id="dailyHub">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">今</span>今日の記録</div>
+      <div class="section-title"><span class="section-icon"><i class="ti ti-sun" aria-hidden="true"></i></span>今日の記録</div>
       <div class="section-note" id="dailyHubDate">今日</div>
       <div class="section-note" id="streakChip" style="margin-left:8px;"></div>
     </div>
@@ -1023,7 +1024,7 @@ button:disabled {
 
   <section class="section record" id="record">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">記</span>すぐ記録</div>
+      <div class="section-title"><span class="section-icon"><i class="ti ti-bolt" aria-hidden="true"></i></span>すぐ記録</div>
       <div class="section-note">毎日触る面</div>
     </div>
     <div class="hero-actions">
@@ -1050,7 +1051,7 @@ button:disabled {
 
   <section class="section recent" id="recentSection">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">履</span>最近使った</div>
+      <div class="section-title"><span class="section-icon"><i class="ti ti-history" aria-hidden="true"></i></span>最近使った</div>
       <div class="section-note">最近開いた面</div>
     </div>
     <div class="recent-list" id="recentList"></div>
@@ -1058,7 +1059,7 @@ button:disabled {
 
   <section class="section meal-base" id="mealBaseSection">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">食</span>食事ベース</div>
+      <div class="section-title"><span class="section-icon"><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i></span>食事ベース</div>
       <div class="section-note">DB と再利用資産</div>
     </div>
     <div class="stat-grid">
@@ -1105,7 +1106,7 @@ button:disabled {
 
   <section class="section actions" id="actions">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">走</span>一括操作</div>
+      <div class="section-title"><span class="section-icon"><i class="ti ti-player-play" aria-hidden="true"></i></span>一括操作</div>
       <div class="section-note">止めずに回す</div>
     </div>
     <div class="action-rail">
@@ -1138,7 +1139,7 @@ button:disabled {
 
   <section class="section views" id="views">
     <div class="section-head">
-      <div class="section-title"><span class="section-icon">見</span>見る</div>
+      <div class="section-title"><span class="section-icon"><i class="ti ti-eye" aria-hidden="true"></i></span>見る</div>
       <div class="section-note">必要タブへ直行</div>
     </div>
     <div class="view-list">
@@ -1197,11 +1198,11 @@ button:disabled {
 
 <div class="dock">
   <div class="dock-grid">
-    <a class="dock-link" href="index.html"><div class="dock-btn is-active"><strong>◎</strong><span>ホーム</span></div></a>
-    <a class="dock-link" href="workout.html" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch"><div class="dock-btn"><strong>筋</strong><span>筋トレ</span></div></a>
-    <a class="dock-link" href="meal.html" data-track-key="meal" data-track-label="食事" data-track-kind="launch"><div class="dock-btn"><strong>食</strong><span>食事</span></div></a>
-    <a class="dock-link" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch"><div class="dock-btn"><strong>取</strong><span>取込</span></div></a>
-    <a class="dock-link" href="day.html" data-track-key="meal-day" data-track-label="日次栄養" data-track-kind="view"><div class="dock-btn"><strong>栄</strong><span>日次</span></div></a>
+    <a class="dock-link" href="index.html"><div class="dock-btn is-active"><strong><i class="ti ti-home" aria-hidden="true"></i></strong><span>ホーム</span></div></a>
+    <a class="dock-link" href="workout.html" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch"><div class="dock-btn"><strong><i class="ti ti-barbell" aria-hidden="true"></i></strong><span>筋トレ</span></div></a>
+    <a class="dock-link" href="meal.html" data-track-key="meal" data-track-label="食事" data-track-kind="launch"><div class="dock-btn"><strong><i class="ti ti-tools-kitchen-2" aria-hidden="true"></i></strong><span>食事</span></div></a>
+    <a class="dock-link" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch"><div class="dock-btn"><strong><i class="ti ti-heartbeat" aria-hidden="true"></i></strong><span>取込</span></div></a>
+    <a class="dock-link" href="day.html" data-track-key="meal-day" data-track-label="日次栄養" data-track-kind="view"><div class="dock-btn"><strong><i class="ti ti-leaf" aria-hidden="true"></i></strong><span>日次</span></div></a>
   </div>
 </div>
 
@@ -1323,6 +1324,45 @@ function renderCockpitScore() {
     if (dn) { dn.setAttribute('stroke-dashoffset', String(C * (1 - score/100))); dn.setAttribute('class', 'donut-fg ' + kind); }
     msg.textContent = message; msg.className = 'advice-bubble';
   }
+}
+
+// === 2026-05-27 (cowork) 体組成カードを最新値+トレンドで動的表示（body.htmlのlocalStorageを読む） ===
+function renderBodyStatus() {
+  const valueEl = document.getElementById('dailyBodyValue');
+  const copyEl = document.getElementById('dailyBodyCopy');
+  const statusEl = document.getElementById('dailyBodyStatus');
+  if (!valueEl || !copyEl) return;
+  const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  if (!recs.length) {
+    valueEl.textContent = '体組成';
+    copyEl.textContent = '体重・体脂肪率・調子';
+    if (statusEl) statusEl.textContent = '未入力';
+    return;
+  }
+  const latest = recs[0];
+  const todayDate = todayInfo().date;
+  const isToday = String(latest.date).slice(0, 10) === todayDate;
+  // 北極星KPI: 体脂肪率を主表示。なければ体重。
+  if (latest.fat) {
+    valueEl.textContent = `${Number(latest.fat).toFixed(1)}%`;
+  } else if (latest.weight) {
+    valueEl.textContent = `${Number(latest.weight).toFixed(1)}kg`;
+  } else {
+    valueEl.textContent = '体組成';
+  }
+  // サブ: 前回からの差分があれば表示
+  const prev = recs[1];
+  let sub = '';
+  if (latest.weight && prev && prev.weight) {
+    const d = Math.round((latest.weight - prev.weight) * 10) / 10;
+    if (d !== 0) sub = `体重 ${d > 0 ? '+' : ''}${d}kg`;
+  }
+  if (!sub && latest.weight) sub = `体重 ${Number(latest.weight).toFixed(1)}kg`;
+  copyEl.textContent = sub || '体重・体脂肪率';
+  if (statusEl) statusEl.textContent = isToday ? '今日' : (() => {
+    const days = Math.round((new Date(todayDate) - new Date(String(latest.date).slice(0,10))) / 86400000);
+    return days <= 0 ? '今日' : `${days}日前`;
+  })();
 }
 
 // === 2026-05-27 (cowork) 継続性の可視化: 食事記録の連続日数チップ ===
@@ -1481,6 +1521,7 @@ function renderDailyHub() {
   document.getElementById('dailyHubDate').textContent = today.label;
   updateStreakChip();
   renderCockpitScore();
+  renderBodyStatus();
   document.getElementById('dailyMealCard').href = `meal.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyNutritionCard').href = `day.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyMealValue').textContent = `${mealCount}/3`;
