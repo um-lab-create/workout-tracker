@@ -858,8 +858,8 @@ button:disabled {
   <section class="hero" id="home">
     <div class="hero-head">
       <div class="hero-copy">
-        <h1>今日の流れ</h1>
-        <p>記録・取込・確認</p>
+        <h1>おかえり</h1>
+        <p>今日もコツコツ整えていこう</p>
       </div>
       <div class="hero-badge">C</div>
     </div>
@@ -891,7 +891,7 @@ button:disabled {
     <div class="daily-grid">
       <a class="daily-card" id="dailyMealCard" href="meal.html" data-track-key="meal" data-track-label="今日の食事" data-track-kind="launch">
         <div class="daily-top">
-          <div class="daily-label">Meal</div>
+          <div class="daily-label">食事</div>
           <div class="daily-status" id="dailyMealStatus">未入力</div>
         </div>
         <div>
@@ -901,7 +901,7 @@ button:disabled {
       </a>
       <a class="daily-card" id="dailyNutritionCard" href="day.html" data-track-key="meal-day" data-track-label="今日の栄養" data-track-kind="view">
         <div class="daily-top">
-          <div class="daily-label">Nutrition</div>
+          <div class="daily-label">栄養</div>
           <div class="daily-status" id="dailyNutritionStatus">待機</div>
         </div>
         <div>
@@ -911,7 +911,7 @@ button:disabled {
       </a>
       <a class="daily-card" id="dailyWorkoutCard" href="workout.html" data-track-key="workout" data-track-label="今日の筋トレ" data-track-kind="launch">
         <div class="daily-top">
-          <div class="daily-label">Workout</div>
+          <div class="daily-label">筋トレ</div>
           <div class="daily-status" id="dailyWorkoutStatus">未記録</div>
         </div>
         <div>
@@ -921,7 +921,7 @@ button:disabled {
       </a>
       <a class="daily-card" id="dailyHealthCard" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch">
         <div class="daily-top">
-          <div class="daily-label">Health</div>
+          <div class="daily-label">ヘルスケア</div>
           <div class="daily-status" id="dailyHealthStatus">任意</div>
         </div>
         <div>
@@ -931,7 +931,7 @@ button:disabled {
       </a>
       <a class="daily-card" id="dailyBodyCard" href="body.html" data-track-key="body" data-track-label="体組成記録" data-track-kind="launch">
         <div class="daily-top">
-          <div class="daily-label">Body</div>
+          <div class="daily-label">体組成</div>
           <div class="daily-status" id="dailyBodyStatus">KPI</div>
         </div>
         <div>
@@ -1194,7 +1194,7 @@ function boot() {
 
 function renderToday() {
   const info = todayInfo();
-  document.getElementById('todayChip').textContent = `${info.date} (${info.day})`;
+  document.getElementById('todayChip').textContent = info.label;
 }
 
 function todayInfo() {
@@ -1223,7 +1223,7 @@ function renderInstallState() {
 function renderPinState() {
   const hasPin = Boolean(loadWritePin());
   document.getElementById('pinBtn').textContent = hasPin ? 'PIN更新' : 'PIN設定';
-  document.getElementById('pinChip').textContent = hasPin ? 'PIN 保存済み' : 'PIN 未設定';
+  document.getElementById('pinChip').textContent = hasPin ? 'PIN OK' : 'PIN なし';
 }
 
 function updateWritePin() {
