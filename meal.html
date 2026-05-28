@@ -3590,6 +3590,8 @@
       searchEl.value = '';
       searchEl.setAttribute('placeholder', '食材・商品名（ひらがな/カタカナどちらでも）');
       syncUnitOptions(current);
+      // 食品プレビュー（kcal/PFC/strengths）も初期は非表示にして"食べ物の押し売り"を解消
+      renderFoodPreview(null);
       renderSearchResults();
       // モーダル open 後にフォーカスが効くよう遅延
       setTimeout(() => { try { searchEl.focus(); } catch(e){} }, 80);
