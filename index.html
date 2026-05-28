@@ -840,6 +840,64 @@ button:disabled {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+/* 2026-05-27 (cowork) Cockpitの勝負面: 今日のスコア+ふきだし */
+.cockpit-score {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 20px 22px 18px;
+  margin: 0 0 14px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 14px;
+}
+.cockpit-score .score-top { display: flex; align-items: center; gap: 18px; }
+.cockpit-score .score-donut { position: relative; width: 124px; height: 124px; flex: 0 0 auto; }
+.cockpit-score .score-donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.cockpit-score .donut-bg { fill: none; stroke: var(--line); stroke-width: 12; }
+.cockpit-score .donut-fg { fill: none; stroke-width: 12; stroke-linecap: round; stroke: var(--dim);
+  transition: stroke-dashoffset .6s ease, stroke .3s ease; }
+.cockpit-score .donut-fg.good { stroke: var(--ok); }
+.cockpit-score .donut-fg.mid  { stroke: var(--warn); }
+.cockpit-score .donut-fg.low  { stroke: #e94e5b; }
+.cockpit-score .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; line-height: 1; }
+.cockpit-score .score-value { font-size: 40px; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cockpit-score .score-value.good { color: var(--ok); }
+.cockpit-score .score-value.mid  { color: var(--warn); }
+.cockpit-score .score-value.low  { color: #e94e5b; }
+.cockpit-score .score-value.idle { color: var(--dim); }
+.cockpit-score .score-suffix { font-size: 12px; color: var(--muted); margin-top: 3px; font-weight: 700; }
+.cockpit-score .score-meta { flex: 1; display: grid; gap: 4px; min-width: 0; }
+.cockpit-score .score-label { font-size: 12px; color: var(--muted); font-weight: 800; letter-spacing: .04em; }
+.cockpit-score .score-status { font-size: 22px; font-weight: 900; color: var(--ink); }
+.cockpit-score .score-status.good { color: var(--ok); }
+.cockpit-score .score-status.mid  { color: var(--warn); }
+.cockpit-score .score-status.low  { color: #e94e5b; }
+.cockpit-score .score-status.idle { color: var(--dim); }
+.cockpit-score .score-sub { font-size: 12px; color: var(--muted); font-weight: 600; }
+.cockpit-score .advice-bubble {
+  position: relative;
+  background: var(--bubble);
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cockpit-score .advice-bubble::before {
+  content: '';
+  position: absolute;
+  top: -7px; left: 24px;
+  width: 12px; height: 12px;
+  background: var(--bubble);
+  border-left: 1px solid rgba(0,0,0,.06);
+  border-top: 1px solid rgba(0,0,0,.06);
+  transform: rotate(45deg);
+}
+.cockpit-score .advice-bubble.idle { color: var(--muted); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -854,6 +912,27 @@ button:disabled {
       <div class="chip" id="pinChip">PIN 未設定</div>
     </div>
   </header>
+
+  <section class="cockpit-score" id="cockpitScore">
+    <div class="score-top">
+      <div class="score-donut" aria-label="今日のスコア">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="52" class="donut-bg"></circle>
+          <circle cx="60" cy="60" r="52" class="donut-fg" id="cpScoreDonut" stroke-dasharray="326.73" stroke-dashoffset="326.73"></circle>
+        </svg>
+        <div class="donut-center">
+          <span class="score-value idle" id="cpScoreVal">—</span>
+          <span class="score-suffix" id="cpScoreSuffix">／100</span>
+        </div>
+      </div>
+      <div class="score-meta">
+        <div class="score-label">今日のスコア</div>
+        <div class="score-status idle" id="cpScoreStatus">未入力</div>
+        <div class="score-sub" id="cpScoreSub">記録するとスコアが出ます</div>
+      </div>
+    </div>
+    <div class="advice-bubble idle" id="cpScoreMsg">最初の1食を入れて、今日を始めよう。</div>
+  </section>
 
   <section class="hero" id="home">
     <div class="hero-head">
@@ -1128,8 +1207,10 @@ button:disabled {
 
 <div class="toast" id="toast"></div>
 
+<script src="nutrition-db.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/api-client.js"></script>
+<script src="js/nutrition-calc.js"></script>
 <script>
 'use strict';
 
@@ -1145,6 +1226,104 @@ const MEAL_DRAFT_STORE = 'meal_draft_v4';
 const WORKOUT_HISTORY_STORE = 'wt:history:v2';
 const WORKOUT_QUEUE_STORE = 'wt:queue:v2';
 const BASE_PRODUCT_COUNT = 6;
+
+// === 2026-05-27 (cowork) Cockpit に「今日のスコア」を表示（ベンチマーク超え v1） ===
+// meal_recs_v3 から今日の食事を取り、HSNutritionDB で栄養を集計、nutrition_targets_v1 で目標と比較してスコア算出。
+function renderCockpitScore() {
+  const todayDate = todayInfo().date;
+  const recs = lsGet(MEAL_RECORD_STORE, []) || [];
+  const todays = recs.filter(r => r && r.date === todayDate);
+  const db = window.HSNutritionDB;
+  const nutrients = {};
+  if (db && db.KEYS) db.KEYS.forEach(k => nutrients[k] = 0);
+  let meals = 0;
+  todays.forEach(rec => {
+    if (!rec.items || !rec.items.length) return;
+    meals++;
+    rec.items.forEach(item => {
+      if (!db) return;
+      const food = db.getFood(item.foodId);
+      if (!food) return;
+      const portion = db.calcPortion(food, item.qty, item.unit);
+      if (!portion) return;
+      Object.keys(portion.totals).forEach(k => {
+        nutrients[k] = (nutrients[k] || 0) + (portion.totals[k] || 0);
+      });
+    });
+  });
+  const targets = lsGet('nutrition_targets_v1', null) || { energy: 2200, protein: 110, fat: 60, carb: 300 };
+
+  let score = null, kind = 'idle', message = '最初の1食を入れて、今日を始めよう。', statusLabel = '未入力';
+  if (meals > 0) {
+    score = 100;
+    const E = nutrients.energy || 0;
+    const eDev = Math.abs(E / (targets.energy || 1) - 1);
+    if (eDev > 0.10) score -= Math.min(30, Math.round((eDev - 0.10) * 100));
+    ['protein','fat','carb'].forEach(k => {
+      const r = (nutrients[k]||0) / (targets[k]||1);
+      if (r < 0.8 || r > 1.2) score -= 5;
+    });
+    const META = (db && db.META) || {};
+    const important = ['Ca','Fe','Mg','K','Zn','vitD','vitC','vitA','vitE','vitB1','vitB2','vitB6','vitB12','folate','fiber','n3','protein'];
+    const excess = ['salt','saturatedFat'];
+    let lacks = 0, excs = 0;
+    important.forEach(k => {
+      const v = nutrients[k]||0; const t = (META[k]||{}).target||0;
+      if (t && v < t*0.6) lacks++;
+    });
+    excess.forEach(k => {
+      const v = nutrients[k]||0; const t = (META[k]||{}).target||0;
+      if (t && v > t*1.2) excs++;
+    });
+    score -= Math.min(20, lacks*3);
+    score -= Math.min(10, excs*3);
+    score = Math.max(0, Math.min(100, Math.round(score)));
+    kind = score >= 80 ? 'good' : score >= 60 ? 'mid' : 'low';
+    statusLabel = kind === 'good' ? '順調' : kind === 'mid' ? 'あと一歩' : '改善余地あり';
+
+    const parts = [];
+    const eRatio = E / (targets.energy || 1);
+    if (eRatio < 0.85) parts.push(`あと約${Math.max(0, Math.round(targets.energy - E))}kcal`);
+    else if (eRatio > 1.15) parts.push(`目標を${Math.round(E - targets.energy)}kcal 超過`);
+    const watch = ['protein','Fe','Ca','Mg','vitC','vitA','vitB12','fiber','n3','Zn','vitD'];
+    let worst = { key:null, pct:999, meta:null };
+    watch.forEach(k => {
+      const v = nutrients[k]||0; const m = META[k]||{}; const t = m.target||0;
+      if (t) {
+        const pct = (v/t)*100;
+        if (pct < worst.pct) worst = { key:k, pct, meta:m };
+      }
+    });
+    if (worst.key && worst.pct < 80) parts.push(`${worst.meta.label}が${Math.round(worst.pct)}%`);
+    else if (excs > 0) parts.push('塩分または飽和脂肪酸が多め');
+    else if (parts.length === 0) parts.push('バランス良好');
+    message = parts.join('。') + '。';
+  }
+
+  const el  = document.getElementById('cpScoreVal');
+  const sf  = document.getElementById('cpScoreSuffix');
+  const st  = document.getElementById('cpScoreStatus');
+  const sub = document.getElementById('cpScoreSub');
+  const msg = document.getElementById('cpScoreMsg');
+  const dn  = document.getElementById('cpScoreDonut');
+  const C   = 326.73;
+  if (!el || !msg) return;
+  if (score === null) {
+    el.textContent = '—'; el.className = 'score-value idle';
+    if (sf) sf.style.visibility = 'hidden';
+    if (st) { st.textContent = '未入力'; st.className = 'score-status idle'; }
+    if (sub) sub.textContent = '記録するとスコアが出ます';
+    if (dn) { dn.setAttribute('stroke-dashoffset', String(C)); dn.setAttribute('class', 'donut-fg'); }
+    msg.textContent = message; msg.className = 'advice-bubble idle';
+  } else {
+    el.textContent = String(score); el.className = 'score-value ' + kind;
+    if (sf) sf.style.visibility = 'visible';
+    if (st) { st.textContent = statusLabel; st.className = 'score-status ' + kind; }
+    if (sub) sub.textContent = `${meals}食記録 / ${Math.round(nutrients.energy||0)}kcal`;
+    if (dn) { dn.setAttribute('stroke-dashoffset', String(C * (1 - score/100))); dn.setAttribute('class', 'donut-fg ' + kind); }
+    msg.textContent = message; msg.className = 'advice-bubble';
+  }
+}
 
 // === 2026-05-27 (cowork) 継続性の可視化: 食事記録の連続日数チップ ===
 function updateStreakChip() {
@@ -1301,6 +1480,7 @@ function renderDailyHub() {
 
   document.getElementById('dailyHubDate').textContent = today.label;
   updateStreakChip();
+  renderCockpitScore();
   document.getElementById('dailyMealCard').href = `meal.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyNutritionCard').href = `day.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyMealValue').textContent = `${mealCount}/3`;
