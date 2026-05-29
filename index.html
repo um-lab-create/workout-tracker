@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1239,20 +1239,36 @@ function renderCockpitScore() {
   const nutrients = {};
   if (db && db.KEYS) db.KEYS.forEach(k => nutrients[k] = 0);
   let meals = 0;
+  let totalE = 0, microsE = 0; // 微量栄養素カバレッジ算出用
   todays.forEach(rec => {
-    if (!rec.items || !rec.items.length) return;
+    // items(foodId/qty/unit) または structuredItems(nutrients済) を許容。どちらも無ければ kcal のみ集計。
+    const items = (rec.items && rec.items.length) ? rec.items
+                : (rec.structuredItems && rec.structuredItems.length) ? rec.structuredItems
+                : null;
+    if (!items) {
+      if (Number(rec.kcal) > 0) { meals++; nutrients.energy = (nutrients.energy || 0) + Number(rec.kcal); totalE += Number(rec.kcal); }
+      return;
+    }
     meals++;
-    rec.items.forEach(item => {
+    items.forEach(item => {
       if (!db) return;
       const food = db.getFood(item.foodId);
-      if (!food) return;
-      const portion = db.calcPortion(food, item.qty, item.unit);
-      if (!portion) return;
-      Object.keys(portion.totals).forEach(k => {
-        nutrients[k] = (nutrients[k] || 0) + (portion.totals[k] || 0);
+      let totals = item.nutrients || null; // structuredItems は解決済み栄養を持つ
+      if (!totals) {
+        if (!food) return;
+        const portion = db.calcPortion(food, item.qty, item.unit);
+        if (!portion) return;
+        totals = portion.totals;
+      }
+      Object.keys(totals).forEach(k => {
+        nutrients[k] = (nutrients[k] || 0) + (totals[k] || 0);
       });
+      const e = Number(totals.energy) || 0;
+      totalE += e;
+      if (foodHasMicros(food)) microsE += e;
     });
   });
+  const microsCoverage = totalE > 0 ? microsE / totalE : 1;
   const baseTargets = lsGet('nutrition_targets_v1', null) || { energy: 2200, protein: 110, fat: 60, carb: 300 };
   // 2026-05-29 (cowork) 今日の種別(筋トレ日/休養日)で目標を補正
   const targets = (typeof applyCarbCycle === 'function') ? applyCarbCycle(baseTargets, todayDate, loadCarbCycle()) : baseTargets;
@@ -1260,48 +1276,34 @@ function renderCockpitScore() {
 
   let score = null, kind = 'idle', message = '最初の1食を入れて、今日を始めよう。', statusLabel = '未入力';
   if (meals > 0) {
-    score = 100;
-    const E = nutrients.energy || 0;
-    const eDev = Math.abs(E / (targets.energy || 1) - 1);
-    if (eDev > 0.10) score -= Math.min(30, Math.round((eDev - 0.10) * 100));
-    ['protein','fat','carb'].forEach(k => {
-      const r = (nutrients[k]||0) / (targets[k]||1);
-      if (r < 0.8 || r > 1.2) score -= 5;
-    });
     const META = (db && db.META) || {};
-    const important = ['Ca','Fe','Mg','K','Zn','vitD','vitC','vitA','vitE','vitB1','vitB2','vitB6','vitB12','folate','fiber','n3','protein'];
-    const excess = ['salt','saturatedFat'];
-    let lacks = 0, excs = 0;
-    important.forEach(k => {
-      const v = nutrients[k]||0; const t = (META[k]||{}).target||0;
-      if (t && v < t*0.6) lacks++;
-    });
-    excess.forEach(k => {
-      const v = nutrients[k]||0; const t = (META[k]||{}).target||0;
-      if (t && v > t*1.2) excs++;
-    });
-    score -= Math.min(20, lacks*3);
-    score -= Math.min(10, excs*3);
-    score = Math.max(0, Math.min(100, Math.round(score)));
-    kind = score >= 80 ? 'good' : score >= 60 ? 'mid' : 'low';
+    // 共有スコア式(nutrition-calc.js)。微量栄養素は microsCoverage でゲート。
+    const r = computeDailyScore(nutrients, targets, { META, microsCoverage });
+    score = r.score; kind = r.kind;
     statusLabel = kind === 'good' ? '順調' : kind === 'mid' ? 'あと一歩' : '改善余地あり';
 
+    const E = nutrients.energy || 0;
     const parts = [];
     const eRatio = E / (targets.energy || 1);
     if (eRatio < 0.85) parts.push(`あと約${Math.max(0, Math.round(targets.energy - E))}kcal`);
     else if (eRatio > 1.15) parts.push(`目標を${Math.round(E - targets.energy)}kcal 超過`);
-    const watch = ['protein','Fe','Ca','Mg','vitC','vitA','vitB12','fiber','n3','Zn','vitD'];
-    let worst = { key:null, pct:999, meta:null };
-    watch.forEach(k => {
-      const v = nutrients[k]||0; const m = META[k]||{}; const t = m.target||0;
-      if (t) {
-        const pct = (v/t)*100;
-        if (pct < worst.pct) worst = { key:k, pct, meta:m };
-      }
-    });
-    if (worst.key && worst.pct < 80) parts.push(`${worst.meta.label}が${Math.round(worst.pct)}%`);
-    else if (excs > 0) parts.push('塩分または飽和脂肪酸が多め');
-    else if (parts.length === 0) parts.push('バランス良好');
+    if (r.microsReliable) {
+      const watch = ['protein','Fe','Ca','Mg','vitC','vitA','vitB12','fiber','n3','Zn','vitD'];
+      let worst = { key:null, pct:999, meta:null };
+      watch.forEach(k => {
+        const v = nutrients[k]||0; const m = META[k]||{}; const t = m.target||0;
+        if (t) {
+          const pct = (v/t)*100;
+          if (pct < worst.pct) worst = { key:k, pct, meta:m };
+        }
+      });
+      if (worst.key && worst.pct < 80) parts.push(`${worst.meta.label}が${Math.round(worst.pct)}%`);
+      else if (r.excs > 0) parts.push('塩分または飽和脂肪酸が多め');
+      else if (parts.length === 0) parts.push('バランス良好');
+    } else {
+      if (parts.length === 0) parts.push('PFCは概ね適正');
+      parts.push('外食・簡易記録が多く微量栄養素は判定対象外');
+    }
     message = parts.join('。') + '。';
   }
 
@@ -1338,7 +1340,7 @@ function renderDayTypeChip(dateStr) {
   if (!cfg.enabled) { chip.style.display = 'none'; return; }
   chip.style.display = '';
   const training = isTrainingDay(dateStr, cfg);
-  chip.textContent = training ? `筋トレ日 (C+${cfg.carbDelta}g)` : `休養日 (C−${cfg.carbDelta}g)`;
+  chip.textContent = training ? `筋トレ日 (C+${cfg.carbDelta}g)` : '休養日 (ベース)';
   chip.style.background = training ? 'var(--accent,#ff8a2a)' : '';
   chip.style.color = training ? '#fff' : '';
 }

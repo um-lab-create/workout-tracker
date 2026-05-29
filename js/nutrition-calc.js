@@ -148,14 +148,84 @@ function suggestFoods(deficits, topN = 3) {
 }
 
 // ----------------------------------------------------------------
+// 公開: 今日のスコア（Cockpit と day.html で共有）2026-05-29 (cowork)
+// ----------------------------------------------------------------
+// 以前は index.html と day.html に同一の100点式が二重実装されていた（仕様変更時に
+// 両方直す必要があった）ため共通化。micros(微量栄養素)を持たない食品=外食/簡易記録が
+// 多い日は不足判定を誤るので、microsCoverage(微量栄養素を持つ食品由来エネルギー比)で
+// 微量栄養素の減点をゲートする。
+
+var _MACRO_KEYS = { energy: 1, protein: 1, fat: 1, carb: 1, salt: 1, Na: 1 };
+
+// nutrition-db の food エントリが微量栄養素を1つでも持つか
+function foodHasMicros(food) {
+  if (!food) return false;
+  var src = food.per100g || food.perUnit || null;
+  if (!src) return false;
+  for (var k in src) {
+    if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
+    if (_MACRO_KEYS[k]) continue;
+    if (Number(src[k]) > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * 今日のスコア(100点)。energy逸脱・PFC逸脱・微量栄養素の不足/過剰から減点。
+ * @param {object} nutrients 摂取栄養素合計
+ * @param {object} targets   実効目標(energy/protein/fat/carb)
+ * @param {object} [opts] { META, microsCoverage(0-1), microsThreshold=0.6 }
+ * @returns {{score:number, kind:'good'|'mid'|'low', lacks:number, excs:number, microsReliable:boolean, microsCoverage:number}}
+ */
+function computeDailyScore(nutrients, targets, opts) {
+  opts = opts || {};
+  nutrients = nutrients || {};
+  targets = targets || {};
+  var META = opts.META || {};
+  var cov = (opts.microsCoverage == null) ? 1 : opts.microsCoverage;
+  var reliable = cov >= (opts.microsThreshold || 0.6);
+
+  var score = 100;
+  var E = nutrients.energy || 0;
+  var tE = targets.energy || 1;
+  var eDev = Math.abs(E / tE - 1);
+  if (eDev > 0.10) score -= Math.min(30, Math.round((eDev - 0.10) * 100));
+
+  ['protein', 'fat', 'carb'].forEach(function (k) {
+    var r = (nutrients[k] || 0) / (targets[k] || 1);
+    if (r < 0.8 || r > 1.2) score -= 5;
+  });
+
+  var important = ['Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'fiber', 'n3', 'protein'];
+  var excess = ['salt', 'saturatedFat'];
+  var lacks = 0, excs = 0;
+  if (reliable) {
+    important.forEach(function (k) {
+      var v = nutrients[k] || 0, t = (META[k] || {}).target || 0;
+      if (t && v < t * 0.60) lacks++;
+    });
+    excess.forEach(function (k) {
+      var v = nutrients[k] || 0, t = (META[k] || {}).target || 0;
+      if (t && v > t * 1.20) excs++;
+    });
+    score -= Math.min(20, lacks * 3);
+    score -= Math.min(10, excs * 3);
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  var kind = score >= 80 ? 'good' : score >= 60 ? 'mid' : 'low';
+  return { score: score, kind: kind, lacks: lacks, excs: excs, microsReliable: reliable, microsCoverage: cov };
+}
+
+// ----------------------------------------------------------------
 // 公開: カーボサイクル（筋トレ日／休養日で目標を出し分け） 2026-05-29 (cowork)
 // ----------------------------------------------------------------
-// 設計:
-//   - ベース目標(nutrition_targets_v1)＝週平均(維持)とみなす。
+// 設計（2026-05-29 改訂: ベース据え置きモデル）:
+//   - ベース目標(nutrition_targets_v1)＝普段(休養日)の目標とみなす。
+//   - 休養日(既定OFF):        ベース目標そのまま（補正なし）。
 //   - 筋トレ日(手動トグルON): 炭水化物 +carbDelta g / +carbDelta*4 kcal、P/F固定。
-//   - 休養日(既定OFF):        炭水化物 -carbDelta g / -carbDelta*4 kcal、P/F固定。
-//   - carbDelta 既定 50g（≈±200kcal）。リコンポ向け: トレ日~4-5g/kg・休養日~2.5-3g/kg の
-//     一般的レンジ(67kgで概ね 100g 差)に対応。UI で調整可。
+//   - carbDelta 既定 50g（≈+200kcal）。リコンポ向け: トレ日にグリコーゲン補充で
+//     C を上乗せ(67kgで概ね +0.7g/kg)。UI で調整可。
 //   - 判定対象日は trainingDates[YYYY-MM-DD]=true の有無のみで決まる(自動判定なし)。
 //   - サーバ同期(設定シート)はベース目標のみ更新。本レイヤーは別 store なので上書きされない。
 
@@ -222,9 +292,10 @@ function applyCarbCycle(baseTargets, dateStr, cfg) {
   if (!cfg.enabled) { out.dayType = 'rest'; out.carbDelta = 0; out.base = baseTargets; return out; }
   var d = Number(cfg.carbDelta) || 0;
   var training = isTrainingDay(dateStr, cfg);
-  var sign = training ? 1 : -1;
-  out.carb = Math.max(0, Math.round((Number(baseTargets.carb) || 0) + sign * d));
-  out.energy = Math.max(0, Math.round((Number(baseTargets.energy) || 0) + sign * d * 4));
+  // ベース据え置きモデル: 休養日はベースそのまま、筋トレ日のみ +d
+  var add = training ? d : 0;
+  out.carb = Math.max(0, Math.round((Number(baseTargets.carb) || 0) + add));
+  out.energy = Math.max(0, Math.round((Number(baseTargets.energy) || 0) + add * 4));
   out.dayType = training ? 'training' : 'rest';
   out.carbDelta = d;
   out.base = baseTargets;

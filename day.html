@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1949,6 +1949,8 @@
       });
       let knownItems = 0;
       let totalItems = 0;
+      let microsEnergy = 0; // 微量栄養素を持つ食品由来エネルギー
+      let coverageEnergy = 0; // 集計対象エネルギー合計
 
       Object.entries(timingState).forEach(([timingKey, entry]) => {
         if (!entry) return;
@@ -1989,6 +1991,11 @@
             contributions[key][foodName] = (contributions[key][foodName] || 0) + (portion.nutrients[key] || 0);
           });
           foodTotals[foodName].kcal += portion.nutrients.energy || 0;
+          // 微量栄養素カバレッジ: この食品が micros を持つか
+          const e = portion.nutrients.energy || 0;
+          coverageEnergy += e;
+          const foodEntry = NUTRITION_DB ? NUTRITION_DB.getFood(portion.foodId) : null;
+          if (foodHasMicros(foodEntry)) microsEnergy += e;
         });
       });
 
@@ -1998,7 +2005,8 @@
         nutrients,
         contributions,
         foodTotals,
-        coverage: totalItems ? Math.round((knownItems / totalItems) * 100) : 0
+        coverage: totalItems ? Math.round((knownItems / totalItems) * 100) : 0,
+        microsCoverage: coverageEnergy > 0 ? microsEnergy / coverageEnergy : 1
       };
     }
 
@@ -2072,41 +2080,16 @@
         return { score: null, kind: 'idle', message: 'まだ記録がありません。最初の1食を入れて今日を始めよう。', lacks: 0, excs: 0 };
       }
       const T = activeTargets || targetSettings || {};
-      let score = 100;
-      const energy = state.nutrients.energy || 0;
-      const targetE = (T.energy || 2200);
-      const eDev = Math.abs(energy / targetE - 1);
-      if (eDev > 0.10) score -= Math.min(30, Math.round((eDev - 0.10) * 100));
-      ['protein','fat','carb'].forEach(k => {
-        const v = state.nutrients[k] || 0;
-        const t = (T[k] || 1);
-        const r = v / t;
-        if (r < 0.8 || r > 1.2) score -= 5;
-      });
-      const important = ['Ca','Fe','Mg','K','Zn','vitD','vitC','vitA','vitE','vitB1','vitB2','vitB6','vitB12','folate','fiber','n3','protein'];
-      const excess = ['salt','saturatedFat'];
-      let lacks = 0, excs = 0;
-      important.forEach(k => {
-        const v = state.nutrients[k] || 0;
-        const m = NUTRIENT_META[k] || {};
-        const t = m.target || 0;
-        if (t && v < t * 0.60) lacks++;
-      });
-      excess.forEach(k => {
-        const v = state.nutrients[k] || 0;
-        const m = NUTRIENT_META[k] || {};
-        const t = m.target || 0;
-        if (t && v > t * 1.20) excs++;
-      });
-      score -= Math.min(20, lacks * 3);
-      score -= Math.min(10, excs * 3);
-      score = Math.max(0, Math.min(100, Math.round(score)));
-      const kind = score >= 80 ? 'good' : score >= 60 ? 'mid' : 'low';
-      return { score, kind, lacks, excs, message: buildOneLineMessage(state, lacks, excs) };
+      // 共有スコア式(nutrition-calc.js)。Cockpit と同一ロジック。micros は state.microsCoverage でゲート。
+      const r = computeDailyScore(state.nutrients, T, { META: NUTRIENT_META, microsCoverage: state.microsCoverage });
+      return {
+        score: r.score, kind: r.kind, lacks: r.lacks, excs: r.excs, microsReliable: r.microsReliable,
+        message: buildOneLineMessage(state, r.lacks, r.excs, r.microsReliable)
+      };
     }
 
     // 自然言語のひとこと: kcal逸脱・最大不足ミクロ・過剰の有無 から1〜2文を生成
-    function buildOneLineMessage(state, lacks, excs) {
+    function buildOneLineMessage(state, lacks, excs, microsReliable) {
       const T = activeTargets || targetSettings || {};
       const parts = [];
       const energy = state.nutrients.energy || 0;
@@ -2116,6 +2099,12 @@
         parts.push(`あと約${Math.max(0, Math.round(targetE - energy))}kcal`);
       } else if (eRatio > 1.15) {
         parts.push(`目標を${Math.round(energy - targetE)}kcal 超過`);
+      }
+      // 微量栄養素データを持つ食品が少ない日(外食・簡易記録中心)は、不足判定が当てにならないので助言を抑制
+      if (microsReliable === false) {
+        if (parts.length === 0) parts.push('PFCは概ね適正');
+        parts.push('外食・簡易記録が多く微量栄養素は判定対象外');
+        return parts.join('。') + '。';
       }
       // 最も不足しているミクロ栄養素を1つ取り上げ、補う食材を併記
       const watch = ['protein','Fe','Ca','Mg','vitC','vitA','vitB12','fiber','n3','Zn','vitD'];
@@ -2404,10 +2393,8 @@
         } else {
           const d = Number(carbCycle.carbDelta) || 0;
           const trainC = (Number(targetSettings.carb) || 0) + d;
-          const restC = Math.max(0, (Number(targetSettings.carb) || 0) - d);
           const trainE = (Number(targetSettings.energy) || 0) + d * 4;
-          const restE = Math.max(0, (Number(targetSettings.energy) || 0) - d * 4);
-          summary.textContent = `${fmtDate(selectedDate)} は【${training ? '筋トレ日' : '休養日'}】→ 実効 C${activeTargets.carb}g / ${activeTargets.energy}kcal（P${activeTargets.protein}・F${activeTargets.fat}は固定）。筋トレ日 C${trainC}/${trainE}kcal・休養日 C${restC}/${restE}kcal（ベースC${targetSettings.carb}/${targetSettings.energy}kcal ±${d}g）`;
+          summary.textContent = `${fmtDate(selectedDate)} は【${training ? '筋トレ日' : '休養日'}】→ 実効 C${activeTargets.carb}g / ${activeTargets.energy}kcal（P${activeTargets.protein}・F${activeTargets.fat}は固定）。休養日＝ベース C${targetSettings.carb}/${targetSettings.energy}kcal そのまま、筋トレ日＝C${trainC}/${trainE}kcal（+${d}g）`;
         }
       }
     }

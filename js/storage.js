@@ -9,13 +9,14 @@
 // ----------------------------------------------------------------
 const LS_KEYS = {
   // meal.html 関連
-  MEAL_RECORDS:     'meal_recs_v3',          // 食事記録（ローカル）
-  MEAL_PRESET:      'meal-preset-v3',         // タイミング別プリセット
-  MEAL_CUSTOM_FOODS:'meal-custom-foods',      // 独自食材
-  MEAL_PRODUCTS:    'meal-products',          // 商品 DB
-  MEAL_RECIPES:     'meal-recipes',           // 自作メニュー
-  MEAL_DRAFT:       'meal-draft-v4',          // 下書き（date:timing→items）
-  MEAL_HABITS:      'meal-habits-v1',         // 習慣判定キャッシュ
+  // [2026-05-29 fix] 実際に各ページで使用中のキーへ修正（旧ハイフン値は未参照の地雷。LS_KEYS統一時のデータ消失を防止）
+  MEAL_RECORDS:     'meal_recs_v3',           // 食事記録（ローカル）
+  MEAL_PRESET:      'meal_presets_v3',        // タイミング別プリセット
+  MEAL_CUSTOM_FOODS:'meal_custom_foods_v1',   // 独自食材
+  MEAL_PRODUCTS:    'meal_products_v1',        // 商品 DB
+  MEAL_RECIPES:     'meal_recipes_v1',         // 自作メニュー
+  MEAL_DRAFT:       'meal_draft_v4',           // 下書き（date:timing→items）
+  MEAL_HABITS:      'meal_habits_v1',          // 習慣判定キャッシュ
 
   // day.html 関連
   DAY_SERVER_RECORDS: 'meal_server_records_v1',  // サーバーから同期した明細
@@ -90,3 +91,15 @@ function storageGet(key, fallback) { return lsGet(key, fallback); }
 
 /** @deprecated lsSet を使ってください */
 function storageSet(key, value) { lsSet(key, value); }
+
+// ----------------------------------------------------------------
+// Service Worker 登録（全ページ共通・2026-05-29 cowork）
+// オフライン/電波弱でもアプリシェル+CDNが動くように。相対パスでGitHub Pagesのサブパスにも対応。
+// ----------------------------------------------------------------
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function (err) {
+      console.warn('[sw] 登録失敗:', err);
+    });
+  });
+}
