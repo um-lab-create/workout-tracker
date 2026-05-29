@@ -905,6 +905,14 @@
       padding: 0;
       font-size: 18px;
       font-weight: 900;
+      /* 2026-05-29 (cowork) 上下ドラッグで数量調整: 縦ジェスチャをJSが受け取りページスクロールと競合しない */
+      touch-action: none;
+      cursor: ns-resize;
+    }
+    .qty-input.dragging {
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-radius: 8px;
     }
 
     .helper-text {
@@ -2162,6 +2170,7 @@
             <select class="select-input" id="unitSelect"></select>
             <button class="accent-btn" type="button" onclick="addCurrentFood()">追加</button>
           </div>
+          <div class="helper-text">数量は上下にドラッグでも調整できます（タップで手入力）</div>
           <div class="food-preview" id="foodPreview"></div>
         </div>
 
@@ -5320,6 +5329,48 @@
       updateUnitHint();
     }
 
+    // === 2026-05-29 (cowork) 数量を上下ドラッグで増減するスピナー（スマホで上下スクロール感覚） ===
+    // タップ＝従来通りフォーカスして手入力。指を上下にドラッグ＝step刻みで増減。
+    function attachDragSpinner(input, onChange) {
+      if (!input || input.dataset.dragSpinner === '1') return;
+      input.dataset.dragSpinner = '1';
+      const PX_PER_STEP = 9; // 約9px のドラッグで step 1 つ分
+      let dragging = false, moved = false, startY = 0, startVal = 0;
+
+      input.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        dragging = true; moved = false;
+        startY = e.clientY;
+        startVal = Number(input.value) || 0;
+        try { input.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+
+      input.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const dy = startY - e.clientY; // 上方向で増加
+        if (!moved && Math.abs(dy) < 4) return; // 微動はタップ扱い（手入力フォーカスを残す）
+        if (!moved) { moved = true; input.classList.add('dragging'); }
+        e.preventDefault();
+        const step = Math.max(Number(input.step) || 1, 0.1);
+        const min = Number(input.min) || 0;
+        let v = startVal + Math.round(dy / PX_PER_STEP) * step;
+        if (v < min) v = min;
+        v = Math.round(v / step) * step; // step グリッドに丸め浮動小数誤差を除去
+        input.value = formatQty(v);
+        if (typeof onChange === 'function') onChange();
+      });
+
+      const end = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        input.classList.remove('dragging');
+        try { input.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (moved) input.blur(); // ドラッグ後はキーボードを出さない
+      };
+      input.addEventListener('pointerup', end);
+      input.addEventListener('pointercancel', end);
+    }
+
     function buildMealDetailRows(record) {
       return currentMeal.map(item => ({
         date: record.date,
@@ -5516,8 +5567,10 @@
       });
 
       document.getElementById('presetEditorQtyInput').addEventListener('input', updatePresetEditorUnitHint);
+      attachDragSpinner(document.getElementById('presetEditorQtyInput'), updatePresetEditorUnitHint);
 
       document.getElementById('qtyInput').addEventListener('input', updateUnitHint);
+      attachDragSpinner(document.getElementById('qtyInput'), updateUnitHint);
       document.getElementById('mealNote').addEventListener('input', persistCurrentTimingDraft);
       document.getElementById('barcodeImageInput').addEventListener('change', event => {
         handleBarcodeImage(event.target.files && event.target.files[0]);
