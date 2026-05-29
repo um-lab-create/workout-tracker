@@ -2577,13 +2577,14 @@
       { id: 'abura-age', name: '油揚げ', category: '共通', mode: 'per100g', macros: {kcal:377, p:23.4, f:34.4, c:0.4}, units: [{label:'枚', grams:30, step:1, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:30}] },
       { id: 'edamame-boiled', name: 'ゆで枝豆', category: '共通', mode: 'per100g', macros: {kcal:134, p:11.5, f:6.1, c:8.9}, units: [{label:'皿', grams:80, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:80}] },
       { id: 'daizu-mushi', name: '蒸し大豆', category: '共通', mode: 'per100g', macros: {kcal:217, p:16.6, f:9.8, c:9.9}, units: [{label:'パック', grams:100, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:100}] },
-      { id: 'prod-lunch-pack-egg', name: 'ランチパック たまご', category: '朝', mode: 'perUnit', unitLabel: '袋(2個)', macrosPerUnit: {kcal:296, p:8.6, f:12.4, c:38.6}, defaultQty: 1, step: 1 },
-      { id: 'prod-lunch-pack-peanut', name: 'ランチパック ピーナッツ', category: '朝', mode: 'perUnit', unitLabel: '袋(2個)', macrosPerUnit: {kcal:314, p:7.4, f:13.3, c:41.3}, defaultQty: 1, step: 1 },
-      { id: 'prod-lunch-pack-tuna', name: 'ランチパック ツナマヨ', category: '朝', mode: 'perUnit', unitLabel: '袋(2個)', macrosPerUnit: {kcal:304, p:10.0, f:14.8, c:33.2}, defaultQty: 1, step: 1 },
+      // 2026-05-28 (cowork) ランチパック類: 商品扱い+共通カテゴリへ。朝以外でも検索候補に出るよう修正
+      { id: 'prod-lunch-pack-egg', name: 'ランチパック たまご', brand: 'ヤマザキ', entryType: 'product', category: '共通', mode: 'perUnit', unitLabel: '袋(2個)', macrosPerUnit: {kcal:296, p:8.6, f:12.4, c:38.6}, defaultQty: 1, step: 1, keywords: ['ランチパック', 'lunch pack', 'たまご', '卵', 'パン', 'コンビニ'] },
+      { id: 'prod-lunch-pack-peanut', name: 'ランチパック ピーナッツ', brand: 'ヤマザキ', entryType: 'product', category: '共通', mode: 'perUnit', unitLabel: '袋(2個)', macrosPerUnit: {kcal:314, p:7.4, f:13.3, c:41.3}, defaultQty: 1, step: 1, keywords: ['ランチパック', 'lunch pack', 'ピーナッツ', 'パン'] },
+      { id: 'prod-lunch-pack-tuna', name: 'ランチパック ツナマヨ', brand: 'ヤマザキ', entryType: 'product', category: '共通', mode: 'perUnit', unitLabel: '袋(2個)', macrosPerUnit: {kcal:304, p:10.0, f:14.8, c:33.2}, defaultQty: 1, step: 1, keywords: ['ランチパック', 'lunch pack', 'ツナ', 'ツナマヨ', 'パン'] },
       // === パン拡充 2026-05-27 (cowork) ===
       { id: 'fluffy-bread-6', name: 'ふんわり食パン6枚切', category: '朝', mode: 'per100g', macros: {kcal:260, p:9.5, f:3.2, c:48.5}, units: [{label:'枚', grams:60, step:1, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:60}] },
-      { id: 'yamazaki-choco-stick', name: '山崎 チョコスティックパン', category: '朝', mode: 'perUnit', unitLabel: '本', macrosPerUnit: {kcal:174, p:3.0, f:8.5, c:22.0}, defaultQty: 1, step: 1 },
-      { id: 'yamazaki-raisin-margarine-roll', name: '山崎 レーズンマーガリンロール', category: '朝', mode: 'perUnit', unitLabel: '個', macrosPerUnit: {kcal:170, p:4.0, f:5.0, c:28.0}, defaultQty: 1, step: 1 },
+      { id: 'yamazaki-choco-stick', name: '山崎 チョコスティックパン', brand: 'ヤマザキ', entryType: 'product', category: '共通', mode: 'perUnit', unitLabel: '本', macrosPerUnit: {kcal:174, p:3.0, f:8.5, c:22.0}, defaultQty: 1, step: 1, keywords: ['チョコスティック', 'チョコ', 'パン', '菓子パン'] },
+      { id: 'yamazaki-raisin-margarine-roll', name: '山崎 レーズンマーガリンロール', brand: 'ヤマザキ', entryType: 'product', category: '共通', mode: 'perUnit', unitLabel: '個', macrosPerUnit: {kcal:170, p:4.0, f:5.0, c:28.0}, defaultQty: 1, step: 1, keywords: ['レーズン', 'マーガリン', 'ロール', '菓子パン'] },
       { id: 'cheese-bread', name: 'チーズパン', category: '朝', mode: 'perUnit', unitLabel: '個', macrosPerUnit: {kcal:215, p:8.5, f:9.0, c:25.0}, defaultQty: 1, step: 1 },
       { id: 'pizza-pan', name: 'ピザパン', category: '共通', mode: 'perUnit', unitLabel: '個', macrosPerUnit: {kcal:270, p:11.0, f:9.0, c:35.0}, defaultQty: 1, step: 1 },
       { id: 'ham-roll-pan', name: 'ハムロールパン', category: '朝', mode: 'perUnit', unitLabel: '個', macrosPerUnit: {kcal:220, p:7.0, f:9.5, c:26.0}, defaultQty: 1, step: 1 },
@@ -3032,18 +3033,48 @@
         null;
     }
 
+    // 2026-05-28 (cowork) 検索はタイミング横断（全食材を対象）。現在タイミングのものを上位に並べるだけにする
+    // → ランチパック等 category:'朝' の商品が、昼/夜/間食タブでも検索候補に出るようになる
+    function isProductCandidate(food) {
+      if (!food) return false;
+      if (food.entryType === 'product') return true;
+      if (typeof food.id === 'string' && food.id.startsWith('prod-')) return true;
+      return false;
+    }
+
     function getSearchCandidates() {
-      const foodCandidates = getFoodsForTiming(currentTiming).map(food => ({
-        kind: food.entryType === 'product' ? 'product' : 'food',
-        id: food.id,
-        name: food.name,
-        copy: food.entryType === 'product'
-          ? `${food.brand || '商品'} / 1${food.unitLabel || '個'}`
-          : `${food.category} / ${getDefaultUnit(food)?.label || ''}`,
-        food
-      }));
+      const timingLabel = TIMINGS[currentTiming] && TIMINGS[currentTiming].label;
+      const allFoods = getAllFoods()
+        .slice()
+        .sort((a, b) => {
+          // 1) 現在タイミング or 共通 を上位に
+          const aMatch = (a.category === timingLabel || a.category === '共通') ? 0 : 1;
+          const bMatch = (b.category === timingLabel || b.category === '共通') ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+          // 2) 同タイミング群内では五十音
+          return String(a.name).localeCompare(String(b.name), 'ja');
+        });
+      const foodCandidates = allFoods.map(food => {
+        const product = isProductCandidate(food);
+        return {
+          kind: product ? 'product' : 'food',
+          id: food.id,
+          name: food.name,
+          copy: product
+            ? `${food.brand || '商品'} / 1${food.unitLabel || '個'}`
+            : `${food.category || '食材'} / ${getDefaultUnit(food)?.label || ''}`,
+          food
+        };
+      });
+      // レシピも全タイミング横断（現在タイミングのものを上位に）
       const recipeCandidates = getAllRecipes()
-        .filter(recipe => !recipe.timingKey || recipe.timingKey === currentTiming)
+        .slice()
+        .sort((a, b) => {
+          const aMatch = (!a.timingKey || a.timingKey === currentTiming) ? 0 : 1;
+          const bMatch = (!b.timingKey || b.timingKey === currentTiming) ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+          return String(a.name).localeCompare(String(b.name), 'ja');
+        })
         .map(recipe => ({
           kind: 'recipe',
           id: recipe.id,
