@@ -930,6 +930,7 @@ button:disabled {
         <div class="score-label">今日のスコア</div>
         <div class="score-status idle" id="cpScoreStatus">未入力</div>
         <div class="score-sub" id="cpScoreSub">記録するとスコアが出ます</div>
+        <button type="button" id="dayTypeChip" class="chip" style="margin-top:8px; cursor:pointer; border:none;" onclick="toggleTodayTrainingDay()">休養日</button>
       </div>
     </div>
     <div class="advice-bubble idle" id="cpScoreMsg">最初の1食を入れて、今日を始めよう。</div>
@@ -1252,7 +1253,10 @@ function renderCockpitScore() {
       });
     });
   });
-  const targets = lsGet('nutrition_targets_v1', null) || { energy: 2200, protein: 110, fat: 60, carb: 300 };
+  const baseTargets = lsGet('nutrition_targets_v1', null) || { energy: 2200, protein: 110, fat: 60, carb: 300 };
+  // 2026-05-29 (cowork) 今日の種別(筋トレ日/休養日)で目標を補正
+  const targets = (typeof applyCarbCycle === 'function') ? applyCarbCycle(baseTargets, todayDate, loadCarbCycle()) : baseTargets;
+  renderDayTypeChip(todayDate);
 
   let score = null, kind = 'idle', message = '最初の1食を入れて、今日を始めよう。', statusLabel = '未入力';
   if (meals > 0) {
@@ -1324,6 +1328,28 @@ function renderCockpitScore() {
     if (dn) { dn.setAttribute('stroke-dashoffset', String(C * (1 - score/100))); dn.setAttribute('class', 'donut-fg ' + kind); }
     msg.textContent = message; msg.className = 'advice-bubble';
   }
+}
+
+// === 2026-05-29 (cowork) 今日の筋トレ日/休養日チップ ===
+function renderDayTypeChip(dateStr) {
+  const chip = document.getElementById('dayTypeChip');
+  if (!chip || typeof loadCarbCycle !== 'function') return;
+  const cfg = loadCarbCycle();
+  if (!cfg.enabled) { chip.style.display = 'none'; return; }
+  chip.style.display = '';
+  const training = isTrainingDay(dateStr, cfg);
+  chip.textContent = training ? `筋トレ日 (C+${cfg.carbDelta}g)` : `休養日 (C−${cfg.carbDelta}g)`;
+  chip.style.background = training ? 'var(--accent,#ff8a2a)' : '';
+  chip.style.color = training ? '#fff' : '';
+}
+
+function toggleTodayTrainingDay() {
+  if (typeof setTrainingDay !== 'function') return;
+  const todayDate = todayInfo().date;
+  const on = !isTrainingDay(todayDate, loadCarbCycle());
+  setTrainingDay(todayDate, on);
+  renderDayTypeChip(todayDate);
+  renderCockpitScore();
 }
 
 // === 2026-05-27 (cowork) 体組成カードを最新値+トレンドで動的表示（body.htmlのlocalStorageを読む） ===

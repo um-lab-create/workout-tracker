@@ -1331,6 +1331,21 @@
           <button class="target-button" type="button" onclick="resetTargetSettings()">標準へ戻す</button>
         </div>
         <div class="target-summary" id="targetSummary">目標を設定すると、判定スコア・PFC・不足率に反映します。</div>
+        <!-- 2026-05-29 (cowork) カーボサイクル: 筋トレ日／休養日で C・kcal を出し分け（P/F固定） -->
+        <div class="carbcycle" style="margin-top:12px; border-top:1px solid var(--line,#f0e6d8); padding-top:12px;">
+          <div class="section-note" style="margin-bottom:8px;">筋トレ日／休養日で炭水化物・カロリーを出し分け（たんぱく質・脂質は固定）</div>
+          <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+            <button id="dayTypeToggle" class="target-button" type="button" onclick="toggleTrainingDay()">休養日</button>
+            <label class="target-field" style="flex:0 0 auto;">
+              <span class="target-label">サイクル幅(g炭水化物)</span>
+              <input id="carbDeltaInput" type="number" inputmode="numeric" min="0" max="200" step="10" style="width:96px;" onchange="saveCarbDelta()">
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); padding-bottom:8px;">
+              <input id="carbCycleEnabled" type="checkbox" onchange="saveCarbDelta()"> 有効
+            </label>
+          </div>
+          <div class="target-summary" id="carbCycleSummary" style="margin-top:8px;"></div>
+        </div>
       </div>
     </section>
 
@@ -1481,6 +1496,14 @@
 
     let selectedDate = readInitialDate();
     let targetSettings = loadTargetSettings();
+    // 2026-05-29 (cowork) カーボサイクル: ベース目標(targetSettings)を選択日の種別で補正した実効目標
+    let carbCycle = loadCarbCycle();
+    let activeTargets = applyCarbCycle(targetSettings, selectedDate, carbCycle);
+
+    function recomputeActiveTargets() {
+      carbCycle = loadCarbCycle();
+      activeTargets = applyCarbCycle(targetSettings, selectedDate, carbCycle);
+    }
 
     boot();
 
@@ -2006,11 +2029,13 @@
     }
 
     function renderAll() {
+      recomputeActiveTargets();
       const state = buildDayState();
       document.getElementById('selectedDateLabel').textContent = fmtDate(selectedDate);
       document.getElementById('dateInput').value = selectedDate;
       document.getElementById('todayBtn').classList.toggle('active', selectedDate === todayStr());
       document.getElementById('yesterdayBtn').classList.toggle('active', selectedDate === shiftDate(todayStr(), -1));
+      renderCarbCycleUI();
       renderHero(state);
       renderScore(state);
       renderBodyStrip();
@@ -2028,14 +2053,14 @@
       const macroSum = state.totals.p + state.totals.f + state.totals.c;
       document.getElementById('heroKcal').textContent = Math.round(state.totals.kcal);
       document.getElementById('heroKcalSub').textContent = state.totals.meals
-        ? `${targetPct('energy', state.totals.kcal)}% / 目標 ${targetSettings.energy}kcal / ${state.totals.meals}/4食`
-        : `目標 ${targetSettings.energy}kcal`;
+        ? `${targetPct('energy', state.totals.kcal)}% / 目標 ${activeTargets.energy}kcal / ${state.totals.meals}/4食`
+        : `目標 ${activeTargets.energy}kcal`;
       document.getElementById('heroPfc').textContent = `${Math.round(state.totals.p)}/${Math.round(state.totals.f)}/${Math.round(state.totals.c)}`;
       document.getElementById('heroCoverage').textContent = `${state.coverage}%`;
       document.getElementById('heroReview').textContent = String(state.totals.reviewCount);
       document.getElementById('coverageChip').textContent = `栄養DB ${state.coverage}%`;
       if (!macroSum && !state.totals.meals) {
-        document.getElementById('heroKcalSub').textContent = `まだ未入力 / 目標 ${targetSettings.energy}kcal`;
+        document.getElementById('heroKcalSub').textContent = `まだ未入力 / 目標 ${activeTargets.energy}kcal`;
       }
     }
 
@@ -2046,7 +2071,7 @@
       if (!state || !state.totals || !state.totals.meals) {
         return { score: null, kind: 'idle', message: 'まだ記録がありません。最初の1食を入れて今日を始めよう。', lacks: 0, excs: 0 };
       }
-      const T = targetSettings || {};
+      const T = activeTargets || targetSettings || {};
       let score = 100;
       const energy = state.nutrients.energy || 0;
       const targetE = (T.energy || 2200);
@@ -2082,7 +2107,7 @@
 
     // 自然言語のひとこと: kcal逸脱・最大不足ミクロ・過剰の有無 から1〜2文を生成
     function buildOneLineMessage(state, lacks, excs) {
-      const T = targetSettings || {};
+      const T = activeTargets || targetSettings || {};
       const parts = [];
       const energy = state.nutrients.energy || 0;
       const targetE = T.energy || 2200;
@@ -2172,9 +2197,9 @@
       document.getElementById('macroP').textContent = `${Math.round(state.totals.p)}g`;
       document.getElementById('macroF').textContent = `${Math.round(state.totals.f)}g`;
       document.getElementById('macroC').textContent = `${Math.round(state.totals.c)}g`;
-      document.getElementById('macroPSub').textContent = `${targetPct('protein', state.totals.p)}% / 目標${targetSettings.protein}g`;
-      document.getElementById('macroFSub').textContent = `${targetPct('fat', state.totals.f)}% / 目標${targetSettings.fat}g`;
-      document.getElementById('macroCSub').textContent = `${targetPct('carb', state.totals.c)}% / 目標${targetSettings.carb}g`;
+      document.getElementById('macroPSub').textContent = `${targetPct('protein', state.totals.p)}% / 目標${activeTargets.protein}g`;
+      document.getElementById('macroFSub').textContent = `${targetPct('fat', state.totals.f)}% / 目標${activeTargets.fat}g`;
+      document.getElementById('macroCSub').textContent = `${targetPct('carb', state.totals.c)}% / 目標${activeTargets.carb}g`;
       document.getElementById('macroMeals').textContent = String(state.totals.meals);
     }
 
@@ -2361,11 +2386,56 @@
       return targetOverride(key) || (NUTRIENT_META[key] && NUTRIENT_META[key].target) || 0;
     }
 
+    // === 2026-05-29 (cowork) カーボサイクル UI ===
+    function renderCarbCycleUI() {
+      const toggle = document.getElementById('dayTypeToggle');
+      const deltaInput = document.getElementById('carbDeltaInput');
+      const enabledBox = document.getElementById('carbCycleEnabled');
+      const summary = document.getElementById('carbCycleSummary');
+      if (!toggle || !deltaInput) return;
+      const training = isTrainingDay(selectedDate, carbCycle);
+      toggle.textContent = training ? '筋トレ日' : '休養日';
+      toggle.className = 'target-button' + (training ? ' primary' : '');
+      if (document.activeElement !== deltaInput) deltaInput.value = carbCycle.carbDelta;
+      if (enabledBox) enabledBox.checked = carbCycle.enabled !== false;
+      if (summary) {
+        if (!carbCycle.enabled) {
+          summary.textContent = 'カーボサイクル無効。ベース目標をそのまま使用します。';
+        } else {
+          const d = Number(carbCycle.carbDelta) || 0;
+          const trainC = (Number(targetSettings.carb) || 0) + d;
+          const restC = Math.max(0, (Number(targetSettings.carb) || 0) - d);
+          const trainE = (Number(targetSettings.energy) || 0) + d * 4;
+          const restE = Math.max(0, (Number(targetSettings.energy) || 0) - d * 4);
+          summary.textContent = `${fmtDate(selectedDate)} は【${training ? '筋トレ日' : '休養日'}】→ 実効 C${activeTargets.carb}g / ${activeTargets.energy}kcal（P${activeTargets.protein}・F${activeTargets.fat}は固定）。筋トレ日 C${trainC}/${trainE}kcal・休養日 C${restC}/${restE}kcal（ベースC${targetSettings.carb}/${targetSettings.energy}kcal ±${d}g）`;
+        }
+      }
+    }
+
+    function toggleTrainingDay() {
+      const on = !isTrainingDay(selectedDate, carbCycle);
+      carbCycle = setTrainingDay(selectedDate, on, carbCycle);
+      recomputeActiveTargets();
+      renderAll();
+    }
+
+    function saveCarbDelta() {
+      const deltaInput = document.getElementById('carbDeltaInput');
+      const enabledBox = document.getElementById('carbCycleEnabled');
+      const carbDelta = deltaInput ? Number(deltaInput.value) : carbCycle.carbDelta;
+      const enabled = enabledBox ? enabledBox.checked : carbCycle.enabled;
+      carbCycle = saveCarbCycle({ ...carbCycle, carbDelta, enabled });
+      recomputeActiveTargets();
+      renderAll();
+    }
+
     function targetOverride(key) {
-      if (key === 'energy') return targetSettings.energy;
-      if (key === 'protein') return targetSettings.protein;
-      if (key === 'fat') return targetSettings.fat;
-      if (key === 'carb') return targetSettings.carb;
+      // 実効目標(activeTargets = ベース ± カーボサイクル補正)を判定に使用
+      const T = activeTargets || targetSettings;
+      if (key === 'energy') return T.energy;
+      if (key === 'protein') return T.protein;
+      if (key === 'fat') return T.fat;
+      if (key === 'carb') return T.carb;
       return 0;
     }
 

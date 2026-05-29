@@ -146,3 +146,87 @@ function suggestFoods(deficits, topN = 3) {
     return { nutrientKey: key, nutrientName: name, foods: sorted };
   });
 }
+
+// ----------------------------------------------------------------
+// 公開: カーボサイクル（筋トレ日／休養日で目標を出し分け） 2026-05-29 (cowork)
+// ----------------------------------------------------------------
+// 設計:
+//   - ベース目標(nutrition_targets_v1)＝週平均(維持)とみなす。
+//   - 筋トレ日(手動トグルON): 炭水化物 +carbDelta g / +carbDelta*4 kcal、P/F固定。
+//   - 休養日(既定OFF):        炭水化物 -carbDelta g / -carbDelta*4 kcal、P/F固定。
+//   - carbDelta 既定 50g（≈±200kcal）。リコンポ向け: トレ日~4-5g/kg・休養日~2.5-3g/kg の
+//     一般的レンジ(67kgで概ね 100g 差)に対応。UI で調整可。
+//   - 判定対象日は trainingDates[YYYY-MM-DD]=true の有無のみで決まる(自動判定なし)。
+//   - サーバ同期(設定シート)はベース目標のみ更新。本レイヤーは別 store なので上書きされない。
+
+var CARB_CYCLE_STORE = 'hs:carb-cycle:v1';
+
+function _ncClamp(value, min, max, fallback) {
+  var n = Number(value);
+  if (!isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function normalizeCarbCycle(cfg) {
+  cfg = cfg || {};
+  var dates = (cfg.trainingDates && typeof cfg.trainingDates === 'object') ? cfg.trainingDates : {};
+  var clean = {};
+  Object.keys(dates).forEach(function (d) { if (dates[d]) clean[d] = true; });
+  return {
+    enabled: cfg.enabled !== false,                       // 既定 ON（機能有効）
+    carbDelta: _ncClamp(cfg.carbDelta, 0, 200, 50),       // g（既定 50）
+    trainingDates: clean                                  // 既定 OFF＝休養日
+  };
+}
+
+function loadCarbCycle() {
+  try {
+    var raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(CARB_CYCLE_STORE) : null;
+    return normalizeCarbCycle(raw ? JSON.parse(raw) : null);
+  } catch (e) {
+    return normalizeCarbCycle(null);
+  }
+}
+
+function saveCarbCycle(cfg) {
+  var norm = normalizeCarbCycle(cfg);
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(CARB_CYCLE_STORE, JSON.stringify(norm));
+  } catch (e) { /* noop */ }
+  return norm;
+}
+
+function isTrainingDay(dateStr, cfg) {
+  cfg = cfg || loadCarbCycle();
+  return !!(cfg.enabled && cfg.trainingDates && cfg.trainingDates[dateStr]);
+}
+
+// その日の筋トレ日フラグを on/off して保存。更新後の cfg を返す。
+function setTrainingDay(dateStr, on, cfg) {
+  cfg = normalizeCarbCycle(cfg || loadCarbCycle());
+  if (on) cfg.trainingDates[dateStr] = true;
+  else delete cfg.trainingDates[dateStr];
+  return saveCarbCycle(cfg);
+}
+
+/**
+ * ベース目標を、その日の種別(筋トレ日/休養日)に応じて補正した実効目標を返す。
+ * P/F は据え置き、C と energy のみ ±carbDelta。
+ * @returns {object} baseTargets のコピー + {dayType:'training'|'rest', carbDelta, base:{...}}
+ */
+function applyCarbCycle(baseTargets, dateStr, cfg) {
+  cfg = cfg || loadCarbCycle();
+  if (!baseTargets) return baseTargets;
+  var out = {};
+  for (var k in baseTargets) { if (Object.prototype.hasOwnProperty.call(baseTargets, k)) out[k] = baseTargets[k]; }
+  if (!cfg.enabled) { out.dayType = 'rest'; out.carbDelta = 0; out.base = baseTargets; return out; }
+  var d = Number(cfg.carbDelta) || 0;
+  var training = isTrainingDay(dateStr, cfg);
+  var sign = training ? 1 : -1;
+  out.carb = Math.max(0, Math.round((Number(baseTargets.carb) || 0) + sign * d));
+  out.energy = Math.max(0, Math.round((Number(baseTargets.energy) || 0) + sign * d * 4));
+  out.dayType = training ? 'training' : 'rest';
+  out.carbDelta = d;
+  out.base = baseTargets;
+  return out;
+}
