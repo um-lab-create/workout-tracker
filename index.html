@@ -899,6 +899,84 @@ button:disabled {
   transform: rotate(45deg);
 }
 .cockpit-score .advice-bubble.idle { color: var(--muted); font-weight: 500; }
+.continuity-lane {
+  background: rgba(255,250,242,.82);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 14px;
+  margin: 0 0 14px;
+  box-shadow: 0 16px 48px rgba(50,36,18,.08);
+  display: grid;
+  gap: 12px;
+}
+.continuity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.continuity-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--ink);
+}
+.continuity-pill {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(92,194,109,.12);
+  color: #2f7a3e;
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+.continuity-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+}
+.continuity-day {
+  min-width: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,.06);
+  background: rgba(0,0,0,.035);
+  padding: 8px 4px;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+}
+.continuity-day.done { background: rgba(92,194,109,.14); border-color: rgba(92,194,109,.28); }
+.continuity-day.mid { background: rgba(255,209,90,.16); border-color: rgba(255,209,90,.32); }
+.continuity-day.low { background: rgba(233,78,91,.10); border-color: rgba(233,78,91,.22); }
+.continuity-day.today { outline: 2px solid rgba(255,138,42,.32); }
+.continuity-date {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 850;
+}
+.continuity-mark {
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 950;
+  color: var(--dim);
+}
+.continuity-day.done .continuity-mark { color: var(--ok); }
+.continuity-day.mid .continuity-mark { color: var(--warn); }
+.continuity-day.low .continuity-mark { color: #e94e5b; }
+.continuity-score {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.continuity-summary {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-weight: 750;
+}
 </style>
 </head>
 <body>
@@ -934,6 +1012,15 @@ button:disabled {
       </div>
     </div>
     <div class="advice-bubble idle" id="cpScoreMsg">最初の1食を入れて、今日を始めよう。</div>
+  </section>
+
+  <section class="continuity-lane" aria-label="継続状況">
+    <div class="continuity-head">
+      <div class="continuity-title"><i class="ti ti-flame" aria-hidden="true"></i><span>継続</span></div>
+      <div class="continuity-pill" id="continuityPill">--</div>
+    </div>
+    <div class="continuity-days" id="continuityDays"></div>
+    <div class="continuity-summary" id="continuitySummary">食事を記録すると7日分の流れが出ます。</div>
   </section>
 
   <section class="hero" id="home">
@@ -1233,42 +1320,10 @@ const BASE_PRODUCT_COUNT = 6;
 // meal_recs_v3 から今日の食事を取り、HSNutritionDB で栄養を集計、nutrition_targets_v1 で目標と比較してスコア算出。
 function renderCockpitScore() {
   const todayDate = todayInfo().date;
-  const recs = lsGet(MEAL_RECORD_STORE, []) || [];
-  const todays = recs.filter(r => r && r.date === todayDate);
   const db = window.HSNutritionDB;
-  const nutrients = {};
-  if (db && db.KEYS) db.KEYS.forEach(k => nutrients[k] = 0);
-  let meals = 0;
-  let totalE = 0, microsE = 0; // 微量栄養素カバレッジ算出用
-  todays.forEach(rec => {
-    // items(foodId/qty/unit) または structuredItems(nutrients済) を許容。どちらも無ければ kcal のみ集計。
-    const items = (rec.items && rec.items.length) ? rec.items
-                : (rec.structuredItems && rec.structuredItems.length) ? rec.structuredItems
-                : null;
-    if (!items) {
-      if (Number(rec.kcal) > 0) { meals++; nutrients.energy = (nutrients.energy || 0) + Number(rec.kcal); totalE += Number(rec.kcal); }
-      return;
-    }
-    meals++;
-    items.forEach(item => {
-      if (!db) return;
-      const food = db.getFood(item.foodId);
-      let totals = item.nutrients || null; // structuredItems は解決済み栄養を持つ
-      if (!totals) {
-        if (!food) return;
-        const portion = db.calcPortion(food, item.qty, item.unit);
-        if (!portion) return;
-        totals = portion.totals;
-      }
-      Object.keys(totals).forEach(k => {
-        nutrients[k] = (nutrients[k] || 0) + (totals[k] || 0);
-      });
-      const e = Number(totals.energy) || 0;
-      totalE += e;
-      if (foodHasMicros(food)) microsE += e;
-    });
-  });
-  const microsCoverage = totalE > 0 ? microsE / totalE : 1;
+  const day = collectDailyNutrition(todayDate);
+  const nutrients = day.nutrients;
+  const meals = day.meals;
   const baseTargets = lsGet('nutrition_targets_v1', null) || { energy: 2200, protein: 110, fat: 60, carb: 300 };
   // 2026-05-29 (cowork) 今日の種別(筋トレ日/休養日)で目標を補正
   const targets = (typeof applyCarbCycle === 'function') ? applyCarbCycle(baseTargets, todayDate, loadCarbCycle()) : baseTargets;
@@ -1278,7 +1333,7 @@ function renderCockpitScore() {
   if (meals > 0) {
     const META = (db && db.META) || {};
     // 共有スコア式(nutrition-calc.js)。微量栄養素は microsCoverage でゲート。
-    const r = computeDailyScore(nutrients, targets, { META, microsCoverage });
+    const r = computeDailyScore(nutrients, targets, { META, microsCoverage: day.microsCoverage });
     score = r.score; kind = r.kind;
     statusLabel = kind === 'good' ? '順調' : kind === 'mid' ? 'あと一歩' : '改善余地あり';
 
@@ -1352,6 +1407,7 @@ function toggleTodayTrainingDay() {
   setTrainingDay(todayDate, on);
   renderDayTypeChip(todayDate);
   renderCockpitScore();
+  renderContinuityLane();
 }
 
 // === 2026-05-27 (cowork) 体組成カードを最新値+トレンドで動的表示（body.htmlのlocalStorageを読む） ===
@@ -1415,6 +1471,64 @@ function updateStreakChip() {
   el.textContent = streak > 0 ? `${streak}日連続` : '';
 }
 
+function renderContinuityLane() {
+  const daysEl = document.getElementById('continuityDays');
+  const pillEl = document.getElementById('continuityPill');
+  const summaryEl = document.getElementById('continuitySummary');
+  if (!daysEl || !pillEl || !summaryEl) return;
+
+  const today = todayInfo().date;
+  const baseTargets = lsGet('nutrition_targets_v1', null) || { energy: 2200, protein: 110, fat: 60, carb: 300 };
+  const rows = [];
+  for (let offset = -6; offset <= 0; offset++) {
+    rows.push(scoreForDate(isoDateOffset(today, offset), baseTargets));
+  }
+
+  const done = rows.filter(row => row.meals > 0);
+  const full = rows.filter(row => row.meals >= 3);
+  const scored = rows.filter(row => row.score !== null);
+  const good = scored.filter(row => row.score >= 80);
+  const latestGap = rows.find(row => row.meals === 0);
+  const avgScore = scored.length ? Math.round(scored.reduce((sum, row) => sum + row.score, 0) / scored.length) : null;
+
+  let currentStreak = 0;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].meals > 0) currentStreak++;
+    else if (i === rows.length - 1) continue;
+    else break;
+  }
+
+  daysEl.innerHTML = rows.map(row => {
+    const date = new Date(`${row.date}T00:00:00`);
+    const dateLabel = `${date.getMonth() + 1}/${date.getDate()}`;
+    const todayClass = row.date === today ? ' today' : '';
+    const tone = row.score === null ? '' : row.score >= 80 ? ' done' : row.score >= 60 ? ' mid' : ' low';
+    const mark = row.score === null ? '−' : row.score >= 80 ? '✓' : row.score >= 60 ? '•' : '!';
+    const score = row.score === null ? `${row.meals}/3` : `${row.score}`;
+    return `
+      <div class="continuity-day${tone}${todayClass}" title="${row.date}">
+        <div class="continuity-date">${dateLabel}</div>
+        <div class="continuity-mark">${mark}</div>
+        <div class="continuity-score">${score}</div>
+      </div>
+    `;
+  }).join('');
+
+  pillEl.textContent = currentStreak > 0 ? `${currentStreak}日継続` : `${done.length}/7日`;
+  if (!done.length) {
+    summaryEl.textContent = 'まず1食だけ記録。ここから7日分の流れを作ります。';
+  } else if (latestGap) {
+    const gapDate = new Date(`${latestGap.date}T00:00:00`);
+    summaryEl.textContent = `${done.length}/7日記録。空きは ${gapDate.getMonth() + 1}/${gapDate.getDate()}。平均${avgScore || '—'}点。`;
+  } else if (good.length >= 5) {
+    summaryEl.textContent = `7日連続記録。80点以上が${good.length}日。今の型は維持でよいです。`;
+  } else if (full.length < 4) {
+    summaryEl.textContent = `${done.length}/7日記録。3食そろった日は${full.length}日。夜だけ補完すると分析精度が上がります。`;
+  } else {
+    summaryEl.textContent = `${done.length}/7日記録。平均${avgScore}点。点数より未記録の穴を減らす段階です。`;
+  }
+}
+
 const TRACKED_TARGETS = {
   workout: { label: '筋トレ', href: 'workout.html', glyph: 'W', copy: '前回値からすぐ記録' },
   meal: { label: '食事', href: 'meal.html', glyph: 'M', copy: '固定・最近からすぐ記録' },
@@ -1454,6 +1568,83 @@ function todayInfo() {
     date: iso,
     day: JAPANESE_DAYS[now.getDay()],
     label: `${now.getMonth() + 1}/${now.getDate()} (${JAPANESE_DAYS[now.getDay()]})`
+  };
+}
+
+function isoDateOffset(baseDate, offsetDays) {
+  const date = new Date(`${baseDate}T00:00:00`);
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function collectDailyNutrition(dateStr) {
+  const recs = lsGet(MEAL_RECORD_STORE, []) || [];
+  const todays = recs.filter(r => r && r.date === dateStr);
+  const db = window.HSNutritionDB;
+  const nutrients = {};
+  if (db && db.KEYS) db.KEYS.forEach(k => nutrients[k] = 0);
+  let meals = 0;
+  let totalE = 0;
+  let microsE = 0;
+
+  todays.forEach(rec => {
+    const items = (rec.items && rec.items.length) ? rec.items
+                : (rec.structuredItems && rec.structuredItems.length) ? rec.structuredItems
+                : null;
+    if (!items) {
+      if (Number(rec.kcal) > 0) {
+        meals++;
+        nutrients.energy = (nutrients.energy || 0) + Number(rec.kcal);
+        totalE += Number(rec.kcal);
+      }
+      return;
+    }
+    meals++;
+    items.forEach(item => {
+      if (!db) return;
+      const food = db.getFood(item.foodId);
+      let totals = item.nutrients || null;
+      if (!totals) {
+        if (!food) return;
+        const portion = db.calcPortion(food, item.qty, item.unit);
+        if (!portion) return;
+        totals = portion.totals;
+      }
+      Object.keys(totals).forEach(k => {
+        nutrients[k] = (nutrients[k] || 0) + (totals[k] || 0);
+      });
+      const e = Number(totals.energy) || 0;
+      totalE += e;
+      if (foodHasMicros(food)) microsE += e;
+    });
+  });
+
+  return {
+    nutrients,
+    meals,
+    energy: totalE,
+    microsCoverage: totalE > 0 ? microsE / totalE : 1
+  };
+}
+
+function scoreForDate(dateStr, baseTargets) {
+  const db = window.HSNutritionDB;
+  const day = collectDailyNutrition(dateStr);
+  if (!day.meals) return { date: dateStr, meals: 0, score: null, kind: 'idle', energy: 0 };
+  const targets = (typeof applyCarbCycle === 'function') ? applyCarbCycle(baseTargets, dateStr, loadCarbCycle()) : baseTargets;
+  const result = computeDailyScore(day.nutrients, targets, {
+    META: (db && db.META) || {},
+    microsCoverage: day.microsCoverage
+  });
+  return {
+    date: dateStr,
+    meals: day.meals,
+    score: result.score,
+    kind: result.kind,
+    energy: day.energy
   };
 }
 
@@ -1549,6 +1740,7 @@ function renderDailyHub() {
   document.getElementById('dailyHubDate').textContent = today.label;
   updateStreakChip();
   renderCockpitScore();
+  renderContinuityLane();
   renderBodyStatus();
   document.getElementById('dailyMealCard').href = `meal.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyNutritionCard').href = `day.html?date=${encodeURIComponent(today.date)}`;
