@@ -458,6 +458,9 @@
     return {
       foodId: item.foodId,
       foodName: item.name || (food && food.name) || item.foodId,
+      source: item.source || (food && food.source) || 'unknown',
+      coverage: item.coverage || (food && food.coverage) || 'unknown',
+      verified: Boolean(item.verified || (food && food.verified)),
       qty: Number(item.qty) || 0,
       unit: item.unit,
       grams: portion ? portion.grams : null,

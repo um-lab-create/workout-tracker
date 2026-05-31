@@ -902,6 +902,37 @@
       font-weight: 850;
     }
 
+    .quality-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .quality-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(0,0,0,.045);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .quality-pill.ok {
+      color: var(--ok);
+      border-color: rgba(66,231,155,.34);
+      background: rgba(66,231,155,.10);
+    }
+
+    .quality-pill.warn {
+      color: var(--warn);
+      border-color: rgba(255,209,90,.36);
+      background: rgba(255,209,90,.10);
+    }
+
     .contrib-row {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -2031,10 +2062,14 @@
           if (!portion || !portion.nutrients) return;
           knownItems += 1;
           const foodName = portion.foodName || portion.foodId;
+          const foodEntry = NUTRITION_DB ? NUTRITION_DB.getFood(portion.foodId) : null;
           if (!foodTotals[foodName]) {
             foodTotals[foodName] = {
               name: foodName,
               id: portion.foodId,
+              source: portion.source || (foodEntry && foodEntry.source) || 'unknown',
+              coverage: portion.coverage || (foodEntry && foodEntry.coverage) || 'unknown',
+              verified: Boolean(portion.verified || (foodEntry && foodEntry.verified)),
               nutrients: NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {},
               kcal: 0,
               review: false,
@@ -2042,6 +2077,9 @@
             };
           }
           foodTotals[foodName].id = foodTotals[foodName].id || portion.foodId;
+          foodTotals[foodName].source = foodTotals[foodName].source || portion.source || (foodEntry && foodEntry.source) || 'unknown';
+          foodTotals[foodName].coverage = foodTotals[foodName].coverage || portion.coverage || (foodEntry && foodEntry.coverage) || 'unknown';
+          foodTotals[foodName].verified = foodTotals[foodName].verified || Boolean(portion.verified || (foodEntry && foodEntry.verified));
           foodTotals[foodName].review = foodTotals[foodName].review || Boolean(portion.pendingReview);
           foodTotals[foodName].portions.push({
             qty: portion.qty,
@@ -2058,7 +2096,6 @@
           // 微量栄養素カバレッジ: この食品が micros を持つか
           const e = portion.nutrients.energy || 0;
           coverageEnergy += e;
-          const foodEntry = NUTRITION_DB ? NUTRITION_DB.getFood(portion.foodId) : null;
           if (foodHasMicros(foodEntry)) microsEnergy += e;
           addMealBalancePortion(mealBalance, portion, foodEntry);
         });
@@ -2764,6 +2801,7 @@
       renderedFoodProfiles = foods;
       root.innerHTML = foods.map((food, index) => {
         const strengths = foodStrengths(food.nutrients).slice(0, 4);
+        const quality = foodQualityLabels(food);
         return `
           <button class="food-card food-card-button" type="button" onclick="openFoodDetail(${index})">
             <div class="food-card-head">
@@ -2772,6 +2810,9 @@
                 ${food.review ? '<div class="nutrient-meta">要確認の概算を含みます</div>' : ''}
               </div>
               <div class="food-kcal">${Math.round(food.kcal)}kcal</div>
+            </div>
+            <div class="quality-row">
+              ${quality.map(item => `<span class="quality-pill ${item.kind}">${item.label}</span>`).join('')}
             </div>
             <div class="food-tags">
               ${strengths.length ? strengths.map(item => `<div class="food-tag">${item.label} ${item.pct}%</div>`).join('') : '<div class="food-tag">栄養DB未整備</div>'}
@@ -2789,6 +2830,7 @@
       const f = nutrients.fat || 0;
       const c = nutrients.carb || 0;
       const strengths = foodStrengths(nutrients).slice(0, 10);
+      const quality = foodQualityLabels(food);
       const portionLines = (food.portions || []).map(portion => {
         const grams = portion.grams ? ` / 約${Math.round(portion.grams)}g` : '';
         const review = portion.review ? ' / 要確認' : '';
@@ -2812,6 +2854,9 @@
           <div class="detail-macro"><div class="card-label">Carb</div><strong>${formatNutrient('carb', c)}g</strong></div>
         </div>
         <div class="detail-lines">${portionLines || '<span class="detail-line">分量データなし</span>'}</div>
+        <div class="quality-row">
+          ${quality.map(item => `<span class="quality-pill ${item.kind}">${item.label}</span>`).join('')}
+        </div>
         <div class="detail-tags">
           ${strengths.length ? strengths.map(item => `<div class="detail-tag">${item.label}<br>${formatNutrient(item.key, item.value)}${NUTRIENT_META[item.key].unit} / ${item.pct}%</div>`).join('') : '<div class="detail-tag">栄養DB未整備</div>'}
         </div>
@@ -2952,6 +2997,20 @@
         })
         .filter(item => item.value > 0 && item.pct >= 5)
         .sort((a, b) => b.pct - a.pct);
+    }
+
+    function foodQualityLabels(food) {
+      const source = String(food && food.source || 'unknown');
+      const coverage = String(food && food.coverage || 'unknown');
+      const labels = [];
+      if (food && food.review) labels.push({ label: '量要確認', kind: 'warn' });
+      if (food && food.verified) labels.push({ label: '確認済', kind: 'ok' });
+      if (/要確認|unknown|manual|openfoodfacts|barcode/i.test(source)) labels.push({ label: '値要確認', kind: 'warn' });
+      else if (/八訂|公式|official|公表値/.test(source)) labels.push({ label: '出典あり', kind: 'ok' });
+      else labels.push({ label: source.slice(0, 16), kind: '' });
+      if (coverage === 'partial') labels.push({ label: '栄養一部', kind: 'warn' });
+      if (coverage === 'full') labels.push({ label: '栄養充実', kind: 'ok' });
+      return labels.slice(0, 3);
     }
 
     function formatNutrient(key, value) {
