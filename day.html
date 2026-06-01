@@ -1769,6 +1769,16 @@
     }
 
     function serverRowsToRecords(rows) {
+      const numFromRow = (row, keys) => {
+        for (const key of keys) {
+          const value = row[key];
+          if (value !== undefined && value !== '') {
+            const num = Number(value);
+            if (Number.isFinite(num)) return num;
+          }
+        }
+        return 0;
+      };
       const grouped = {};
       (rows || []).forEach(row => {
         const date = normalizeServerDate(row['日付']);
@@ -1786,13 +1796,24 @@
           synced: true,
           source: 'server'
         };
+        const estimatedNutrients = {
+          energy: numFromRow(row, ['推定kcal', 'kcal', 'カロリー']),
+          protein: numFromRow(row, ['推定P_g', 'protein', 'たんぱく質']),
+          fat: numFromRow(row, ['推定F_g', 'fat', '脂質']),
+          carb: numFromRow(row, ['推定C_g', 'carb', '炭水化物']),
+          salt: numFromRow(row, ['推定食塩_g', 'salt', '食塩相当量'])
+        };
+        const hasEstimatedMacro = estimatedNutrients.energy || estimatedNutrients.protein || estimatedNutrients.fat || estimatedNutrients.carb;
         grouped[recordId].items.push({
           foodId: row.foodId || row['foodId'],
           name: row['名前'],
           qty: Number(row['量']) || 0,
           unit: row['単位'],
           grams: Number(row['グラム換算']) || 0,
-          pendingReview: String(row['要確認フラグ']).toLowerCase() === 'true' || row['要確認フラグ'] === true
+          pendingReview: String(row['要確認フラグ']).toLowerCase() === 'true' || row['要確認フラグ'] === true,
+          source: hasEstimatedMacro ? 'dining-out-estimate' : 'server',
+          coverage: hasEstimatedMacro ? 'macro-only' : undefined,
+          nutrients: hasEstimatedMacro ? estimatedNutrients : undefined
         });
       });
       return Object.values(grouped).map(record => ({

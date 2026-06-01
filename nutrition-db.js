@@ -452,6 +452,20 @@
   }
 
   function structureItem(item, fallbackFood) {
+    if (item && item.nutrients) {
+      return {
+        foodId: item.foodId,
+        foodName: item.name || item.foodId,
+        source: item.source || 'external-estimate',
+        coverage: item.coverage || 'macro-only',
+        verified: Boolean(item.verified),
+        qty: Number(item.qty) || 0,
+        unit: item.unit,
+        grams: Number(item.grams) || null,
+        pendingReview: Boolean(item.pendingReview),
+        nutrients: mergeNutrients(item.nutrients)
+      };
+    }
     const food = getFood(item.foodId) || convertFoodToNutritionEntry(fallbackFood);
     const portion = calcPortion(food, item.qty, item.unit);
     const totals = portion ? portion.totals : blankNutrients();
