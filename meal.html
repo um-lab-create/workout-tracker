@@ -1258,6 +1258,90 @@
       flex-wrap: wrap;
     }
 
+    .hydration-card {
+      display: grid;
+      gap: 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,.08);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(42,143,255,.16), transparent 34%),
+        rgba(0,0,0,.04);
+      padding: 12px;
+    }
+
+    .hydration-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .hydration-value {
+      font-size: 32px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -.04em;
+    }
+
+    .hydration-value span {
+      font-size: 14px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+
+    .hydration-status {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      font-weight: 850;
+      text-align: right;
+    }
+
+    .hydration-track {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(0,0,0,.08);
+    }
+
+    .hydration-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #2a8fff, #42e79b);
+      transition: width .18s ease;
+    }
+
+    .hydration-quick {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .hydration-btn {
+      min-height: 48px;
+      border-radius: 15px;
+      border: 1px solid rgba(0,0,0,.08);
+      background: rgba(0,0,0,.05);
+      color: var(--ink);
+      font-weight: 950;
+      font-size: 13px;
+    }
+
+    .hydration-btn span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .hydration-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .item-actions {
       display: flex;
       align-items: center;
@@ -2010,6 +2094,33 @@
 
     <section class="panel">
       <div class="section-head">
+        <div class="section-title">水分</div>
+        <div class="header-tools">
+          <button class="mini-btn" type="button" onclick="promptHydrationAmount()">入力</button>
+          <button class="mini-btn" type="button" onclick="resetHydration()">リセット</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="hydration-card">
+          <div class="hydration-head">
+            <div>
+              <div class="hydration-value"><span id="hydrationLiters">0.0</span><span> L</span></div>
+              <div class="dining-sub">飲み物・汁物の目安</div>
+            </div>
+            <div class="hydration-status" id="hydrationStatus">目標 1.2L</div>
+          </div>
+          <div class="hydration-track"><div class="hydration-fill" id="hydrationFill"></div></div>
+          <div class="hydration-quick" id="hydrationQuick"></div>
+          <div class="hydration-actions">
+            <button class="tiny-btn" type="button" onclick="undoHydration()">1つ戻す</button>
+            <button class="tiny-btn" type="button" onclick="sendHydration()">水分だけ送信</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
         <div class="section-title" id="currentMealTitle">今の食事</div>
         <div class="header-tools">
           <button class="mini-btn" type="button" onclick="saveCurrentAsHabit()">普段にする</button>
@@ -2552,6 +2663,7 @@
     const RECIPE_STORE = 'meal_recipes_v1';
     const DRAFT_STORE = 'meal_draft_v4';
     const HABIT_STORE = 'meal_habits_v1';
+    const HYDRATION_STORE = 'hydration_recs_v1';
     const NUTRITION_DB = window.HSNutritionDB || null;
 
     const TIMINGS = {
@@ -2560,6 +2672,17 @@
       dinner: { label: '夜', title: '夜ごはん', icon: '夜' },
       snack: { label: '間食', title: '間食', icon: '間' }
     };
+
+    const HYDRATION_TARGET_ML = 1200;
+    const HYDRATION_STRETCH_ML = 2000;
+    const HYDRATION_QUICKS = [
+      { label: 'コップ', ml: 200 },
+      { label: 'マグ', ml: 250 },
+      { label: '小ボトル', ml: 350 },
+      { label: 'ペット', ml: 500 },
+      { label: '汁物', ml: 150 },
+      { label: 'プロテイン', ml: 300 }
+    ];
 
     const BASE_FOODS = [
       { id: 'bihidas', name: 'ビヒダスヨーグルト', category: '朝', mode: 'per100g', macros: {kcal:65, p:3.6, f:3.0, c:4.9}, units: [{label:'大スプーン', grams:15, step:1, defaultQty:3}, {label:'小スプーン', grams:5, step:1, defaultQty:1}, {label:'小鉢', grams:80, step:0.5, defaultQty:1}, {label:'g', grams:1, step:10, defaultQty:100}] },
@@ -3091,6 +3214,35 @@
 
     function saveRecords(records) {
       storageSet(RECORD_STORE, records);
+    }
+
+    function getHydrationRecords() {
+      return storageGet(HYDRATION_STORE, {});
+    }
+
+    function saveHydrationRecords(records) {
+      storageSet(HYDRATION_STORE, records);
+    }
+
+    function getHydrationForDate(dateStr = selectedDate) {
+      const records = getHydrationRecords();
+      const record = records[dateStr] || { date: dateStr, entries: [], synced: false };
+      return {
+        date: dateStr,
+        entries: Array.isArray(record.entries) ? record.entries : [],
+        synced: Boolean(record.synced),
+        updatedAt: record.updatedAt || ''
+      };
+    }
+
+    function setHydrationForDate(record) {
+      const records = getHydrationRecords();
+      records[record.date] = { ...record, updatedAt: new Date().toISOString(), synced: Boolean(record.synced) };
+      saveHydrationRecords(records);
+    }
+
+    function hydrationTotalMl(dateStr = selectedDate) {
+      return getHydrationForDate(dateStr).entries.reduce((sum, entry) => sum + (Number(entry.ml) || 0), 0);
     }
 
     function findSavedRecordForTiming(dateStr, timingKey) {
@@ -4301,6 +4453,110 @@
       }
     }
 
+    function renderHydration() {
+      const totalMl = hydrationTotalMl();
+      const liters = totalMl / 1000;
+      const pct = Math.min(100, Math.round((totalMl / HYDRATION_TARGET_ML) * 100));
+      const status = totalMl >= HYDRATION_STRETCH_ML
+        ? 'しっかり取れています'
+        : totalMl >= HYDRATION_TARGET_ML
+          ? '最低ラインOK'
+          : `あと${Math.max(0, Math.round((HYDRATION_TARGET_ML - totalMl) / 100) / 10).toFixed(1)}L`;
+      document.getElementById('hydrationLiters').textContent = liters.toFixed(1);
+      document.getElementById('hydrationFill').style.width = `${pct}%`;
+      document.getElementById('hydrationStatus').textContent = `${status} / 目標1.2L`;
+      document.getElementById('hydrationQuick').innerHTML = HYDRATION_QUICKS.map(item => `
+        <button class="hydration-btn" type="button" onclick="addHydration(${item.ml}, '${item.label}')">
+          ${item.label}<span>${item.ml}ml</span>
+        </button>
+      `).join('');
+    }
+
+    function addHydration(ml, label) {
+      const record = getHydrationForDate();
+      record.entries.push({
+        ml: Number(ml) || 0,
+        label,
+        at: new Date().toISOString()
+      });
+      record.synced = false;
+      setHydrationForDate(record);
+      renderHydration();
+      showToast(`${label} ${ml}ml を追加しました`);
+    }
+
+    function promptHydrationAmount() {
+      const answer = window.prompt('水分量をmlで入力してください', '500');
+      if (!answer) return;
+      const ml = Number(answer);
+      if (!Number.isFinite(ml) || ml <= 0) {
+        showToast('mlを数値で入れてください', 'warn');
+        return;
+      }
+      addHydration(Math.round(ml), '手入力');
+    }
+
+    function undoHydration() {
+      const record = getHydrationForDate();
+      if (!record.entries.length) {
+        showToast('戻す水分記録がありません', 'warn');
+        return;
+      }
+      record.entries.pop();
+      record.synced = false;
+      setHydrationForDate(record);
+      renderHydration();
+      showToast('水分記録を1つ戻しました');
+    }
+
+    function resetHydration() {
+      const record = getHydrationForDate();
+      if (!record.entries.length) return;
+      if (!window.confirm(`${fmtDate(selectedDate)} の水分記録をリセットしますか？`)) return;
+      record.entries = [];
+      record.synced = false;
+      setHydrationForDate(record);
+      renderHydration();
+      showToast('水分記録をリセットしました');
+    }
+
+    async function sendHydration() {
+      const record = getHydrationForDate();
+      const totalMl = hydrationTotalMl();
+      if (!totalMl) {
+        showToast('水分量が0です', 'warn');
+        return false;
+      }
+      setSyncStatus('syncing', '水分送信中');
+      try {
+        await postToSheet({
+          sheet: '水分ログ',
+          date: selectedDate,
+          amountMl: totalMl,
+          amountL: Math.round((totalMl / 1000) * 10) / 10,
+          targetMl: HYDRATION_TARGET_ML,
+          targetRate: Math.round((totalMl / HYDRATION_TARGET_ML) * 100),
+          entries: record.entries.map(entry => `${entry.label}:${entry.ml}ml`).join(', '),
+          note: '飲み物・汁物の目安。食事由来の水分は含めない。'
+        });
+        record.synced = true;
+        setHydrationForDate(record);
+        setSyncStatus('synced', '水分同期済み');
+        setTimeout(() => setSyncStatus('', '待機中'), 2800);
+        showToast('水分を送信しました');
+        return true;
+      } catch (err) {
+        if (err && err.code === 'AUTH_REQUIRED') {
+          showToast('PIN を設定してから送信してください', 'warn');
+        } else {
+          showToast('水分送信を確認できませんでした', 'warn');
+        }
+        setSyncStatus('error', '送信失敗');
+        setTimeout(() => setSyncStatus('', '待機中'), 2800);
+        return false;
+      }
+    }
+
     function renderSummary() {
       const totals = mealTotals();
       const macroSum = totals.p + totals.f + totals.c;
@@ -4479,6 +4735,7 @@
       renderRecipeGrid();
       renderFoodSelector();
       renderCurrentMeal();
+      renderHydration();
       renderDayBoard();
       renderPresetManager();
       persistCurrentTimingDraft();
@@ -4538,6 +4795,7 @@
       renderHabitCard();
       renderRecentGrid();
       renderCurrentMeal();
+      renderHydration();
       renderDayBoard();
       persistCurrentTimingDraft();
     }
@@ -5737,6 +5995,7 @@
         renderHistory();
         renderRecentGrid();
         renderDayBoard();
+        if (hydrationTotalMl()) await sendHydration();
         persistCurrentTimingDraft();
         showToast(`${timing.title}を${recordIndex >= 0 ? '更新' : '記録'}しました`);
       } else {
@@ -5860,6 +6119,7 @@
       renderProductGrid();
       renderRecipeGrid();
       renderCurrentMeal();
+      renderHydration();
       renderDayBoard();
       renderPresetManager();
       renderCustomFoodList();
@@ -5880,6 +6140,7 @@
         renderHabitCard();
         renderRecentGrid();
         renderCurrentMeal();
+        renderHydration();
         renderDayBoard();
       }
       const timing = params.get('timing');
@@ -5896,6 +6157,7 @@
         renderRecipeGrid();
         renderFoodSelector();
         renderCurrentMeal();
+        renderHydration();
         renderDayBoard();
       }
       const panel = params.get('panel');

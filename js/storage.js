@@ -17,6 +17,7 @@ const LS_KEYS = {
   MEAL_RECIPES:     'meal_recipes_v1',         // 自作メニュー
   MEAL_DRAFT:       'meal_draft_v4',           // 下書き（date:timing→items）
   MEAL_HABITS:      'meal_habits_v1',          // 習慣判定キャッシュ
+  HYDRATION_RECORDS:'hydration_recs_v1',       // 水分摂取ログ（日付→ml）
 
   // day.html 関連
   DAY_SERVER_RECORDS: 'meal_server_records_v1',  // サーバーから同期した明細
