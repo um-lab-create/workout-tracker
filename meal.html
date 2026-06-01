@@ -1188,6 +1188,76 @@
       background: rgba(255,138,42,.09);
     }
 
+    .dining-card {
+      display: grid;
+      gap: 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,0,0,.08);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(255,138,42,.18), transparent 34%),
+        rgba(0,0,0,.04);
+      padding: 12px;
+    }
+
+    .dining-card.active {
+      border-color: rgba(255,138,42,.42);
+      box-shadow: inset 0 0 0 1px rgba(255,138,42,.10);
+    }
+
+    .dining-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .dining-status {
+      font-size: 15px;
+      font-weight: 950;
+      line-height: 1.25;
+    }
+
+    .dining-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .dining-badge {
+      display: inline-grid;
+      place-items: center;
+      min-width: 74px;
+      min-height: 34px;
+      padding: 0 10px;
+      border-radius: 999px;
+      color: #100b05;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .dining-fields {
+      display: none;
+      gap: 8px;
+    }
+
+    .dining-card.active .dining-fields {
+      display: grid;
+    }
+
+    .dining-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .dining-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .item-actions {
       display: flex;
       align-items: center;
@@ -1948,6 +2018,38 @@
       </div>
       <div class="items" id="currentItems"></div>
       <div class="empty-state" id="currentEmpty">まだ空です</div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div class="section-title">外食</div>
+        <div class="header-tools">
+          <button class="mini-btn" id="diningToggleBtn" type="button" onclick="toggleDiningOut()">外食した</button>
+          <button class="mini-btn" type="button" onclick="clearDiningOut()">消す</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="dining-card" id="diningCard">
+          <div class="dining-card-top">
+            <div>
+              <div class="dining-status" id="diningStatus">通常の食事</div>
+              <div class="dining-sub" id="diningSub">外食なら先に印だけ残せます</div>
+            </div>
+            <div class="dining-badge" id="diningBadge">通常</div>
+          </div>
+          <div class="dining-fields" id="diningFields">
+            <div class="dining-grid">
+              <input class="text-input" id="diningRestaurantInput" type="text" placeholder="店名 例: 松屋 渋谷店">
+              <input class="text-input" id="diningMapInput" type="url" placeholder="GoogleマップURL 任意">
+              <textarea class="note-area" id="diningTextInput" placeholder="食べたもの 例: 牛めし並、味噌汁"></textarea>
+            </div>
+            <div class="dining-actions">
+              <button class="tiny-btn" type="button" onclick="copyDiningRequestText()">Codex依頼文</button>
+              <button class="tiny-btn bad" type="button" onclick="clearDiningOut()">外食メモ削除</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="panel">
@@ -2923,9 +3025,35 @@
     let searchScope = 'all';
     let isSaving = false;
     let selectedDate = todayStr();
+    let diningOutDraft = blankDiningOut();
 
     function clone(obj) {
       return JSON.parse(JSON.stringify(obj));
+    }
+
+    function blankDiningOut() {
+      return {
+        enabled: false,
+        restaurantName: '',
+        googleMapUrl: '',
+        diningText: '',
+        calcStatus: ''
+      };
+    }
+
+    function normalizeDiningOut(source) {
+      const enabled = Boolean(source && (source.enabled || source.diningOut));
+      return {
+        enabled,
+        restaurantName: source ? String(source.restaurantName || source.storeName || '').trim() : '',
+        googleMapUrl: source ? String(source.googleMapUrl || source.mapUrl || '').trim() : '',
+        diningText: source ? String(source.diningText || source.menuText || '').trim() : '',
+        calcStatus: source ? String(source.calcStatus || source.calculationStatus || '').trim() : ''
+      };
+    }
+
+    function hasDiningOut() {
+      return Boolean(diningOutDraft && diningOutDraft.enabled);
     }
 
     function todayStr() {
@@ -4068,6 +4196,7 @@
         renderSmartGrid();
         renderCandidateGrid();
         renderDayBoard();
+        renderDiningOutPanel();
         return;
       }
       empty.style.display = 'none';
@@ -4099,6 +4228,77 @@
       renderSmartGrid();
       renderCandidateGrid();
       renderDayBoard();
+      renderDiningOutPanel();
+    }
+
+    function renderDiningOutPanel() {
+      const card = document.getElementById('diningCard');
+      if (!card) return;
+      const active = hasDiningOut();
+      card.classList.toggle('active', active);
+      document.getElementById('diningStatus').textContent = active
+        ? (diningOutDraft.restaurantName || '外食を記録中')
+        : '通常の食事';
+      document.getElementById('diningSub').textContent = active
+        ? (diningOutDraft.diningText || 'あとでCodexがマクロを推定します')
+        : '外食なら先に印だけ残せます';
+      document.getElementById('diningBadge').textContent = active ? '未計算' : '通常';
+      document.getElementById('diningToggleBtn').textContent = active ? '外食中' : '外食した';
+    }
+
+    function syncDiningFieldsFromState() {
+      const restaurant = document.getElementById('diningRestaurantInput');
+      if (!restaurant) return;
+      restaurant.value = diningOutDraft.restaurantName || '';
+      document.getElementById('diningMapInput').value = diningOutDraft.googleMapUrl || '';
+      document.getElementById('diningTextInput').value = diningOutDraft.diningText || '';
+      renderDiningOutPanel();
+    }
+
+    function syncDiningOutFromFields() {
+      diningOutDraft = {
+        enabled: true,
+        restaurantName: document.getElementById('diningRestaurantInput').value.trim(),
+        googleMapUrl: document.getElementById('diningMapInput').value.trim(),
+        diningText: document.getElementById('diningTextInput').value.trim(),
+        calcStatus: '未計算'
+      };
+      renderDiningOutPanel();
+      persistCurrentTimingDraft();
+    }
+
+    function toggleDiningOut() {
+      diningOutDraft.enabled = true;
+      diningOutDraft.calcStatus = diningOutDraft.calcStatus || '未計算';
+      syncDiningFieldsFromState();
+      persistCurrentTimingDraft();
+      showToast('外食を未計算で残します');
+      setTimeout(() => document.getElementById('diningRestaurantInput')?.focus(), 50);
+    }
+
+    function clearDiningOut() {
+      if (!hasDiningOut() && !diningOutDraft.restaurantName && !diningOutDraft.googleMapUrl && !diningOutDraft.diningText) return;
+      diningOutDraft = blankDiningOut();
+      syncDiningFieldsFromState();
+      persistCurrentTimingDraft();
+      showToast('外食メモを消しました');
+    }
+
+    function copyDiningRequestText() {
+      if (!hasDiningOut()) toggleDiningOut();
+      const text = [
+        '外食未計算のマクロ推定をお願いします。',
+        `日付: ${selectedDate}`,
+        `区分: ${TIMINGS[currentTiming].title}`,
+        `店名: ${diningOutDraft.restaurantName || '未入力'}`,
+        `Googleマップ: ${diningOutDraft.googleMapUrl || '未入力'}`,
+        `食べたもの: ${diningOutDraft.diningText || '未入力'}`
+      ].join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast('依頼文をコピーしました')).catch(() => window.prompt('この内容をCodexに貼ってください', text));
+      } else {
+        window.prompt('この内容をCodexに貼ってください', text);
+      }
     }
 
     function renderSummary() {
@@ -4233,23 +4433,26 @@
         items: storedItems,
         structuredItems: currentMeal.map(buildStructuredItem),
         nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
-        note: document.getElementById('mealNote').value
+        note: document.getElementById('mealNote').value,
+        diningOut: normalizeDiningOut(diningOutDraft)
       };
       storageSet(DRAFT_STORE, drafts);
     }
 
     function loadCurrentTimingDraft() {
       const key = draftKey(selectedDate, currentTiming);
-      const draft = drafts[key] || { items: [], structuredItems: [], note: '' };
+      const draft = drafts[key] || { items: [], structuredItems: [], note: '', diningOut: blankDiningOut() };
       const savedRecord = findSavedRecordForTiming(selectedDate, currentTiming);
       editingRecordId = savedRecord ? savedRecord.id : null;
       let sourceItems = draft.items || [];
       let sourceNote = draft.note || '';
+      let sourceDiningOut = normalizeDiningOut(draft.diningOut);
       if (!sourceItems.length && savedRecord) {
         sourceItems = savedRecord.items || [];
         sourceNote = savedRecord.note || '';
+        sourceDiningOut = normalizeDiningOut(savedRecord);
       }
-      if (!sourceItems.length && !savedRecord) {
+      if (!sourceItems.length && !savedRecord && !sourceDiningOut.enabled) {
         const habitPreset = getHabitPreset();
         if (habitPreset) {
           sourceItems = habitPreset.items || [];
@@ -4257,7 +4460,9 @@
         }
       }
       currentMeal = restoreMealItems(sourceItems, sourceItems === draft.items ? (draft.structuredItems || []) : (savedRecord && savedRecord.structuredItems) || []);
+      diningOutDraft = sourceDiningOut;
       document.getElementById('mealNote').value = sourceNote;
+      syncDiningFieldsFromState();
     }
 
     function selectTiming(key) {
@@ -4289,7 +4494,9 @@
         const food = getFoodById(item.foodId);
         return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
+      diningOutDraft = blankDiningOut();
       document.getElementById('mealNote').value = '';
+      syncDiningFieldsFromState();
       renderCurrentMeal();
       renderDayBoard();
       persistCurrentTimingDraft();
@@ -4425,7 +4632,9 @@
         const food = getFoodById(item.foodId);
         return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
+      diningOutDraft = blankDiningOut();
       document.getElementById('mealNote').value = '';
+      syncDiningFieldsFromState();
       renderCurrentMeal();
       persistCurrentTimingDraft();
       if (fromManager) closeModal('presetModal');
@@ -4463,7 +4672,9 @@
         const food = getFoodById(item.foodId);
         return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
       }).filter(Boolean);
+      diningOutDraft = normalizeDiningOut(record);
       document.getElementById('mealNote').value = record.note || '';
+      syncDiningFieldsFromState();
       renderCurrentMeal();
       persistCurrentTimingDraft();
       showToast('直近の内容を読み込みました');
@@ -4532,10 +4743,12 @@
     }
 
     function clearCurrentMeal() {
-      if (!currentMeal.length && !document.getElementById('mealNote').value.trim()) return;
+      if (!currentMeal.length && !document.getElementById('mealNote').value.trim() && !hasDiningOut()) return;
       if (!window.confirm('今の食事内容をクリアしますか？')) return;
       currentMeal = [];
+      diningOutDraft = blankDiningOut();
       document.getElementById('mealNote').value = '';
+      syncDiningFieldsFromState();
       renderCurrentMeal();
       persistCurrentTimingDraft();
     }
@@ -5372,7 +5585,7 @@
     }
 
     function buildMealDetailRows(record) {
-      return currentMeal.map(item => ({
+      const rows = currentMeal.map(item => ({
         date: record.date,
         timing: record.timing,
         timingKey: record.timingKey,
@@ -5384,6 +5597,27 @@
         grams: item.grams == null ? '' : Math.round((Number(item.grams) || 0) * 10) / 10,
         pendingReview: Boolean(item.pendingReview)
       }));
+      if (record.diningOut) {
+        rows.push({
+          date: record.date,
+          timing: record.timing,
+          timingKey: record.timingKey,
+          recordId: record.id,
+          foodId: 'dining-out-pending',
+          name: record.restaurantName ? `外食: ${record.restaurantName}` : '外食',
+          qty: 1,
+          unit: '回',
+          grams: '',
+          pendingReview: true,
+          diningOut: true,
+          restaurantName: record.restaurantName,
+          googleMapUrl: record.googleMapUrl,
+          diningText: record.diningText,
+          calcStatus: '未計算',
+          calcMemo: ''
+        });
+      }
+      return rows;
     }
 
     // postAuthedPayload → api-client.js の postToSheet に統合
@@ -5412,7 +5646,8 @@
 
     async function saveMeal() {
       if (isSaving) return;
-      if (!currentMeal.length && !document.getElementById('mealNote').value.trim()) {
+      const dining = normalizeDiningOut(diningOutDraft);
+      if (!currentMeal.length && !document.getElementById('mealNote').value.trim() && !dining.enabled) {
         showToast('食事内容を入れてください', 'warn');
         return;
       }
@@ -5426,6 +5661,12 @@
       const timing = TIMINGS[currentTiming];
       const memoParts = [];
       if (currentMeal.length) memoParts.push(summarizeItems(currentMeal));
+      if (dining.enabled) {
+        const diningParts = ['外食'];
+        if (dining.restaurantName) diningParts.push(dining.restaurantName);
+        if (dining.diningText) diningParts.push(dining.diningText);
+        memoParts.push(diningParts.join(': '));
+      }
       if (note) memoParts.push(`メモ: ${note}`);
 
       const record = {
@@ -5439,6 +5680,12 @@
         items: toStoredMealItems(currentMeal),
         structuredItems: currentMeal.map(buildStructuredItem),
         nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
+        diningOut: dining.enabled,
+        restaurantName: dining.restaurantName,
+        googleMapUrl: dining.googleMapUrl,
+        diningText: dining.diningText,
+        calcStatus: dining.enabled ? '未計算' : '',
+        calcMemo: '',
         kcal: Math.round(totals.kcal),
         protein: Math.round(totals.p),
         fat: Math.round(totals.f),
@@ -5467,7 +5714,12 @@
         kcal: record.kcal,
         protein: record.protein,
         fat: record.fat,
-        carb: record.carb
+        carb: record.carb,
+        diningOut: record.diningOut,
+        restaurantName: record.restaurantName,
+        googleMapUrl: record.googleMapUrl,
+        diningText: record.diningText,
+        calcStatus: record.calcStatus
       }, buildMealDetailRows(record));
 
       if (ok) {
@@ -5572,6 +5824,9 @@
       document.getElementById('qtyInput').addEventListener('input', updateUnitHint);
       attachDragSpinner(document.getElementById('qtyInput'), updateUnitHint);
       document.getElementById('mealNote').addEventListener('input', persistCurrentTimingDraft);
+      ['diningRestaurantInput', 'diningMapInput', 'diningTextInput'].forEach(id => {
+        document.getElementById(id).addEventListener('input', syncDiningOutFromFields);
+      });
       document.getElementById('barcodeImageInput').addEventListener('change', event => {
         handleBarcodeImage(event.target.files && event.target.files[0]);
         event.target.value = '';
