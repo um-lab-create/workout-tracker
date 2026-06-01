@@ -2664,6 +2664,8 @@
     const DRAFT_STORE = 'meal_draft_v4';
     const HABIT_STORE = 'meal_habits_v1';
     const HYDRATION_STORE = 'hydration_recs_v1';
+    const WORKOUT_HISTORY_STORE = 'wt:history:v2';
+    const WORKOUT_QUEUE_STORE = 'wt:queue:v2';
     const NUTRITION_DB = window.HSNutritionDB || null;
 
     const TIMINGS = {
@@ -2675,6 +2677,9 @@
 
     const HYDRATION_TARGET_ML = 1200;
     const HYDRATION_STRETCH_ML = 2000;
+    const HYDRATION_WORKOUT_STRENGTH_ML = 300;
+    const HYDRATION_WORKOUT_CARDIO_BASE_ML = 500;
+    const HYDRATION_WORKOUT_CARDIO_PER_30_MIN_ML = 250;
     const HYDRATION_QUICKS = [
       { label: 'コップ', ml: 200 },
       { label: 'マグ', ml: 250 },
@@ -3243,6 +3248,48 @@
 
     function hydrationTotalMl(dateStr = selectedDate) {
       return getHydrationForDate(dateStr).entries.reduce((sum, entry) => sum + (Number(entry.ml) || 0), 0);
+    }
+
+    function getWorkoutItemsForDate(dateStr = selectedDate) {
+      const history = storageGet(WORKOUT_HISTORY_STORE, []);
+      const queue = storageGet(WORKOUT_QUEUE_STORE, []);
+      const seen = new Set();
+      return [...history, ...queue].filter(item => {
+        if (!item || item.日付 !== dateStr) return false;
+        const key = [item.日付, item.種目, item.重量, item.回数, item.セット数, item.時間, item.距離].join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
+    function hydrationWorkoutAdjustment(dateStr = selectedDate) {
+      const workouts = getWorkoutItemsForDate(dateStr);
+      if (!workouts.length) {
+        return { extraMl: 0, hasWorkout: false, hasCardio: false, label: '運動なし' };
+      }
+      const cardioItems = workouts.filter(item => item.種目 === 'トレッドミル' || Number(item.時間) > 0 || Number(item.距離) > 0);
+      const strengthItems = workouts.filter(item => !cardioItems.includes(item));
+      const cardioMinutes = cardioItems.reduce((sum, item) => sum + (Number(item.時間) || 0), 0);
+      const cardioExtra = cardioItems.length
+        ? HYDRATION_WORKOUT_CARDIO_BASE_ML + Math.floor(cardioMinutes / 30) * HYDRATION_WORKOUT_CARDIO_PER_30_MIN_ML
+        : 0;
+      const strengthExtra = strengthItems.length ? HYDRATION_WORKOUT_STRENGTH_ML : 0;
+      const extraMl = Math.min(1200, cardioExtra + strengthExtra);
+      const labels = [];
+      if (strengthItems.length) labels.push(`筋トレ+${HYDRATION_WORKOUT_STRENGTH_ML}ml`);
+      if (cardioItems.length) labels.push(`有酸素+${cardioExtra}ml`);
+      return {
+        extraMl,
+        hasWorkout: true,
+        hasCardio: cardioItems.length > 0,
+        label: labels.join(' / ') || `運動+${extraMl}ml`,
+        count: workouts.length
+      };
+    }
+
+    function hydrationTargetForDate(dateStr = selectedDate) {
+      return HYDRATION_TARGET_ML + hydrationWorkoutAdjustment(dateStr).extraMl;
     }
 
     function findSavedRecordForTiming(dateStr, timingKey) {
@@ -4455,16 +4502,18 @@
 
     function renderHydration() {
       const totalMl = hydrationTotalMl();
+      const workout = hydrationWorkoutAdjustment();
+      const targetMl = hydrationTargetForDate();
       const liters = totalMl / 1000;
-      const pct = Math.min(100, Math.round((totalMl / HYDRATION_TARGET_ML) * 100));
-      const status = totalMl >= HYDRATION_STRETCH_ML
+      const pct = Math.min(100, Math.round((totalMl / targetMl) * 100));
+      const status = totalMl >= Math.max(HYDRATION_STRETCH_ML, targetMl)
         ? 'しっかり取れています'
-        : totalMl >= HYDRATION_TARGET_ML
+        : totalMl >= targetMl
           ? '最低ラインOK'
-          : `あと${Math.max(0, Math.round((HYDRATION_TARGET_ML - totalMl) / 100) / 10).toFixed(1)}L`;
+          : `あと${Math.max(0, Math.round((targetMl - totalMl) / 100) / 10).toFixed(1)}L`;
       document.getElementById('hydrationLiters').textContent = liters.toFixed(1);
       document.getElementById('hydrationFill').style.width = `${pct}%`;
-      document.getElementById('hydrationStatus').textContent = `${status} / 目標1.2L`;
+      document.getElementById('hydrationStatus').textContent = `${status} / 目標${(targetMl / 1000).toFixed(1)}L${workout.hasWorkout ? ` (${workout.label})` : ''}`;
       document.getElementById('hydrationQuick').innerHTML = HYDRATION_QUICKS.map(item => `
         <button class="hydration-btn" type="button" onclick="addHydration(${item.ml}, '${item.label}')">
           ${item.label}<span>${item.ml}ml</span>
@@ -4523,6 +4572,8 @@
     async function sendHydration() {
       const record = getHydrationForDate();
       const totalMl = hydrationTotalMl();
+      const targetMl = hydrationTargetForDate();
+      const workout = hydrationWorkoutAdjustment();
       if (!totalMl) {
         showToast('水分量が0です', 'warn');
         return false;
@@ -4534,10 +4585,12 @@
           date: selectedDate,
           amountMl: totalMl,
           amountL: Math.round((totalMl / 1000) * 10) / 10,
-          targetMl: HYDRATION_TARGET_ML,
-          targetRate: Math.round((totalMl / HYDRATION_TARGET_ML) * 100),
+          targetMl,
+          targetRate: Math.round((totalMl / targetMl) * 100),
+          workoutAdjustmentMl: workout.extraMl,
+          workoutSummary: workout.label,
           entries: record.entries.map(entry => `${entry.label}:${entry.ml}ml`).join(', '),
-          note: '飲み物・汁物の目安。食事由来の水分は含めない。'
+          note: '飲み物・汁物の目安。食事由来の水分は含めない。運動日は目標を自動上乗せ。'
         });
         record.synced = true;
         setHydrationForDate(record);
@@ -5995,7 +6048,7 @@
         renderHistory();
         renderRecentGrid();
         renderDayBoard();
-        if (hydrationTotalMl()) await sendHydration();
+        if (hydrationTotalMl() && !getHydrationForDate().synced) await sendHydration();
         persistCurrentTimingDraft();
         showToast(`${timing.title}を${recordIndex >= 0 ? '更新' : '記録'}しました`);
       } else {
