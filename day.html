@@ -80,7 +80,7 @@
       background: var(--panel-strong);
       color: var(--ink);
       border-radius: 999px;
-      min-height: 36px;
+      min-height: 44px;
       padding: 0 12px;
     }
 
@@ -115,8 +115,8 @@
     }
 
     .subtle-nav {
-      width: 34px;
-      height: 34px;
+      width: 44px;
+      height: 44px;
       display: grid;
       place-items: center;
       border-radius: 12px;
@@ -245,14 +245,19 @@
     }
 
     .date-btn {
-      min-height: 36px;
-      padding: 0 12px;
+      min-height: 44px;
+      padding: 0 16px;
       border-radius: 999px;
       border: 1px solid var(--line);
       background: rgba(0,0,0,.05);
       color: var(--muted);
       font-size: 12px;
       font-weight: 850;
+    }
+
+    .date-controls input {
+      flex: 1 1 168px;
+      min-width: 0;
     }
 
     .date-btn.active {
@@ -332,6 +337,13 @@
     .target-field {
       display: grid;
       gap: 6px;
+      min-width: 0;
+    }
+
+    .target-field input,
+    .target-field select {
+      width: 100%;
+      min-width: 0;
     }
 
     .target-label {
@@ -1587,6 +1599,13 @@
       carb: 350,
       profile: { age: 25, sex: 'male', height: 171, weight: 67, activity: 1.75, effort: 'balanced' }
     };
+    const MEAL_BALANCE_META = {
+      staple: { label: '主食', target: 4, unit: 'SV', copy: '米・パン・麺・いも類' },
+      main: { label: '主菜', target: 4, unit: 'SV', copy: '肉・魚・卵・大豆・高たんぱく食品' },
+      side: { label: '副菜', target: 5, unit: 'SV', copy: '野菜・きのこ・海藻・汁物' },
+      dairy: { label: '乳製品', target: 2, unit: 'SV', copy: '牛乳・ヨーグルト・チーズ' },
+      fruit: { label: '果物', target: 2, unit: 'SV', copy: '果物・果実系' }
+    };
 
     let selectedDate = readInitialDate();
     let targetSettings = loadTargetSettings();
@@ -2340,14 +2359,6 @@
         `).join('')
         : '<div class="empty">今日の入力範囲では、大きな修正ポイントはありません。</div>';
     }
-
-    const MEAL_BALANCE_META = {
-      staple: { label: '主食', target: 4, unit: 'SV', copy: '米・パン・麺・いも類' },
-      main: { label: '主菜', target: 4, unit: 'SV', copy: '肉・魚・卵・大豆・高たんぱく食品' },
-      side: { label: '副菜', target: 5, unit: 'SV', copy: '野菜・きのこ・海藻・汁物' },
-      dairy: { label: '乳製品', target: 2, unit: 'SV', copy: '牛乳・ヨーグルト・チーズ' },
-      fruit: { label: '果物', target: 2, unit: 'SV', copy: '果物・果実系' }
-    };
 
     function createMealBalance() {
       return Object.fromEntries(Object.keys(MEAL_BALANCE_META).map(key => [key, { servings: 0, foods: {} }]));

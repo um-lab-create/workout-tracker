@@ -165,8 +165,8 @@ button:active {
 }
 
 .subtle-nav {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -808,7 +808,7 @@ body {
 }
 
 .value-input {
-  height: 39px;
+  height: 44px;
   font-size: 31px;
 }
 
@@ -846,6 +846,27 @@ body {
   .control { grid-template-columns: 44px 1fr 44px; }
   .value-input { font-size: 29px; }
   .exo-chip { width: 60px; }
+}
+
+@media (max-width: 430px) {
+  .date-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .date-input {
+    grid-column: 1 / -1;
+    min-height: 46px;
+  }
+  .rail-wrap {
+    overflow: visible;
+  }
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+  .exo-chip {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

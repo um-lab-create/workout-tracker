@@ -168,8 +168,8 @@
     .chip.error { color: var(--bad); border-color: rgba(255,109,138,.55); }
 
     .subtle-nav {
-      width: 34px;
-      height: 34px;
+      width: 44px;
+      height: 44px;
       display: grid;
       place-items: center;
       border-radius: 12px;
@@ -242,11 +242,12 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      width: 100%;
     }
 
     .date-quick {
-      min-height: 34px;
-      padding: 0 12px;
+      min-height: 44px;
+      padding: 0 16px;
       border-radius: 999px;
       border: 1px solid var(--line);
       background: rgba(0,0,0,.05);
@@ -262,8 +263,9 @@
     }
 
     .date-input {
-      min-height: 34px;
-      min-width: 154px;
+      min-height: 44px;
+      min-width: 0;
+      flex: 1 1 168px;
       padding: 0 12px;
       border-radius: 999px;
     }
@@ -422,10 +424,10 @@
 
     .day-link {
       flex: 0 0 auto;
-      min-height: 36px;
+      min-height: 44px;
       display: inline-flex;
       align-items: center;
-      padding: 0 12px;
+      padding: 0 16px;
       border-radius: 999px;
       border: 1px solid rgba(42,143,255,.22);
       background: rgba(42,143,255,.10);
