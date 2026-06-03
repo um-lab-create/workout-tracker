@@ -12,6 +12,7 @@
   <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css">
+  <script src="js/theme.js"></script>
   <style>
     :root {
       /* 2026-05-27 (cowork) meal.html もライト暖色テーマに統一 */
@@ -37,6 +38,27 @@
       --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
 
+    :root[data-theme="dark"] {
+      --bg: #090a0f;
+      --ink: #f7f4ea;
+      --muted: #aaa79d;
+      --dim: #6f6d67;
+      --line: rgba(255,255,255,.095);
+      --panel: rgba(23,24,27,.94);
+      --panel-strong: rgba(34,35,39,.96);
+      --glass: rgba(255,255,255,.055);
+      --accent: #c8ff42;
+      --accent-soft: rgba(200,255,66,.16);
+      --accent-2: #42e79b;
+      --ok: #42e79b;
+      --warn: #ffd15a;
+      --bad: #ff5f7f;
+      --blue: #58d8ff;
+      --blue-soft: rgba(88,216,255,.15);
+      --bubble: rgba(255,255,255,.08);
+      --shadow: 0 22px 70px rgba(0,0,0,.48);
+    }
+
     * { box-sizing: border-box; }
 
     html,
@@ -50,6 +72,14 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
+    }
+
+    :root[data-theme="dark"] body {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.025), transparent 32%),
+        radial-gradient(820px 420px at 20% -12%, rgba(200,255,66,.11), transparent 58%),
+        radial-gradient(620px 420px at 104% 18%, rgba(86,185,255,.12), transparent 62%),
+        linear-gradient(135deg, #09090d 0%, #101114 54%, #08090d 100%);
     }
 
     body {
@@ -123,6 +153,8 @@
       display: flex;
       align-items: flex-start;
       gap: 10px;
+      min-width: 0;
+      flex: 1;
     }
 
     .brand-main {
@@ -146,9 +178,19 @@
     }
 
     .status-stack {
-      display: grid;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
-      justify-items: end;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .status-row {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
     .chip {
@@ -163,6 +205,30 @@
       font-size: 12px;
       font-weight: 850;
       white-space: nowrap;
+    }
+
+    .theme-toggle {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--glass);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .compact-menu-btn {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .mini-btn {
+      min-height: 44px;
     }
 
     .chip.syncing { color: var(--accent-2); border-color: rgba(255,138,42,.55); }
@@ -594,7 +660,7 @@
     }
 
     .mini-btn {
-      min-height: 34px;
+      min-height: 44px;
       padding: 0 12px;
       border-radius: 999px;
       background: rgba(0,0,0,.07);
@@ -1974,16 +2040,36 @@
     .toast.warn { border-color: rgba(255,209,90,.4); }
     .toast.bad { border-color: rgba(255,109,138,.42); }
 
+    :root[data-theme="dark"] .dock,
+    :root[data-theme="dark"] .toast {
+      background: rgba(24,25,29,.94);
+      box-shadow: var(--shadow);
+    }
+
+    :root[data-theme="dark"] .history-card,
+    :root[data-theme="dark"] .dock-mini,
+    :root[data-theme="dark"] .close-btn,
+    :root[data-theme="dark"] .manage-card,
+    :root[data-theme="dark"] .result-card,
+    :root[data-theme="dark"] .editor-row,
+    :root[data-theme="dark"] .manage-btn {
+      border-color: var(--line);
+      background: var(--glass);
+    }
+
+    :root[data-theme="dark"] .sheet-bottom-bar {
+      background: linear-gradient(180deg, rgba(23,24,27,0), var(--panel-strong) 35%);
+    }
+
     @media (max-width: 600px) {
       .topbar {
-        flex-direction: column;
-        align-items: stretch;
+        align-items: flex-start;
       }
       .status-stack {
-        justify-items: start;
+        align-items: flex-end;
       }
       .header-tools {
-        justify-content: flex-start;
+        justify-content: flex-end;
       }
       .brand-main { font-size: 26px; }
       .hero-copy h1 { font-size: 21px; }
@@ -2024,10 +2110,13 @@
         </div>
       </div>
       <div class="status-stack">
-        <div class="chip" id="todayChip">--</div>
-        <div class="chip" id="syncChip">待機中</div>
-        <div class="header-tools">
+        <div class="status-row">
+          <button class="theme-toggle" type="button" data-theme-toggle onclick="CockpitTheme.toggle()">黒</button>
           <button class="compact-menu-btn" type="button" aria-label="管理メニュー" onclick="openManageMenu()">⋯</button>
+        </div>
+        <div class="status-row">
+          <div class="chip" id="todayChip">--</div>
+          <div class="chip" id="syncChip">待機中</div>
         </div>
       </div>
     </header>

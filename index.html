@@ -13,6 +13,7 @@
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css">
+<script src="js/theme.js"></script>
 <style>
 :root {
   /* 2026-05-27 (cowork) Cockpitもライト暖色テーマに統一 */
@@ -38,6 +39,27 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+:root[data-theme="dark"] {
+  --bg: #090a0f;
+  --ink: #f7f4ea;
+  --muted: #aaa79d;
+  --dim: #6f6d67;
+  --line: rgba(255,255,255,.095);
+  --panel: rgba(23,24,27,.94);
+  --panel-strong: rgba(34,35,39,.96);
+  --glass: rgba(255,255,255,.055);
+  --accent: #c8ff42;
+  --accent-soft: rgba(200,255,66,.16);
+  --blue: #58d8ff;
+  --blue-soft: rgba(88,216,255,.15);
+  --orange: #ff9d3f;
+  --orange-soft: rgba(255,157,63,.16);
+  --ok: #42e79b;
+  --warn: #ffd15a;
+  --bubble: rgba(255,255,255,.08);
+  --shadow: 0 22px 70px rgba(0,0,0,.48);
+}
+
 * { box-sizing: border-box; }
 
 html,
@@ -51,6 +73,14 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="dark"] body {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.025), transparent 32%),
+    radial-gradient(820px 420px at 20% -12%, rgba(200,255,66,.11), transparent 58%),
+    radial-gradient(620px 420px at 104% 18%, rgba(86,185,255,.12), transparent 62%),
+    linear-gradient(135deg, #09090d 0%, #101114 54%, #08090d 100%);
 }
 
 body {
@@ -131,6 +161,19 @@ button:disabled {
   font-size: 12px;
   font-weight: 850;
   white-space: nowrap;
+}
+
+.theme-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 950;
 }
 
 .hero {
@@ -820,6 +863,24 @@ button:disabled {
 .toast.ok { border-color: rgba(66,231,155,.36); }
 .toast.warn { border-color: rgba(255,209,90,.4); }
 
+:root[data-theme="dark"] .dock,
+:root[data-theme="dark"] .toast {
+  background: rgba(24,25,29,.94);
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="dark"] .dock-btn,
+:root[data-theme="dark"] .mini,
+:root[data-theme="dark"] .recent .section-icon {
+  border-color: var(--line);
+  background: var(--glass);
+}
+
+:root[data-theme="dark"] .dock-btn.is-active {
+  border-color: rgba(66,231,155,.34);
+  background: rgba(66,231,155,.14);
+}
+
 @media (max-width: 430px) {
   .brand-main { font-size: 27px; }
   .hero-copy h1 { font-size: 24px; }
@@ -1089,6 +1150,7 @@ button:disabled {
       <div class="brand-sub">今日の入口</div>
     </div>
     <div class="status-stack">
+      <button class="theme-toggle" type="button" data-theme-toggle onclick="CockpitTheme.toggle()">黒</button>
       <div class="chip" id="todayChip">--</div>
       <div class="chip" id="pinChip">PIN 未設定</div>
     </div>

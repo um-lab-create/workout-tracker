@@ -9,6 +9,7 @@
 <title>体組成記録</title>
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="js/theme.js"></script>
 <style>
   :root {
     /* 2026-05-27 (cowork) body.html もライト暖色テーマに統一 */
@@ -28,6 +29,20 @@
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
+  :root[data-theme="dark"] {
+    --bg: #090a0f;
+    --ink: #f7f4ea;
+    --muted: #aaa79d;
+    --dim: #6f6d67;
+    --line: rgba(255,255,255,.095);
+    --panel: rgba(23,24,27,.94);
+    --panel-strong: rgba(34,35,39,.96);
+    --accent: #c8ff42;
+    --accent-soft: rgba(200,255,66,.16);
+    --accent-2: #42e79b;
+    --ok: #42e79b;
+    --warn: #ffd15a;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
@@ -37,7 +52,19 @@
     padding: calc(16px + var(--safe-top)) 16px calc(40px + var(--safe-bottom));
     max-width: 560px; margin-inline: auto;
   }
+  :root[data-theme="dark"] body {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.025), transparent 32%),
+      radial-gradient(820px 420px at 20% -12%, rgba(200,255,66,.11), transparent 58%),
+      radial-gradient(620px 420px at 104% 18%, rgba(86,185,255,.12), transparent 62%),
+      linear-gradient(135deg, #09090d 0%, #101114 54%, #08090d 100%);
+  }
   .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .topbar > div:nth-child(2) { min-width: 0; flex: 1; }
+  .status-stack {
+    margin-left: auto; display: flex; flex-direction: column; align-items: flex-end;
+    gap: 8px; flex-shrink: 0;
+  }
   .subtle-nav {
     width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--line);
     background: var(--panel); color: var(--ink); font-size: 20px; cursor: pointer;
@@ -45,9 +72,15 @@
   .brand-main { font-size: 18px; font-weight: 800; }
   .brand-sub { font-size: 12px; color: var(--muted); }
   .chip {
-    margin-left: auto; font-size: 12px; color: var(--muted);
+    font-size: 12px; color: var(--muted);
     border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--panel);
   }
+  .theme-toggle {
+    min-width: 44px; min-height: 44px; display: inline-grid; place-items: center;
+    border: 1px solid var(--line); border-radius: 999px; background: rgba(0,0,0,.05);
+    color: var(--ink); font-size: 12px; font-weight: 950;
+  }
+  :root[data-theme="dark"] .theme-toggle { background: rgba(255,255,255,.055); }
   .chip.synced { color: var(--ok); border-color: rgba(66,231,155,.35); }
   .chip.error { color: var(--warn); border-color: rgba(255,209,90,.35); }
   .panel {
@@ -107,7 +140,10 @@
       <div class="brand-main">体組成記録</div>
       <div class="brand-sub">体重・体脂肪率・調子を記録</div>
     </div>
-    <div class="chip" id="syncChip">待機中</div>
+    <div class="status-stack">
+      <button class="theme-toggle" type="button" data-theme-toggle onclick="CockpitTheme.toggle()">黒</button>
+      <div class="chip" id="syncChip">待機中</div>
+    </div>
   </div>
 
   <section class="panel">

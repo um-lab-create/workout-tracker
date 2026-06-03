@@ -12,6 +12,7 @@
   <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css">
+  <script src="js/theme.js"></script>
   <style>
     :root {
       /* 2026-05-27 (cowork) ライト暖色テーマ。あすけんの「明るく続けたい」雰囲気に寄せる。 */
@@ -35,6 +36,25 @@
       --shadow-strong: 0 12px 36px rgba(0,0,0,.12);
     }
 
+    :root[data-theme="dark"] {
+      --bg: #090a0f;
+      --ink: #f7f4ea;
+      --muted: #aaa79d;
+      --dim: #6f6d67;
+      --line: rgba(255,255,255,.095);
+      --panel: rgba(23,24,27,.94);
+      --panel-strong: rgba(34,35,39,.96);
+      --accent: #c8ff42;
+      --accent-soft: rgba(200,255,66,.16);
+      --accent-2: #42e79b;
+      --warn: #ffd15a;
+      --ok: #42e79b;
+      --danger: #ff5f7f;
+      --bubble: rgba(255,255,255,.08);
+      --shadow: 0 22px 70px rgba(0,0,0,.48);
+      --shadow-strong: 0 24px 80px rgba(0,0,0,.50);
+    }
+
     * { box-sizing: border-box; }
 
     html,
@@ -49,6 +69,14 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
+    }
+
+    :root[data-theme="dark"] body {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.025), transparent 32%),
+        radial-gradient(820px 420px at 20% -12%, rgba(200,255,66,.11), transparent 58%),
+        radial-gradient(620px 420px at 104% 18%, rgba(86,185,255,.12), transparent 62%),
+        linear-gradient(135deg, #09090d 0%, #101114 54%, #08090d 100%);
     }
 
     body {
@@ -116,6 +144,12 @@
       gap: 10px;
     }
 
+    .status-stack {
+      display: grid;
+      gap: 8px;
+      justify-items: end;
+    }
+
     .subtle-nav {
       width: 44px;
       height: 44px;
@@ -128,6 +162,23 @@
       font-size: 18px;
       font-weight: 900;
       flex: 0 0 auto;
+    }
+
+    .theme-toggle {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(0,0,0,.05);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    :root[data-theme="dark"] .theme-toggle {
+      background: rgba(255,255,255,.055);
     }
 
     .brand-main {
@@ -1189,6 +1240,16 @@
       background: rgba(255,138,42,.14);
     }
 
+    :root[data-theme="dark"] .dock {
+      background: rgba(24,25,29,.94);
+      box-shadow: var(--shadow);
+    }
+
+    :root[data-theme="dark"] .dock-btn {
+      border-color: var(--line);
+      background: var(--glass);
+    }
+
     @media (max-width: 600px) {
       .hero-grid,
       .macro-grid,
@@ -1293,7 +1354,10 @@
           </div>
         </div>
       </div>
-      <div class="chip" id="coverageChip">栄養DB 0%</div>
+      <div class="status-stack">
+        <button class="theme-toggle" type="button" data-theme-toggle onclick="CockpitTheme.toggle()">黒</button>
+        <div class="chip" id="coverageChip">栄養DB 0%</div>
+      </div>
     </header>
 
     <section class="hero">

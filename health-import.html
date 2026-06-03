@@ -11,9 +11,28 @@
 <title>ヘルスケア取込</title>
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="js/theme.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
+  --bg: #fff8ef;
+  --ink: #1b1d1f;
+  --muted: #6b6f76;
+  --dim: #a4a8af;
+  --line: rgba(0,0,0,.08);
+  --panel: #ffffff;
+  --panel-strong: #fffefc;
+  --accent: #ff8a2a;
+  --blue: #2a8fff;
+  --ok: #2eb872;
+  --warn: #e4a23a;
+  --bad: #e94e5b;
+  --shadow: 0 6px 22px rgba(0,0,0,.07);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+:root[data-theme="dark"] {
   --bg: #090a0f;
   --ink: #f7f4ea;
   --muted: #aaa79d;
@@ -27,8 +46,6 @@
   --warn: #ffd15a;
   --bad: #ff5f7f;
   --shadow: 0 24px 80px rgba(0,0,0,.50);
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -47,6 +64,13 @@ body {
 body {
   min-height: 100vh;
   padding: calc(var(--safe-top) + 14px) 15px calc(var(--safe-bottom) + 28px);
+  background:
+    radial-gradient(780px 420px at 18% -10%, rgba(255,138,42,.07), transparent 58%),
+    radial-gradient(680px 420px at 104% 20%, rgba(92,194,109,.05), transparent 60%),
+    linear-gradient(145deg, #fffaf2 0%, #fff8ef 58%, #fffaf2 100%);
+}
+
+:root[data-theme="dark"] body {
   background:
     radial-gradient(780px 420px at 18% -10%, rgba(200,255,66,.13), transparent 58%),
     radial-gradient(680px 440px at 105% 20%, rgba(88,216,255,.13), transparent 60%),
@@ -103,6 +127,31 @@ button:disabled {
   font-weight: 800;
 }
 
+.header-tools {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(0,0,0,.04);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+:root[data-theme="dark"] .theme-toggle {
+  background: rgba(255,255,255,.055);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -124,11 +173,15 @@ button:disabled {
   place-items: center;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
+  background: rgba(0,0,0,.04);
   color: var(--ink);
   font-size: 18px;
   font-weight: 900;
   flex: 0 0 auto;
+}
+
+:root[data-theme="dark"] .subtle-nav {
+  background: rgba(255,255,255,.05);
 }
 
 .hero {
@@ -138,9 +191,15 @@ button:disabled {
   border-radius: 30px;
   padding: 18px;
   background:
+    linear-gradient(145deg, rgba(255,255,255,.75), rgba(255,255,255,.45)),
+    var(--panel);
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="dark"] .hero {
+  background:
     linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.025)),
     rgba(20,21,25,.82);
-  box-shadow: var(--shadow);
 }
 
 .hero::before {
@@ -182,9 +241,9 @@ button:disabled {
 .step {
   min-height: 72px;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(0,0,0,.22);
+  background: var(--panel);
 }
 
 .step-num {
@@ -207,7 +266,7 @@ button:disabled {
   border-radius: 24px;
   padding: 15px;
   background: var(--panel);
-  box-shadow: 0 18px 56px rgba(0,0,0,.30);
+  box-shadow: var(--shadow);
 }
 
 .file-box {
@@ -276,7 +335,7 @@ input[type="file"] {
 }
 
 .action.secondary {
-  background: rgba(255,255,255,.07);
+  background: var(--glass);
   color: var(--ink);
   box-shadow: none;
   border: 1px solid var(--line);
@@ -311,7 +370,7 @@ input[type="file"] {
   overflow: hidden;
   height: 14px;
   border-radius: 999px;
-  background: rgba(255,255,255,.08);
+  background: var(--glass);
 }
 
 .bar-fill {
@@ -331,9 +390,9 @@ input[type="file"] {
 .metric {
   min-height: 66px;
   padding: 10px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid var(--line);
   border-radius: 17px;
-  background: rgba(0,0,0,.20);
+  background: var(--panel);
 }
 
 .metric-value {
@@ -497,7 +556,10 @@ input[type="file"] {
         <div class="brand-sub">Apple Health zip → ヘルスケアログ <span id="buildTag"></span></div>
       </div>
     </div>
-    <div class="pill" id="netPill">オンライン</div>
+    <div class="header-tools">
+      <button class="theme-toggle" type="button" data-theme-toggle onclick="CockpitTheme.toggle()">黒</button>
+      <div class="pill" id="netPill">オンライン</div>
+    </div>
   </header>
 
   <section class="hero">

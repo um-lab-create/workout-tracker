@@ -35,8 +35,31 @@
 <title>筋トレ記録 v2</title>
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="js/theme.js"></script>
 <style>
 :root {
+  --bg: #fff8ef;
+  --ink: #1b1d1f;
+  --muted: #6b6f76;
+  --dim: #a4a8af;
+  --line: rgba(0,0,0,.08);
+  --panel: #ffffff;
+  --panel-strong: #fffefc;
+  --glass: rgba(0,0,0,.04);
+  --accent: #ff8a2a;
+  --accent-soft: rgba(255,138,42,.12);
+  --ok: #2eb872;
+  --warn: #e4a23a;
+  --bad: #e94e5b;
+  --shadow: 0 6px 22px rgba(0,0,0,.07);
+  --radius: 24px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --spring: cubic-bezier(.34,1.56,.64,1);
+}
+
+:root[data-theme="dark"] {
   --bg: #0a0a0f;
   --ink: #f7f4ea;
   --muted: #aaa79d;
@@ -51,11 +74,6 @@
   --warn: #ffd15a;
   --bad: #ff5f7f;
   --shadow: 0 22px 70px rgba(0,0,0,.48);
-  --radius: 24px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --ease: cubic-bezier(.2,.8,.2,1);
-  --spring: cubic-bezier(.34,1.56,.64,1);
 }
 
 * { box-sizing: border-box; }
@@ -76,6 +94,13 @@ body {
 body {
   min-height: 100vh;
   padding: calc(var(--safe-top) + 10px) 14px calc(var(--safe-bottom) + 112px);
+  background:
+    radial-gradient(780px 420px at 18% -10%, rgba(255,138,42,.07), transparent 58%),
+    radial-gradient(680px 420px at 104% 20%, rgba(92,194,109,.05), transparent 60%),
+    linear-gradient(145deg, #fffaf2 0%, #fff8ef 58%, #fffaf2 100%);
+}
+
+:root[data-theme="dark"] body {
   background:
     linear-gradient(180deg, rgba(255,255,255,.025), transparent 32%),
     radial-gradient(820px 420px at 20% -12%, rgba(200,255,66,.11), transparent 58%),
@@ -138,6 +163,14 @@ button:active {
   font-weight: 700;
 }
 
+.header-tools {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .net-pill {
   min-width: 96px;
   display: inline-flex;
@@ -147,7 +180,7 @@ button:active {
   padding: 8px 11px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255,255,255,.052);
+  background: var(--glass);
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
@@ -173,11 +206,24 @@ button:active {
   place-items: center;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
+  background: var(--glass);
   color: var(--ink);
   font-size: 18px;
   font-weight: 900;
   flex: 0 0 auto;
+}
+
+.theme-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 950;
 }
 
 .hero {
@@ -186,10 +232,16 @@ button:active {
   border: 1px solid var(--line);
   border-radius: 28px;
   background:
-    linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)),
-    rgba(20,21,25,.78);
+    linear-gradient(145deg, rgba(255,255,255,.75), rgba(255,255,255,.45)),
+    var(--panel);
   box-shadow: var(--shadow);
   padding: 16px;
+}
+
+:root[data-theme="dark"] .hero {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)),
+    rgba(20,21,25,.78);
 }
 
 .hero::before {
@@ -248,9 +300,9 @@ button:active {
 
 .date-card {
   margin-top: 12px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid var(--line);
   border-radius: 20px;
-  background: rgba(0,0,0,.18);
+  background: var(--panel);
   padding: 12px;
 }
 
@@ -285,7 +337,7 @@ button:active {
   min-height: 44px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
+  background: var(--glass);
   color: var(--ink);
 }
 
@@ -308,9 +360,9 @@ button:active {
 
 .stat {
   min-height: 68px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(0,0,0,.22);
+  background: var(--panel);
   padding: 10px;
 }
 
@@ -613,7 +665,7 @@ button:active {
   max-height: 78vh;
   overflow: auto;
   border-radius: 28px 28px 0 0;
-  background: rgba(20,21,25,.98);
+  background: var(--panel-strong);
   border: 1px solid var(--line);
   border-bottom: 0;
   padding: 10px 16px calc(var(--safe-bottom) + 18px);
@@ -629,7 +681,7 @@ button:active {
   width: 38px;
   height: 4px;
   border-radius: 99px;
-  background: rgba(255,255,255,.22);
+  background: var(--line);
   margin: 0 auto 14px;
 }
 
@@ -652,7 +704,7 @@ button:active {
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255,255,255,.04);
+  background: var(--glass);
   padding: 12px;
 }
 
@@ -892,9 +944,12 @@ body {
         <div class="brand-sub" id="todayLabel">今日の入力</div>
       </div>
     </div>
-    <div class="net-pill" id="netPill">
-      <span class="net-dot"></span>
-      <span id="netText">online</span>
+    <div class="header-tools">
+      <button class="theme-toggle" type="button" data-theme-toggle onclick="CockpitTheme.toggle()">黒</button>
+      <div class="net-pill" id="netPill">
+        <span class="net-dot"></span>
+        <span id="netText">online</span>
+      </div>
     </div>
   </header>
 
