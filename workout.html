@@ -33,6 +33,8 @@
 <meta name="apple-mobile-web-app-title" content="筋トレ記録">
 <meta name="theme-color" content="#0a0a0f">
 <title>筋トレ記録 v2</title>
+<link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
 :root {
   --bg: #0a0a0f;
@@ -1066,7 +1068,7 @@ function exoById(id) {
 
 function boot() {
   renderRail();
-  selectExercise(state.selectedId, { scroll: false });
+  selectExercise(state.selectedId, { scroll: false, haptic: false });
   renderStats();
   renderNetwork();
   updateQueueButton();
@@ -1161,7 +1163,7 @@ function selectExercise(id, options = {}) {
 
   renderEditor(exercise);
   renderSummary();
-  haptic(8);
+  if (options.haptic !== false) haptic(8);
 }
 
 function colorWithAlpha(hex, alpha) {

@@ -977,6 +977,108 @@ button:disabled {
   color: var(--muted);
   font-weight: 750;
 }
+
+.focus-panel {
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 24px;
+  padding: 14px;
+  margin: 0 0 14px;
+  background:
+    radial-gradient(420px 180px at 100% 0%, rgba(92,194,109,.14), transparent 60%),
+    rgba(255,250,242,.9);
+  box-shadow: 0 16px 48px rgba(50,36,18,.08);
+}
+
+.focus-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.focus-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.focus-title {
+  margin-top: 2px;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 950;
+}
+
+.focus-pill {
+  flex: 0 0 auto;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(92,194,109,.13);
+  color: #2f7a3e;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.focus-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.focus-action {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(0,0,0,.07);
+  background: rgba(255,255,255,.72);
+  text-decoration: none;
+}
+
+.focus-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: rgba(255,138,42,.14);
+  font-size: 22px;
+}
+
+.focus-action.done .focus-mark {
+  background: rgba(92,194,109,.14);
+  color: #2f7a3e;
+}
+
+.focus-action strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 950;
+}
+
+.focus-action span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 750;
+}
+
+.focus-go {
+  color: var(--dim);
+  font-size: 20px;
+  font-weight: 950;
+}
 </style>
 </head>
 <body>
@@ -1021,6 +1123,17 @@ button:disabled {
     </div>
     <div class="continuity-days" id="continuityDays"></div>
     <div class="continuity-summary" id="continuitySummary">食事を記録すると7日分の流れが出ます。</div>
+  </section>
+
+  <section class="focus-panel" aria-label="今日の司令">
+    <div class="focus-head">
+      <div>
+        <div class="focus-kicker">Today Focus</div>
+        <div class="focus-title" id="focusTitle">今日の順番を作成中</div>
+      </div>
+      <div class="focus-pill" id="focusPill">--</div>
+    </div>
+    <div class="focus-grid" id="focusGrid"></div>
   </section>
 
   <section class="hero" id="home">
@@ -1314,6 +1427,8 @@ const MEAL_RECIPE_STORE = 'meal_recipes_v1';
 const MEAL_DRAFT_STORE = 'meal_draft_v4';
 const WORKOUT_HISTORY_STORE = 'wt:history:v2';
 const WORKOUT_QUEUE_STORE = 'wt:queue:v2';
+const HYDRATION_STORE = 'hydration_recs_v1';
+const BODY_STORE = 'body_recs_v1';
 const BASE_PRODUCT_COUNT = 6;
 
 // === 2026-05-27 (cowork) Cockpit に「今日のスコア」を表示（ベンチマーク超え v1） ===
@@ -1741,6 +1856,7 @@ function renderDailyHub() {
   updateStreakChip();
   renderCockpitScore();
   renderContinuityLane();
+  renderFocusPanel({ today, mealCount, kcal, reviewCount, todaysWorkouts, queuedToday });
   renderBodyStatus();
   document.getElementById('dailyMealCard').href = `meal.html?date=${encodeURIComponent(today.date)}`;
   document.getElementById('dailyNutritionCard').href = `day.html?date=${encodeURIComponent(today.date)}`;
@@ -1759,6 +1875,63 @@ function renderDailyHub() {
   document.getElementById('dailyHealthValue').textContent = healthRecent ? relativeTimeLabel(healthRecent.at) : '取込';
   document.getElementById('dailyHealthCopy').textContent = healthRecent ? '最後に開いた時間' : 'Apple Health zip';
   setDailyStatus('dailyHealthStatus', healthRecent ? 'ok' : '', healthRecent ? '最近' : '任意');
+}
+
+function renderFocusPanel(context) {
+  const today = context.today;
+  const hydration = storageGet(HYDRATION_STORE, {});
+  const hydrationRecord = hydration[today.date] || { entries: [] };
+  const waterMl = (hydrationRecord.entries || []).reduce((sum, entry) => sum + (Number(entry.ml) || 0), 0);
+  const bodyRecords = storageGet(BODY_STORE, []);
+  const hasBodyToday = bodyRecords.some(record => record && String(record.date || '').slice(0, 10) === today.date);
+  const externalPending = storageGet(MEAL_RECORD_STORE, [])
+    .filter(record => record && record.date === today.date && record.diningOut && record.calcStatus === '未計算')
+    .length;
+  const tasks = [];
+
+  if (context.mealCount < 3) {
+    tasks.push({
+      mark: '🍽',
+      title: context.mealCount ? `食事をあと${3 - context.mealCount}回` : '最初の食事を残す',
+      copy: context.kcal ? `${context.kcal}kcal 入力済み` : '朝昼夜のどれか1つでOK',
+      href: `meal.html?date=${encodeURIComponent(today.date)}`
+    });
+  } else {
+    tasks.push({ mark: '✓', title: '食事は一通り記録済み', copy: `${context.kcal}kcal / 要確認${context.reviewCount}件`, href: `day.html?date=${encodeURIComponent(today.date)}`, done: true });
+  }
+
+  if (waterMl < 1200) {
+    tasks.push({
+      mark: '💧',
+      title: `水分 あと${Math.max(0, Math.round((1200 - waterMl) / 100) / 10).toFixed(1)}L`,
+      copy: `${(waterMl / 1000).toFixed(1)}L 記録済み`,
+      href: `meal.html?date=${encodeURIComponent(today.date)}#hydration`
+    });
+  }
+
+  if (!hasBodyToday) {
+    tasks.push({ mark: '⚖', title: '体組成を1回だけ残す', copy: '体重・体脂肪率・調子', href: 'body.html' });
+  }
+
+  if (!context.todaysWorkouts.length && !context.queuedToday) {
+    tasks.push({ mark: '🏋', title: '筋トレするなら先に開く', copy: '昨日入力も日付指定でOK', href: `workout.html?date=${encodeURIComponent(today.date)}` });
+  }
+
+  if (externalPending) {
+    tasks.unshift({ mark: '!', title: `外食未計算 ${externalPending}件`, copy: 'Codexへマクロ推定を依頼', href: `meal.html?date=${encodeURIComponent(today.date)}` });
+  }
+
+  const visible = tasks.slice(0, 3);
+  const doneCount = [context.mealCount >= 3, waterMl >= 1200, hasBodyToday, context.todaysWorkouts.length > 0].filter(Boolean).length;
+  document.getElementById('focusTitle').textContent = visible[0]?.title || '今日は整っています';
+  document.getElementById('focusPill').textContent = `${doneCount}/4`;
+  document.getElementById('focusGrid').innerHTML = visible.map(task => `
+    <a class="focus-action${task.done ? ' done' : ''}" href="${task.href}">
+      <div class="focus-mark">${task.mark}</div>
+      <div><strong>${task.title}</strong><span>${task.copy}</span></div>
+      <div class="focus-go">›</div>
+    </a>
+  `).join('');
 }
 
 function setDailyStatus(id, tone, label) {
