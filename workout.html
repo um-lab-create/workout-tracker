@@ -767,7 +767,7 @@ button:active {
 /* Compact cockpit: keep the full record flow inside one iPhone Safari screen. */
 body {
   min-height: 100dvh;
-  padding: calc(var(--safe-top) + 6px) 12px calc(var(--safe-bottom) + 176px);
+  padding: calc(var(--safe-top) + 6px) 12px calc(var(--safe-bottom) + 190px);
 }
 
 .topbar { margin: 2px 0 8px; }
@@ -780,44 +780,71 @@ body {
 }
 
 .hero {
-  border-radius: 22px;
+  border-radius: 20px;
   padding: 10px;
 }
 
 .hero-head {
-  grid-template-columns: 58px 1fr;
-  gap: 10px;
+  grid-template-columns: 48px 1fr;
+  gap: 9px;
 }
 
 .glyph {
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  font-size: 31px;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  font-size: 27px;
 }
 
-.exercise-title { font-size: 22px; }
+.exercise-title { font-size: 20px; }
 .exercise-meta {
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 2px;
+  font-size: 10px;
 }
 
 .quick-stats {
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 7px;
 }
 
 .stat {
-  min-height: 36px;
+  min-height: 32px;
   border: 0;
-  border-radius: 13px;
-  padding: 6px 7px;
+  border-radius: 12px;
+  padding: 5px 7px;
 }
 
-.stat-value { font-size: 17px; }
+.stat-value { font-size: 16px; }
 .stat-label {
   margin-top: 2px;
-  font-size: 9px;
+  font-size: 8px;
+}
+
+.date-card {
+  margin-top: 7px;
+  border-radius: 16px;
+  padding: 8px;
+}
+
+.date-head {
+  display: none;
+}
+
+.date-actions {
+  grid-template-columns: 58px 58px 1fr;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.date-chip,
+.date-input {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.date-input {
+  padding: 0 10px;
 }
 
 .rail-wrap {
@@ -829,8 +856,8 @@ body {
 
 .exo-chip {
   width: 64px;
-  min-height: 62px;
-  grid-template-rows: 28px auto;
+  min-height: 58px;
+  grid-template-rows: 26px auto;
   gap: 2px;
   padding: 7px 6px;
   border-radius: 18px;
@@ -841,39 +868,39 @@ body {
 .exo-prev { display: none; }
 
 .editor {
-  margin-top: 8px;
-  gap: 7px;
+  margin-top: 7px;
+  gap: 6px;
 }
 
 .field-card { border-radius: 18px; }
-.field-head { padding: 8px 10px 0; }
-.field-name { font-size: 11px; }
-.field-last { font-size: 10px; }
+.field-head { padding: 5px 10px 0; }
+.field-name { font-size: 10px; }
+.field-last { font-size: 9px; }
 
 .control {
   grid-template-columns: 48px 1fr 48px;
   gap: 7px;
-  padding: 6px 9px 9px;
+  padding: 3px 9px 6px;
 }
 
 .step {
-  height: 46px;
+  height: 44px;
   border-radius: 15px;
-  font-size: 25px;
+  font-size: 23px;
 }
 
 .value-input {
   height: 44px;
-  font-size: 31px;
+  font-size: 27px;
 }
 
-.unit { font-size: 9px; }
+.unit { font-size: 8px; }
 
 .summary-line {
-  min-height: 40px;
-  margin-top: 8px;
+  min-height: 36px;
+  margin-top: 7px;
   border-radius: 17px;
-  padding: 8px 10px;
+  padding: 7px 10px;
 }
 
 .summary-label { font-size: 10px; }
@@ -890,11 +917,14 @@ body {
 
 .icon-btn,
 .primary-btn {
-  height: 50px;
+  height: 48px;
   border-radius: 17px;
 }
 
 .primary-btn { font-size: 16px; }
+.action-inner.bulk-mode {
+  grid-template-columns: 48px 1fr 1fr 48px;
+}
 
 @media (max-width: 370px) {
   body { padding-left: 10px; padding-right: 10px; }
@@ -908,11 +938,11 @@ body {
 
 @media (max-width: 430px) {
   .date-actions {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 56px 56px minmax(0, 1fr);
   }
   .date-input {
-    grid-column: 1 / -1;
-    min-height: 46px;
+    grid-column: auto;
+    min-height: 44px;
   }
   .rail-wrap {
     overflow: visible;
@@ -1012,11 +1042,16 @@ body {
 </main>
 
 <div class="action-bar">
-  <div class="action-inner">
+  <div class="action-inner bulk-mode">
     <button class="icon-btn" id="historyBtn" aria-label="選択日の履歴">≡</button>
     <button class="primary-btn" id="submitBtn">
-      <span class="send-icon" id="sendIcon">✓</span>
-      <span id="submitText">記録する</span>
+      <span class="send-icon" id="sendIcon">＋</span>
+      <span id="submitText">追加</span>
+      <span></span>
+    </button>
+    <button class="primary-btn" id="sendAllBtn">
+      <span class="send-icon" id="sendAllIcon">↑</span>
+      <span id="sendAllText">送信 0</span>
       <span></span>
     </button>
     <button class="icon-btn" id="queueBtn" aria-label="再送キュー">↻</button>
@@ -1039,6 +1074,14 @@ body {
   </div>
 </div>
 
+<div class="sheet" id="draftSheet" aria-hidden="true">
+  <div class="sheet-card">
+    <div class="grip"></div>
+    <h2 class="sheet-title">今日の送信予定</h2>
+    <div class="history-list" id="draftList"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="js/storage.js"></script>
@@ -1053,6 +1096,7 @@ const AUTH_STORE = LS_KEYS.WRITE_AUTH; // storage.js の LS_KEYS を参照
 const STORE = {
   last: 'wt:lastValues:v2',
   queue: 'wt:queue:v2',
+  draftQueue: 'wt:draftQueue:v1',
   history: 'wt:history:v2',
   selected: 'wt:selectedExercise:v2',
   selectedDate: 'wt:selectedDate:v1'
@@ -1086,6 +1130,7 @@ const state = {
   values: {},
   last: mergeLastValues(load(STORE.last, {}), load('wt:lastValues:v1', {})),
   history: load(STORE.history, load('wt:history:v1', [])),
+  draftQueue: load(STORE.draftQueue, []),
   queue: load(STORE.queue, load('wt:queue:v1', []))
 };
 
@@ -1130,7 +1175,7 @@ function boot() {
   selectExercise(state.selectedId, { scroll: false, haptic: false });
   renderStats();
   renderNetwork();
-  updateQueueButton();
+  updateActionButtons();
   bindEvents();
   flushQueue({ silent: true });
 }
@@ -1162,7 +1207,8 @@ function bindEvents() {
     event.target.blur();
   });
 
-  $('#submitBtn').addEventListener('click', submitRecord);
+  $('#submitBtn').addEventListener('click', addDraftRecord);
+  $('#sendAllBtn').addEventListener('click', sendDraftRecords);
   $('#historyBtn').addEventListener('click', openHistory);
   $('#queueBtn').addEventListener('click', openQueue);
   $('#todayDateBtn').addEventListener('click', () => {
@@ -1177,6 +1223,7 @@ function bindEvents() {
 
   $('#historySheet').addEventListener('click', closeSheetOnBackdrop);
   $('#queueSheet').addEventListener('click', closeSheetOnBackdrop);
+  $('#draftSheet').addEventListener('click', closeSheetOnBackdrop);
   window.addEventListener('online', () => {
     renderNetwork();
     flushQueue({ silent: false });
@@ -1330,35 +1377,63 @@ function calculateSpeed(values) {
   return (distance / minutes * 60).toFixed(1);
 }
 
-async function submitRecord() {
+function addDraftRecord() {
   const exercise = exoById(state.selectedId);
   document.activeElement?.blur();
-
   const record = buildRecord(exercise);
-  setSubmitState('sending');
+  const draft = {
+    ...record,
+    _ts: Date.now(),
+    _exerciseId: exercise.id,
+    _draft: true
+  };
+  state.draftQueue.push(draft);
+  save(STORE.draftQueue, state.draftQueue);
+  setSubmitState('saved');
+  updateActionButtons();
+  renderStats();
+  showToast(`${exercise.short}を送信予定に追加しました`, 'ok');
+  haptic([8, 20, 8]);
+  setTimeout(() => setSubmitState('ready'), 900);
+}
 
-  try {
-    await postRecord(record);
-    rememberRecord(exercise, record);
-    setSubmitState('saved');
-    showToast('送信リクエスト済み。端末にも保存しました', 'ok');
-    haptic([8, 24, 8]);
-    setTimeout(() => setSubmitState('ready'), 1300);
-  } catch(error) {
-    if (error && error.code === 'AUTH_REQUIRED') {
-      setSubmitState('ready');
-      showToast('PIN を設定してから送信してください', 'warn');
-      return;
-    }
-    state.queue.push({ ...record, _queuedAt: Date.now() });
-    save(STORE.queue, state.queue);
-    rememberRecord(exercise, record, { queued: true });
-    setSubmitState('queued');
-    updateQueueButton();
-    showToast('オフライン保存しました。あとで再送します', 'warn');
-    haptic([20, 40, 20]);
-    setTimeout(() => setSubmitState('ready'), 1700);
+async function sendDraftRecords() {
+  document.activeElement?.blur();
+  if (state.draftQueue.length === 0) {
+    openDraft();
+    showToast('送信予定がありません。先に追加してください', 'warn');
+    return;
   }
+  setSendAllState('sending');
+  const sent = [];
+  const drafts = state.draftQueue.slice();
+  for (let index = 0; index < drafts.length; index += 1) {
+    const item = drafts[index];
+    try {
+      await postRecord(item);
+      sent.push(item);
+    } catch (error) {
+      if (error && error.code === 'AUTH_REQUIRED') {
+        setSendAllState('ready');
+        showToast('PIN を設定してから送信してください', 'warn');
+        state.draftQueue = drafts.slice(index);
+        save(STORE.draftQueue, state.draftQueue);
+        updateActionButtons();
+        return;
+      }
+      state.queue.push({ ...item, _queuedAt: Date.now() });
+    }
+  }
+  sent.forEach(item => rememberSentRecord(item));
+  state.draftQueue = [];
+  save(STORE.draftQueue, state.draftQueue);
+  save(STORE.queue, state.queue);
+  setSendAllState(sent.length ? 'saved' : 'queued');
+  updateActionButtons();
+  renderStats();
+  showToast(sent.length ? `${sent.length}件をまとめて送信しました` : '通信できないため再送キューへ移しました', sent.length ? 'ok' : 'warn');
+  haptic(sent.length ? [8, 24, 8] : [20, 40, 20]);
+  setTimeout(() => setSendAllState('ready'), 1400);
 }
 
 function buildRecord(exercise) {
@@ -1409,12 +1484,68 @@ function rememberRecord(exercise, record, options = {}) {
   renderStats();
 }
 
+function rememberSentRecord(record, options = {}) {
+  const exercise = EXERCISES.find(ex => ex.id === record._exerciseId || ex.name === record.種目) || exoById(state.selectedId);
+  const values = valuesFromRecord(exercise, record);
+  const { _draft, ...cleanRecord } = record;
+  state.last[exercise.id] = values;
+  save(STORE.last, state.last);
+
+  state.history.unshift({
+    ...cleanRecord,
+    _ts: record._ts || Date.now(),
+    _exerciseId: exercise.id,
+    _queued: Boolean(options.queued)
+  });
+  state.history = state.history.slice(0, 80);
+  save(STORE.history, state.history);
+
+  renderRail();
+  document.querySelectorAll('.exo-chip').forEach(button => {
+    button.classList.toggle('is-active', button.dataset.exercise === state.selectedId);
+  });
+}
+
+function valuesFromRecord(exercise, record) {
+  const values = {};
+  if (exercise.fields.includes('weight')) values.weight = Number(record.重量) || 0;
+  if (exercise.fields.includes('reps')) values.reps = Number(record.回数) || 0;
+  if (exercise.fields.includes('sets')) values.sets = Number(record.セット数) || 0;
+  if (exercise.fields.includes('minutes')) values.minutes = Number(record.時間) || 0;
+  if (exercise.fields.includes('distance')) values.distance = Number(record.距離) || 0;
+  if (exercise.fields.includes('intensity')) values.intensity = Number(record._intensity) || FIELD.intensity.min;
+  return values;
+}
+
 function setSubmitState(stateName) {
   const button = $('#submitBtn');
   const text = $('#submitText');
   const icon = $('#sendIcon');
   button.classList.remove('sending', 'saved', 'queued');
 
+  if (stateName === 'sending') {
+    button.classList.add('sending');
+    text.textContent = '追加中';
+    icon.textContent = '…';
+  } else if (stateName === 'saved') {
+    button.classList.add('saved');
+    text.textContent = '追加済み';
+    icon.textContent = '✓';
+  } else if (stateName === 'queued') {
+    button.classList.add('queued');
+    text.textContent = '再送待ち';
+    icon.textContent = '!';
+  } else {
+    text.textContent = '追加';
+    icon.textContent = '＋';
+  }
+}
+
+function setSendAllState(stateName) {
+  const button = $('#sendAllBtn');
+  const text = $('#sendAllText');
+  const icon = $('#sendAllIcon');
+  button.classList.remove('sending', 'saved', 'queued');
   if (stateName === 'sending') {
     button.classList.add('sending');
     text.textContent = '送信中';
@@ -1428,14 +1559,14 @@ function setSubmitState(stateName) {
     text.textContent = '再送待ち';
     icon.textContent = '!';
   } else {
-    text.textContent = '記録する';
-    icon.textContent = '✓';
+    text.textContent = `送信 ${state.draftQueue.length}`;
+    icon.textContent = '↑';
   }
 }
 
 function renderStats() {
   const selected = state.selectedDate;
-  const todays = state.history.filter(item => item.日付 === selected);
+  const todays = state.history.filter(item => item.日付 === selected).concat(state.draftQueue.filter(item => item.日付 === selected));
   const sets = todays.reduce((sum, item) => sum + (Number(item.セット数) || 0), 0);
   const kinds = new Set(todays.map(item => item.種目)).size;
 
@@ -1444,7 +1575,7 @@ function renderStats() {
 
   const monday = startOfWeek(parseLocalDate(selected));
   const weekDates = new Set();
-  state.history.forEach(item => {
+  state.history.concat(state.draftQueue).forEach(item => {
     const date = parseLocalDate(item.日付);
     if (date >= monday && isWeightedExerciseName(item.種目)) weekDates.add(item.日付);
   });
@@ -1503,7 +1634,8 @@ function openHistory() {
 }
 
 function renderHistory() {
-  const todays = state.history.filter(item => item.日付 === state.selectedDate);
+  const todays = state.draftQueue.filter(item => item.日付 === state.selectedDate)
+    .concat(state.history.filter(item => item.日付 === state.selectedDate));
   $('#historyTitle').textContent = `${formatJapaneseDate(parseLocalDate(state.selectedDate))} の記録`;
   $('#historyList').innerHTML = todays.length
     ? todays.map(historyItemHtml).join('')
@@ -1522,7 +1654,7 @@ function historyItemHtml(item) {
   return `
     <div class="history-item">
       <div>
-        <div class="history-main">${exercise.kanji ? `${exercise.kanji} ` : ''}${item.種目}${item._queued ? ' / 再送待ち' : ''}</div>
+        <div class="history-main">${exercise.kanji ? `${exercise.kanji} ` : ''}${item.種目}${item._draft ? ' / 送信予定' : item._queued ? ' / 再送待ち' : ''}</div>
         <div class="history-sub">${sub}</div>
       </div>
       <div class="history-time">${hhmm}</div>
@@ -1533,6 +1665,11 @@ function historyItemHtml(item) {
 function openQueue() {
   renderQueue();
   openSheet('#queueSheet');
+}
+
+function openDraft() {
+  renderDraft();
+  openSheet('#draftSheet');
 }
 
 function renderQueue() {
@@ -1549,6 +1686,20 @@ function renderQueue() {
     : '<div class="empty">再送待ちはありません</div>';
 }
 
+function renderDraft() {
+  $('#draftList').innerHTML = state.draftQueue.length
+    ? state.draftQueue.map((item, index) => `
+      <div class="queue-item">
+        <div>
+          <div class="history-main">${item.種目}</div>
+          <div class="history-sub">${item.日付} / ${queueSummary(item)}</div>
+        </div>
+        <button class="icon-btn" style="width:48px;height:42px" onclick="removeDraft(${index})" aria-label="この送信予定を削除">×</button>
+      </div>
+    `).join('')
+    : '<div class="empty">送信予定はありません</div>';
+}
+
 function queueSummary(item) {
   if (item.種目 === 'トレッドミル') return `${item.時間 || '-'}分 ${item.距離 || '-'}km 強度${item._intensity || '-'}/20`;
   if (item.種目 === 'アブベンチ') return `${item.回数 || '-'}回 × ${item.セット数 || '-'}`;
@@ -1562,12 +1713,21 @@ window.retryOne = async function retryOne(index) {
     await postRecord(item);
     state.queue.splice(index, 1);
     save(STORE.queue, state.queue);
-    updateQueueButton();
+    updateActionButtons();
     renderQueue();
     showToast('1件を再送しました', 'ok');
   } catch {
     showToast('まだ送れません。通信を確認してください', 'bad');
   }
+};
+
+window.removeDraft = function removeDraft(index) {
+  state.draftQueue.splice(index, 1);
+  save(STORE.draftQueue, state.draftQueue);
+  updateActionButtons();
+  renderDraft();
+  renderStats();
+  showToast('送信予定から削除しました', 'ok');
 };
 
 async function flushQueue(options = {}) {
@@ -1584,15 +1744,18 @@ async function flushQueue(options = {}) {
   const sent = state.queue.length - remaining.length;
   state.queue = remaining;
   save(STORE.queue, state.queue);
-  updateQueueButton();
+  updateActionButtons();
   if (!options.silent && sent > 0) showToast(`${sent}件を再送しました`, 'ok');
 }
 
-function updateQueueButton() {
-  const button = $('#queueBtn');
-  button.classList.toggle('has-queue', state.queue.length > 0);
-  button.textContent = state.queue.length > 0 ? String(state.queue.length) : '↻';
-  button.setAttribute('aria-label', state.queue.length > 0 ? `再送キュー ${state.queue.length}件` : '再送キュー');
+function updateActionButtons() {
+  const retryButton = $('#queueBtn');
+  retryButton.classList.toggle('has-queue', state.queue.length > 0);
+  retryButton.textContent = state.queue.length > 0 ? String(state.queue.length) : '↻';
+  retryButton.setAttribute('aria-label', state.queue.length > 0 ? `再送キュー ${state.queue.length}件` : '再送キュー');
+  setSendAllState('ready');
+  $('#sendAllBtn').classList.toggle('has-queue', state.draftQueue.length > 0);
+  $('#sendAllBtn').setAttribute('aria-label', state.draftQueue.length > 0 ? `送信予定 ${state.draftQueue.length}件をまとめて送信` : '送信予定を見る');
 }
 
 function openSheet(selector) {
