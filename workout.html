@@ -36,6 +36,7 @@
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script src="js/theme.js"></script>
+<script src="js/nav.js"></script>
 <style>
 :root {
   --bg: #fff8ef;
@@ -766,7 +767,7 @@ button:active {
 /* Compact cockpit: keep the full record flow inside one iPhone Safari screen. */
 body {
   min-height: 100dvh;
-  padding: calc(var(--safe-top) + 6px) 12px calc(var(--safe-bottom) + 86px);
+  padding: calc(var(--safe-top) + 6px) 12px calc(var(--safe-bottom) + 176px);
 }
 
 .topbar { margin: 2px 0 8px; }
@@ -878,7 +879,10 @@ body {
 .summary-label { font-size: 10px; }
 .summary-value { font-size: 14px; }
 
-.action-bar { padding: 8px 12px calc(var(--safe-bottom) + 8px); }
+.action-bar {
+  bottom: calc(var(--safe-bottom) + 86px);
+  padding: 8px 12px 8px;
+}
 .action-inner {
   grid-template-columns: 48px 1fr 48px;
   gap: 8px;
