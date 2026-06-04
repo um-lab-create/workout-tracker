@@ -1655,7 +1655,8 @@
     }
 
     .dock-actions {
-      display: flex;
+      display: grid;
+      grid-template-columns: 52px minmax(86px, 1fr) minmax(86px, 1fr);
       gap: 8px;
     }
 
@@ -1673,9 +1674,23 @@
     }
 
     .dock .save-btn {
-      min-width: 148px;
+      min-width: 0;
       min-height: 52px;
       padding: 0 18px;
+    }
+
+    .dock .batch-btn {
+      background: rgba(255,255,255,.72);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      box-shadow: none;
+    }
+
+    .dock .batch-btn.has-queue {
+      background: linear-gradient(135deg, #111 0%, #2e2a22 100%);
+      color: #fff;
+      border-color: rgba(0,0,0,.18);
+      box-shadow: 0 12px 26px rgba(25,20,14,.16);
     }
 
     .history-panel {
@@ -2096,7 +2111,7 @@
       .dock-row { grid-template-columns: 1fr; }
       .dock-actions { width: 100%; }
       .dock-mini,
-      .dock .save-btn { flex: 1; min-width: 0; }
+      .dock .save-btn { min-width: 0; }
     }
   </style>
 </head>
@@ -2388,7 +2403,8 @@
       </div>
       <div class="dock-actions">
         <button class="dock-mini" type="button" onclick="openBuilder()">＋</button>
-        <button class="save-btn" id="saveMealButton" type="button" onclick="saveMeal()">記録する</button>
+        <button class="save-btn" id="saveMealButton" type="button" onclick="saveMeal()">追加</button>
+        <button class="save-btn batch-btn" id="sendMealBatchButton" type="button" onclick="sendMealBatch()">送信 0</button>
       </div>
     </div>
   </div>
@@ -3315,6 +3331,19 @@
       storageSet(RECORD_STORE, records);
     }
 
+    function unsyncedMealRecords(dateStr = selectedDate) {
+      return getRecords().filter(record => record && record.date === dateStr && !record.synced);
+    }
+
+    function updateMealBatchButton() {
+      const button = document.getElementById('sendMealBatchButton');
+      if (!button) return;
+      const count = unsyncedMealRecords(selectedDate).length;
+      button.textContent = `送信 ${count}`;
+      button.classList.toggle('has-queue', count > 0);
+      button.setAttribute('aria-label', count ? `${count}件をまとめて送信` : '未送信の食事はありません');
+    }
+
     function getHydrationRecords() {
       return storageGet(HYDRATION_STORE, {});
     }
@@ -3943,6 +3972,7 @@
         document.getElementById(`day${suffix}Fill`).style.width = `${Math.round((byTiming[key] / dayMax) * 100)}%`;
         document.getElementById(`day${suffix}Val`).textContent = `${Math.round(byTiming[key])}kcal`;
       });
+      updateMealBatchButton();
     }
 
     function buildMealGapHint(totals) {
@@ -4693,6 +4723,7 @@
         showToast('水分を送信しました');
         return true;
       } catch (err) {
+        console.warn('[meal] sendHydration failed', err);
         if (err && err.code === 'AUTH_REQUIRED') {
           showToast('PIN を設定してから送信してください', 'warn');
         } else {
@@ -4739,7 +4770,7 @@
       document.getElementById('nutritionReviewVal').textContent = `${totals.review}件`;
       const saveButton = document.getElementById('saveMealButton');
       if (saveButton && !isSaving) {
-        saveButton.textContent = editingRecordId ? '更新する' : '記録する';
+        saveButton.textContent = editingRecordId ? '更新' : '追加';
       }
     }
 
@@ -6029,15 +6060,14 @@
 
     async function sendToSheet(record, detailRows = []) {
       setSyncStatus('syncing', '送信中');
+      const rows = Array.isArray(detailRows) ? detailRows : [];
       try {
         await postToSheet({ sheet: '食事ログ', ...record });
-        if (detailRows.length) {
-          await postToSheet({ sheet: '食事明細', rows: detailRows });
+        if (rows.length) {
+          await postToSheet({ sheet: '食事明細', rows });
         }
-        setSyncStatus('synced', '同期済み');
-        setTimeout(() => setSyncStatus('', '待機中'), 2800);
-        return true;
       } catch (err) {
+        console.warn('[meal] sendToSheet failed', err);
         if (err && err.code === 'AUTH_REQUIRED') {
           setSyncStatus('', '待機中');
           showToast('PIN を設定してから送信してください', 'warn');
@@ -6047,6 +6077,9 @@
         setTimeout(() => setSyncStatus('', '待機中'), 2800);
         return false;
       }
+      setSyncStatus('synced', '同期済み');
+      setTimeout(() => setSyncStatus('', '待機中'), 2800);
+      return true;
     }
 
     async function saveMeal() {
@@ -6058,8 +6091,9 @@
       }
 
       isSaving = true;
-      document.getElementById('saveMealButton').disabled = true;
-      document.getElementById('saveMealButton').textContent = '送信中...';
+      const saveButton = document.getElementById('saveMealButton');
+      saveButton.disabled = true;
+      saveButton.textContent = '追加中...';
 
       const totals = mealTotals();
       const note = document.getElementById('mealNote').value.trim();
@@ -6110,47 +6144,85 @@
       }
       saveRecords(records);
 
-      const ok = await sendToSheet({
-        id: record.id,
-        date: record.date,
-        timing: record.timing,
-        timingKey: record.timingKey,
-        memo: record.memo,
-        kcal: record.kcal,
-        protein: record.protein,
-        fat: record.fat,
-        carb: record.carb,
-        diningOut: record.diningOut,
-        restaurantName: record.restaurantName,
-        googleMapUrl: record.googleMapUrl,
-        diningText: record.diningText,
-        calcStatus: record.calcStatus
-      }, buildMealDetailRows(record));
+      editingRecordId = record.id;
+      renderCurrentMeal();
+      renderHistory();
+      renderRecentGrid();
+      renderDayBoard();
+      persistCurrentTimingDraft();
+      setSyncStatus('', '送信待ち');
+      showToast(`${timing.title}を${recordIndex >= 0 ? '更新' : '追加'}しました`);
+      isSaving = false;
+      saveButton.disabled = false;
+      saveButton.textContent = editingRecordId ? '更新' : '追加';
+    }
 
-      if (ok) {
+    async function sendMealBatch() {
+      if (isSaving) return;
+      const pending = unsyncedMealRecords(selectedDate);
+      const button = document.getElementById('sendMealBatchButton');
+      if (!pending.length) {
+        showToast('送信待ちの食事はありません', 'warn');
+        return;
+      }
+
+      isSaving = true;
+      if (button) {
+        button.disabled = true;
+        button.textContent = '送信中...';
+      }
+      setSyncStatus('syncing', 'まとめて送信中');
+
+      let sent = 0;
+      for (const record of pending) {
+        const ok = await sendToSheet({
+          id: record.id,
+          date: record.date,
+          timing: record.timing,
+          timingKey: record.timingKey,
+          memo: record.memo,
+          kcal: record.kcal,
+          protein: record.protein,
+          fat: record.fat,
+          carb: record.carb,
+          diningOut: record.diningOut,
+          restaurantName: record.restaurantName,
+          googleMapUrl: record.googleMapUrl,
+          diningText: record.diningText,
+          calcStatus: record.calcStatus
+        }, buildMealDetailRows(record));
+        if (ok === false) break;
+
+        sent += 1;
         const latest = getRecords();
         const idx = latest.findIndex(entry => entry.id === record.id);
         if (idx >= 0) {
           latest[idx].synced = true;
+          latest[idx].syncedAt = new Date().toISOString();
           saveRecords(latest);
         }
       }
 
-      if (ok) {
-        editingRecordId = record.id;
-        renderCurrentMeal();
-        renderHistory();
-        renderRecentGrid();
-        renderDayBoard();
-        if (hydrationTotalMl() && !getHydrationForDate().synced) await sendHydration();
-        persistCurrentTimingDraft();
-        showToast(`${timing.title}を${recordIndex >= 0 ? '更新' : '記録'}しました`);
-      } else {
-        showToast('送信を確認できませんでした', 'warn');
+      if (sent > 0 && hydrationTotalMl() && !getHydrationForDate().synced) {
+        await sendHydration();
       }
+
+      renderCurrentMeal();
+      renderHistory();
+      renderRecentGrid();
+      renderDayBoard();
       isSaving = false;
-      document.getElementById('saveMealButton').disabled = false;
-      document.getElementById('saveMealButton').textContent = editingRecordId ? '更新する' : '記録する';
+      if (button) button.disabled = false;
+      updateMealBatchButton();
+      if (sent === pending.length) {
+        setSyncStatus('synced', '同期済み');
+        setTimeout(() => setSyncStatus('', '待機中'), 2800);
+        showToast(`${sent}件をまとめて送信しました`);
+      } else {
+        setSyncStatus('error', '一部未送信');
+        setTimeout(() => setSyncStatus('', '待機中'), 2800);
+        showToast(`${sent}/${pending.length}件を送信しました`, 'warn');
+      }
     }
 
     function bindEvents() {

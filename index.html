@@ -1034,7 +1034,13 @@ a.stat-card:active {
   display: grid;
   place-items: center;
   gap: 3px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
+.continuity-day:active { transform: scale(.97); }
+.continuity-day:hover { box-shadow: 0 10px 24px rgba(50,36,18,.08); border-color: rgba(255,138,42,.22); }
 .continuity-day.done { background: rgba(92,194,109,.14); border-color: rgba(92,194,109,.28); }
 .continuity-day.mid { background: rgba(255,209,90,.16); border-color: rgba(255,209,90,.32); }
 .continuity-day.low { background: rgba(233,78,91,.10); border-color: rgba(233,78,91,.22); }
@@ -1206,7 +1212,7 @@ a.stat-card:active {
     <div class="advice-bubble idle" id="cpScoreMsg">最初の1食を入れて、今日を始めよう。</div>
   </section>
 
-  <section class="continuity-lane clickable-panel" aria-label="継続状況" role="button" tabindex="0" onclick="window.location.href='day.html'">
+  <section class="continuity-lane" aria-label="継続状況">
     <div class="continuity-head">
       <div class="continuity-title"><i class="ti ti-flame" aria-hidden="true"></i><span>継続</span></div>
       <div class="continuity-pill" id="continuityPill">--</div>
@@ -1412,8 +1418,8 @@ a.stat-card:active {
       <button class="action-btn" type="button" data-action="import_eufy" data-tone="csv">
         <div class="action-glyph">B</div>
         <div>
-          <div class="action-title">体組成CSV</div>
-          <div class="action-copy">eufy の最新 CSV を取込。</div>
+          <div class="action-title">体組成取込</div>
+          <div class="action-copy">Apps Script で eufy CSV を取込。</div>
         </div>
         <div class="action-go">→</div>
       </button>
@@ -1701,11 +1707,11 @@ function renderContinuityLane() {
     const mark = row.score === null ? '−' : row.score >= 80 ? '✓' : row.score >= 60 ? '•' : '!';
     const score = row.score === null ? `${row.meals}/3` : `${row.score}`;
     return `
-      <div class="continuity-day${tone}${todayClass}" title="${row.date}">
+      <a class="continuity-day${tone}${todayClass}" href="day.html?date=${encodeURIComponent(row.date)}" title="${row.date}" aria-label="${row.date} の日次を見る">
         <div class="continuity-date">${dateLabel}</div>
         <div class="continuity-mark">${mark}</div>
         <div class="continuity-score">${score}</div>
-      </div>
+      </a>
     `;
   }).join('');
 
@@ -2109,7 +2115,7 @@ function bindActions() {
 async function runAction(name, button) {
   const labels = {
     refresh_all: '集計更新',
-    import_eufy: '体組成 CSV 取込',
+    import_eufy: '体組成取込',
     import_health: 'ヘルスケア CSV 取込'
   };
   const label = labels[name] || name;
