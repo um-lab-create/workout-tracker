@@ -114,7 +114,7 @@ button:disabled {
 }
 
 .app {
-  width: min(100%, 560px);
+  width: min(calc(100vw - 28px), 560px);
   margin: 0 auto;
 }
 
@@ -145,28 +145,32 @@ button:disabled {
 }
 
 .status-stack {
-  display: grid;
-  gap: 8px;
-  justify-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  max-width: 150px;
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  padding: 0 16px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(0,0,0,.05);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
   white-space: nowrap;
 }
 
+#pinChip { display: none; }
+
 .theme-toggle {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 38px;
+  min-height: 34px;
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--line);
@@ -1173,6 +1177,240 @@ a.stat-card:active {
   font-size: 20px;
   font-weight: 950;
 }
+
+/* 2026-06-06 Codex: home is an entry screen, not a dashboard dump. */
+.home-entry {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  padding: 16px;
+  margin-bottom: 12px;
+  background:
+    radial-gradient(460px 220px at 100% -20%, rgba(92,194,109,.18), transparent 62%),
+    radial-gradient(360px 180px at -10% 0%, rgba(255,138,42,.13), transparent 62%),
+    var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.home-entry-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.home-entry-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.home-entry-title {
+  margin-top: 2px;
+  font-size: 25px;
+  line-height: 1.12;
+  font-weight: 950;
+  letter-spacing: -.035em;
+}
+
+.home-entry-pill {
+  flex: 0 0 auto;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(92,194,109,.13);
+  color: #2f7a3e;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.home-entry .focus-grid {
+  margin-bottom: 12px;
+}
+
+.home-entry .focus-action {
+  min-height: 56px;
+  background: rgba(255,255,255,.78);
+}
+
+.home-launch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-launch {
+  min-height: 86px;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(0,0,0,.075);
+  background: rgba(0,0,0,.045);
+  text-decoration: none;
+  text-align: left;
+}
+
+.home-launch.primary {
+  min-height: 104px;
+  background: linear-gradient(145deg, rgba(255,138,42,.16), rgba(92,194,109,.12)), var(--panel);
+  border-color: rgba(255,138,42,.22);
+}
+
+.home-launch:active { transform: scale(.97); }
+
+.home-launch-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.home-launch-glyph {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(0,0,0,.07);
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.home-launch-arrow {
+  color: var(--dim);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.home-launch-title {
+  font-size: 18px;
+  line-height: 1.08;
+  font-weight: 950;
+}
+
+.home-launch-copy {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.home-score-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.home-score-row .cockpit-score {
+  margin-bottom: 0;
+}
+
+.home-insights {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 14px 44px rgba(0,0,0,.07);
+  overflow: hidden;
+}
+
+.home-insights summary {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 950;
+  list-style: none;
+}
+
+.home-insights summary::-webkit-details-marker { display: none; }
+.home-insights summary::after {
+  content: '見る';
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+.home-insights[open] summary::after { content: '閉じる'; }
+.home-insights-inner {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.home-secondary {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: 0 14px 44px rgba(0,0,0,.07);
+  overflow: hidden;
+}
+
+.home-secondary summary {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 950;
+  list-style: none;
+}
+
+.home-secondary summary::-webkit-details-marker { display: none; }
+
+.home-secondary summary::after {
+  content: '開く';
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.home-secondary[open] summary::after {
+  content: '閉じる';
+}
+
+.home-secondary-inner {
+  padding: 0 12px 12px;
+}
+
+.home-secondary-inner .section {
+  margin-top: 10px;
+  box-shadow: none;
+}
+
+@media (max-width: 430px) {
+  .home-entry-title { font-size: 23px; }
+  .home-launch-grid { grid-template-columns: 1fr 1fr; }
+  .cockpit-score {
+    padding: 14px;
+  }
+  .cockpit-score .score-top {
+    gap: 12px;
+  }
+  .cockpit-score .score-donut {
+    width: 96px;
+    height: 96px;
+  }
+  .cockpit-score .score-value {
+    font-size: 32px;
+  }
+}
 </style>
 </head>
 <body>
@@ -1189,75 +1427,97 @@ a.stat-card:active {
     </div>
   </header>
 
-  <section class="cockpit-score clickable-panel" id="cockpitScore" role="button" tabindex="0" onclick="window.location.href='day.html'">
-    <div class="score-top">
-      <div class="score-donut" aria-label="今日のスコア">
-        <svg viewBox="0 0 120 120" aria-hidden="true">
-          <circle cx="60" cy="60" r="52" class="donut-bg"></circle>
-          <circle cx="60" cy="60" r="52" class="donut-fg" id="cpScoreDonut" stroke-dasharray="326.73" stroke-dashoffset="326.73"></circle>
-        </svg>
-        <div class="donut-center">
-          <span class="score-value idle" id="cpScoreVal">—</span>
-          <span class="score-suffix" id="cpScoreSuffix">／100</span>
-        </div>
-      </div>
-      <div class="score-meta">
-        <div class="score-label">今日のスコア</div>
-        <div class="score-status idle" id="cpScoreStatus">未入力</div>
-        <div class="score-sub" id="cpScoreSub">記録するとスコアが出ます</div>
-        <button type="button" id="dayTypeChip" class="chip" style="margin-top:8px; cursor:pointer; border:none;" onclick="event.stopPropagation(); toggleTodayTrainingDay()">休養日</button>
-        <div class="score-go">日次を見る ›</div>
-      </div>
-    </div>
-    <div class="advice-bubble idle" id="cpScoreMsg">最初の1食を入れて、今日を始めよう。</div>
-  </section>
-
-  <section class="continuity-lane" aria-label="継続状況">
-    <div class="continuity-head">
-      <div class="continuity-title"><i class="ti ti-flame" aria-hidden="true"></i><span>継続</span></div>
-      <div class="continuity-pill" id="continuityPill">--</div>
-    </div>
-    <div class="continuity-days" id="continuityDays"></div>
-    <div class="continuity-summary" id="continuitySummary">食事を記録すると7日分の流れが出ます。</div>
-  </section>
-
-  <section class="focus-panel" aria-label="今日の司令">
-    <div class="focus-head">
+  <section class="home-entry" aria-label="今日の入口">
+    <div class="home-entry-head">
       <div>
-        <div class="focus-kicker">Today Focus</div>
-        <div class="focus-title" id="focusTitle">今日の順番を作成中</div>
+        <div class="home-entry-kicker">Today</div>
+        <div class="home-entry-title" id="focusTitle">今日の入口を準備中</div>
       </div>
-      <div class="focus-pill" id="focusPill">--</div>
+      <div class="home-entry-pill" id="focusPill">--</div>
     </div>
     <div class="focus-grid" id="focusGrid"></div>
+    <div class="home-launch-grid">
+      <a class="home-launch primary" href="meal.html" data-track-key="meal" data-track-label="食事" data-track-kind="launch">
+        <div class="home-launch-top">
+          <div class="home-launch-glyph">食</div>
+          <div class="home-launch-arrow">›</div>
+        </div>
+        <div>
+          <div class="home-launch-title">食事</div>
+          <div class="home-launch-copy">朝昼夜をまとめて送信</div>
+        </div>
+      </a>
+      <a class="home-launch primary" href="workout.html" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch">
+        <div class="home-launch-top">
+          <div class="home-launch-glyph">筋</div>
+          <div class="home-launch-arrow">›</div>
+        </div>
+        <div>
+          <div class="home-launch-title">筋トレ</div>
+          <div class="home-launch-copy">その日の分をまとめて送信</div>
+        </div>
+      </a>
+      <a class="home-launch" href="health-import.html" data-track-key="health-import" data-track-label="ヘルスケア取込" data-track-kind="launch">
+        <div class="home-launch-top">
+          <div class="home-launch-glyph">取</div>
+          <div class="home-launch-arrow">›</div>
+        </div>
+        <div>
+          <div class="home-launch-title">取込</div>
+          <div class="home-launch-copy">Health zip</div>
+        </div>
+      </a>
+      <a class="home-launch" href="day.html" data-track-key="meal-day" data-track-label="日次栄養" data-track-kind="view">
+        <div class="home-launch-top">
+          <div class="home-launch-glyph">日</div>
+          <div class="home-launch-arrow">›</div>
+        </div>
+        <div>
+          <div class="home-launch-title">日次</div>
+          <div class="home-launch-copy">PFC・栄養を見る</div>
+        </div>
+      </a>
+    </div>
   </section>
 
-  <section class="hero" id="home">
-    <div class="hero-head">
-      <div class="hero-copy">
-        <h1>おかえり</h1>
-        <p>今日もコツコツ整えていこう</p>
+  <details class="home-insights">
+    <summary>スコア・7日履歴</summary>
+    <div class="home-insights-inner">
+  <div class="home-score-row">
+    <section class="cockpit-score clickable-panel" id="cockpitScore" role="button" tabindex="0" onclick="window.location.href='day.html'">
+      <div class="score-top">
+        <div class="score-donut" aria-label="今日のスコア">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="52" class="donut-bg"></circle>
+            <circle cx="60" cy="60" r="52" class="donut-fg" id="cpScoreDonut" stroke-dasharray="326.73" stroke-dashoffset="326.73"></circle>
+          </svg>
+          <div class="donut-center">
+            <span class="score-value idle" id="cpScoreVal">—</span>
+            <span class="score-suffix" id="cpScoreSuffix">／100</span>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="score-label">今日のスコア</div>
+          <div class="score-status idle" id="cpScoreStatus">未入力</div>
+          <div class="score-sub" id="cpScoreSub">記録するとスコアが出ます</div>
+          <button type="button" id="dayTypeChip" class="chip" style="margin-top:8px; cursor:pointer; border:none;" onclick="event.stopPropagation(); toggleTodayTrainingDay()">休養日</button>
+          <div class="score-go">日次を見る ›</div>
+        </div>
       </div>
-      <div class="hero-badge">C</div>
+      <div class="advice-bubble idle" id="cpScoreMsg">最初の1食を入れて、今日を始めよう。</div>
+    </section>
+
+    <section class="continuity-lane" aria-label="継続状況">
+      <div class="continuity-head">
+        <div class="continuity-title"><i class="ti ti-flame" aria-hidden="true"></i><span>7日</span></div>
+        <div class="continuity-pill" id="continuityPill">--</div>
+      </div>
+      <div class="continuity-days" id="continuityDays"></div>
+      <div class="continuity-summary" id="continuitySummary">食事を記録すると7日分の流れが出ます。</div>
+    </section>
+  </div>
     </div>
-    <div class="today-strip">
-      <a class="today-card" href="meal.html">
-        <div class="today-label">朝</div>
-        <div class="today-value">先に残す</div>
-        <div class="today-copy">食事・体組成</div>
-      </a>
-      <a class="today-card" href="meal.html">
-        <div class="today-label">昼</div>
-        <div class="today-value">食事</div>
-        <div class="today-copy">空き時間で</div>
-      </a>
-      <a class="today-card" href="workout.html">
-        <div class="today-label">夜</div>
-        <div class="today-value">締める</div>
-        <div class="today-copy">筋トレ・集計</div>
-      </a>
-    </div>
-  </section>
+  </details>
 
   <section class="section daily" id="dailyHub">
     <div class="section-head">
@@ -1319,32 +1579,9 @@ a.stat-card:active {
     </div>
   </section>
 
-  <section class="section record" id="record">
-    <div class="section-head">
-      <div class="section-title"><span class="section-icon"><i class="ti ti-bolt" aria-hidden="true"></i></span>すぐ記録</div>
-      <div class="section-note">毎日触る面</div>
-    </div>
-    <div class="hero-actions">
-      <a class="main-card" href="workout.html" data-tone="record" data-track-key="workout" data-track-label="筋トレ" data-track-kind="launch">
-        <div class="main-top">
-          <div class="main-kicker">Workout</div>
-          <div class="main-glyph">W</div>
-        </div>
-        <div class="main-title">筋トレ</div>
-        <div class="main-copy">前回値ベースで、その場で入力。</div>
-        <div class="main-tail"><span class="tail-chip">記録</span><span class="tail-arrow">↗</span></div>
-      </a>
-      <a class="main-card" href="meal.html" data-tone="meal" data-track-key="meal" data-track-label="食事" data-track-kind="launch">
-        <div class="main-top">
-          <div class="main-kicker">Meal</div>
-          <div class="main-glyph">M</div>
-        </div>
-        <div class="main-title">食事</div>
-        <div class="main-copy">固定・商品・自作メニューから、すぐ積み上げる。</div>
-        <div class="main-tail"><span class="tail-chip">DB / メニュー</span><span class="tail-arrow">↗</span></div>
-      </a>
-    </div>
-  </section>
+  <details class="home-secondary">
+    <summary>管理メニュー</summary>
+    <div class="home-secondary-inner">
 
   <section class="section recent" id="recentSection">
     <div class="section-head">
@@ -1491,6 +1728,8 @@ a.stat-card:active {
       <button class="mini mini-button" id="pinBtn" type="button">PIN設定</button>
     </div>
   </div>
+    </div>
+  </details>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -2007,9 +2246,9 @@ function renderFocusPanel(context) {
     tasks.unshift({ mark: '!', title: `外食未計算 ${externalPending}件`, copy: 'Codexへマクロ推定を依頼', href: `meal.html?date=${encodeURIComponent(today.date)}` });
   }
 
-  const visible = tasks.slice(0, 3);
+  const visible = tasks.slice(0, 2);
   const doneCount = [context.mealCount >= 3, waterMl >= 1200, hasBodyToday, context.todaysWorkouts.length > 0].filter(Boolean).length;
-  document.getElementById('focusTitle').textContent = visible[0]?.title || '今日は整っています';
+  document.getElementById('focusTitle').textContent = visible.length ? '今やること' : '今日は整っています';
   document.getElementById('focusPill').textContent = `${doneCount}/4`;
   document.getElementById('focusGrid').innerHTML = visible.map(task => `
     <a class="focus-action${task.done ? ' done' : ''}" href="${task.href}">
