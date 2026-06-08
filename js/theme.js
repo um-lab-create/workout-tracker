@@ -36,6 +36,20 @@
     });
   }
 
+  function disableAccidentalZoom() {
+    var lastTouchAt = 0;
+    document.addEventListener('gesturestart', function (event) {
+      event.preventDefault();
+    }, { passive: false });
+    document.addEventListener('touchend', function (event) {
+      var now = Date.now();
+      if (now - lastTouchAt < 300) {
+        event.preventDefault();
+      }
+      lastTouchAt = now;
+    }, { passive: false });
+  }
+
   window.CockpitTheme = {
     get: readTheme,
     set: function (theme) {
@@ -50,6 +64,7 @@
   };
 
   applyTheme(readTheme());
+  disableAccidentalZoom();
   document.addEventListener('DOMContentLoaded', function () {
     applyTheme(readTheme());
   });

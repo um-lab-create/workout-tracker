@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -74,6 +74,8 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 
 :root[data-theme="dark"] body {
@@ -259,6 +261,14 @@ a.today-card,
 a.stat-card {
   color: inherit;
   text-decoration: none;
+}
+
+a,
+button,
+.daily-card,
+.home-launch,
+.focus-action {
+  touch-action: manipulation;
 }
 
 .clickable-panel {
@@ -1566,14 +1576,14 @@ a.stat-card:active {
           <div class="daily-copy" id="dailyHealthCopy">Apple Health zip</div>
         </div>
       </a>
-      <a class="daily-card" id="dailyBodyCard" href="body.html" data-track-key="body" data-track-label="体組成記録" data-track-kind="launch">
+      <a class="daily-card" id="dailyBodyCard" href="body.html" data-track-key="body" data-track-label="体組成確認" data-track-kind="view">
         <div class="daily-top">
           <div class="daily-label">体組成</div>
-          <div class="daily-status" id="dailyBodyStatus">KPI</div>
+          <div class="daily-status" id="dailyBodyStatus">連携</div>
         </div>
         <div>
           <div class="daily-value" id="dailyBodyValue">体組成</div>
-          <div class="daily-copy" id="dailyBodyCopy">体重・体脂肪率・調子</div>
+          <div class="daily-copy" id="dailyBodyCopy">eufy側で測定、たまに取込</div>
         </div>
       </a>
     </div>
@@ -1852,20 +1862,26 @@ function toggleTodayTrainingDay() {
 
 // === 2026-05-27 (cowork) 体組成カードを最新値+トレンドで動的表示（body.htmlのlocalStorageを読む） ===
 function renderBodyStatus() {
+  const cardEl = document.getElementById('dailyBodyCard');
   const valueEl = document.getElementById('dailyBodyValue');
   const copyEl = document.getElementById('dailyBodyCopy');
   const statusEl = document.getElementById('dailyBodyStatus');
   if (!valueEl || !copyEl) return;
   const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   if (!recs.length) {
+    if (cardEl) cardEl.href = '#actions';
     valueEl.textContent = '体組成';
-    copyEl.textContent = '体重・体脂肪率・調子';
-    if (statusEl) statusEl.textContent = '未入力';
+    copyEl.textContent = 'eufy CSVを取込すると表示';
+    if (statusEl) {
+      statusEl.className = 'daily-status warn';
+      statusEl.textContent = '未連携';
+    }
     return;
   }
   const latest = recs[0];
   const todayDate = todayInfo().date;
   const isToday = String(latest.date).slice(0, 10) === todayDate;
+  const days = daysSinceDate(latest.date, todayDate);
   // 北極星KPI: 体脂肪率を主表示。なければ体重。
   if (latest.fat) {
     valueEl.textContent = `${Number(latest.fat).toFixed(1)}%`;
@@ -1882,11 +1898,26 @@ function renderBodyStatus() {
     if (d !== 0) sub = `体重 ${d > 0 ? '+' : ''}${d}kg`;
   }
   if (!sub && latest.weight) sub = `体重 ${Number(latest.weight).toFixed(1)}kg`;
-  copyEl.textContent = sub || '体重・体脂肪率';
-  if (statusEl) statusEl.textContent = isToday ? '今日' : (() => {
-    const days = Math.round((new Date(todayDate) - new Date(String(latest.date).slice(0,10))) / 86400000);
-    return days <= 0 ? '今日' : `${days}日前`;
-  })();
+  copyEl.textContent = sub ? `${sub} / 最新 ${formatBodyAge(days)}` : `最新 ${formatBodyAge(days)}`;
+  if (statusEl) {
+    statusEl.className = `daily-status ${days <= 14 ? 'ok' : days <= 45 ? '' : 'warn'}`;
+    statusEl.textContent = isToday ? '今日' : formatBodyAge(days);
+  }
+  if (cardEl) cardEl.href = days > 45 ? '#actions' : 'body.html';
+}
+
+function daysSinceDate(date, baseDate) {
+  const d = String(date || '').slice(0, 10);
+  if (!d) return 999;
+  const diff = new Date(baseDate) - new Date(d);
+  return Math.max(0, Math.round(diff / 86400000));
+}
+
+function formatBodyAge(days) {
+  if (days <= 0) return '今日';
+  if (days < 30) return `${days}日前`;
+  const months = Math.max(1, Math.round(days / 30));
+  return `${months}か月前`;
 }
 
 // === 2026-05-27 (cowork) 継続性の可視化: 食事記録の連続日数チップ ===
@@ -1990,7 +2021,19 @@ function boot() {
   renderRecentList();
   bindTrackedLaunches();
   bindActions();
+  openHashTarget();
+  window.addEventListener('hashchange', openHashTarget);
   document.getElementById('pinBtn').addEventListener('click', updateWritePin);
+}
+
+function openHashTarget() {
+  if (location.hash !== '#actions') return;
+  const secondary = document.querySelector('.home-secondary');
+  if (secondary) secondary.open = true;
+  setTimeout(function () {
+    const target = document.getElementById('actions');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 80);
 }
 
 function renderToday() {
@@ -2208,7 +2251,11 @@ function renderFocusPanel(context) {
   const hydrationRecord = hydration[today.date] || { entries: [] };
   const waterMl = (hydrationRecord.entries || []).reduce((sum, entry) => sum + (Number(entry.ml) || 0), 0);
   const bodyRecords = storageGet(BODY_STORE, []);
-  const hasBodyToday = bodyRecords.some(record => record && String(record.date || '').slice(0, 10) === today.date);
+  const latestBody = bodyRecords
+    .filter(record => record && record.date)
+    .slice()
+    .sort((a, b) => (String(a.date) < String(b.date) ? 1 : -1))[0];
+  const bodyAgeDays = latestBody ? daysSinceDate(latestBody.date, today.date) : 999;
   const externalPending = storageGet(MEAL_RECORD_STORE, [])
     .filter(record => record && record.date === today.date && record.diningOut && record.calcStatus === '未計算')
     .length;
@@ -2234,8 +2281,13 @@ function renderFocusPanel(context) {
     });
   }
 
-  if (!hasBodyToday) {
-    tasks.push({ mark: '⚖', title: '体組成を1回だけ残す', copy: '体重・体脂肪率・調子', href: 'body.html' });
+  if (bodyAgeDays > 45) {
+    tasks.push({
+      mark: '↻',
+      title: '体組成の取込確認',
+      copy: latestBody ? `最新 ${formatBodyAge(bodyAgeDays)}。eufy CSVをまとめて反映` : 'eufy CSVをまとめて反映',
+      href: '#actions'
+    });
   }
 
   if (!context.todaysWorkouts.length && !context.queuedToday) {
@@ -2247,7 +2299,7 @@ function renderFocusPanel(context) {
   }
 
   const visible = tasks.slice(0, 2);
-  const doneCount = [context.mealCount >= 3, waterMl >= 1200, hasBodyToday, context.todaysWorkouts.length > 0].filter(Boolean).length;
+  const doneCount = [context.mealCount >= 3, waterMl >= 1200, bodyAgeDays <= 45, context.todaysWorkouts.length > 0].filter(Boolean).length;
   document.getElementById('focusTitle').textContent = visible.length ? '今やること' : '今日は整っています';
   document.getElementById('focusPill').textContent = `${doneCount}/4`;
   document.getElementById('focusGrid').innerHTML = visible.map(task => `
