@@ -2965,30 +2965,57 @@
 
     function renderContributions(state) {
       const root = document.getElementById('contribList');
-      const allRows = Object.entries(NUTRIENT_META).map(([key, meta]) => {
-        const top = topContributors(state.contributions[key]).slice(0, 3);
-        if (!top.length) {
-          return `
-            <div class="contrib-row">
-              <div>
-                <div class="contrib-name">${meta.label}</div>
-                <div class="contrib-copy">まだ寄与食品がありません。</div>
-              </div>
-              <div class="contrib-amount">-</div>
-            </div>
-          `;
-        }
-        return top.map(item => `
+      if (!state.totals.meals) {
+        root.innerHTML = '<div class="empty">食事を記録すると、不足栄養ごとの原因食品と追加候補を表示します。</div>';
+        return;
+      }
+
+      const shortageRows = importantMicronutrientKeys()
+        .map(key => ({
+          key,
+          meta: NUTRIENT_META[key],
+          pct: targetPct(key, state.nutrients[key] || 0),
+          top: topContributors(state.contributions[key]).slice(0, 3),
+          candidate: bestFoodForNutrient(key)
+        }))
+        .filter(row => row.meta && row.pct < 100)
+        .sort((a, b) => a.pct - b.pct)
+        .slice(0, 7);
+
+      const excessRows = ['salt', 'saturatedFat']
+        .map(key => ({
+          key,
+          meta: NUTRIENT_META[key],
+          pct: targetPct(key, state.nutrients[key] || 0),
+          top: topContributors(state.contributions[key]).slice(0, 3)
+        }))
+        .filter(row => row.meta && row.pct > 100)
+        .sort((a, b) => b.pct - a.pct);
+
+      const rows = [...shortageRows, ...excessRows];
+      if (!rows.length) {
+        root.innerHTML = '<div class="empty">不足・過剰が目立つ栄養はありません。食品別カードで詳細を確認できます。</div>';
+        return;
+      }
+
+      root.innerHTML = rows.map(row => {
+        const leaders = row.top.length
+          ? row.top.map(item => `${item.name} ${formatNutrient(row.key, item.value)}${row.meta.unit}`).join('、')
+          : '寄与食品なし';
+        const candidateCopy = row.candidate
+          ? `足す候補: ${row.candidate.name} ${defaultFoodUnitLabel(row.candidate)}`
+          : '足す候補: DB拡充待ち';
+        const over = row.pct > 100 && (row.key === 'salt' || row.key === 'saturatedFat');
+        return `
           <div class="contrib-row">
             <div>
-              <div class="contrib-name">${meta.label} / ${item.name}</div>
-              <div class="contrib-copy">この栄養の主な寄与食品</div>
+              <div class="contrib-name">${over ? '多め' : '不足'} / ${row.meta.label}</div>
+              <div class="contrib-copy">現在${row.pct}%。主な寄与: ${leaders}${over ? ' / 次は控えめに' : ` / ${candidateCopy}`}</div>
             </div>
-            <div class="contrib-amount">${formatNutrient(key, item.value)}${meta.unit}</div>
+            <div class="contrib-amount">${formatNutrient(row.key, state.nutrients[row.key] || 0)}${row.meta.unit}</div>
           </div>
-        `).join('');
+        `;
       }).join('');
-      root.innerHTML = allRows || '<div class="empty">まだありません。</div>';
     }
 
     function topContributors(map) {
@@ -3062,7 +3089,9 @@
     function defaultFoodUnitLabel(food) {
       if (food && food.mode === 'perUnit') return `1${food.unitLabel || '個'}`;
       const key = defaultFoodUnitKey(food);
-      return key ? `1${key}` : '1食分';
+      if (!key) return '1食分';
+      if (/^\d/.test(String(key))) return key;
+      return `1${key}`;
     }
 
     function nutrientStatus(key, pct, value) {

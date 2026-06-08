@@ -3082,7 +3082,8 @@
       { id: 'prod-salad-chicken-herb', name: 'サラダチキン ハーブ', brand: 'セブン', category: '昼', entryType: 'product', mode: 'perUnit', unitLabel: 'パック', macrosPerUnit: { kcal: 115, p: 24.5, f: 1.2, c: 1.1 }, defaultQty: 1, step: 1, keywords: ['鶏胸肉', 'コンビニ'] },
       { id: 'prod-in-jelly-protein', name: 'inゼリー プロテイン', brand: '森永', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 112, p: 10, f: 0, c: 17.5 }, defaultQty: 1, step: 1, keywords: ['ゼリー', '補食'] },
       { id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', brand: 'グリコ', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, defaultQty: 1, step: 1, keywords: ['アーモンドミルク', '飲料'] },
-      { id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本', brand: 'カゴメ', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 61, p: 2.1, f: 0, c: 14.2 }, nutrientsPerUnit: { fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 }, source: 'kagome-official-2026-05', verified: true, defaultQty: 1, step: 1, keywords: ['野菜ジュース', 'カゴメ', '野菜一日これ一本', '飲料'] }
+      { id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本 200ml', brand: 'カゴメ', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', barcode: '4901306047569', serving: '200ml', favoriteStore: 'OK', macrosPerUnit: { kcal: 61, p: 2.1, f: 0, c: 14.2 }, nutrientsPerUnit: { fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 }, source: 'kagome-official-2026-04', verified: true, defaultQty: 1, step: 1, keywords: ['OK', 'オーケー', 'スーパー', '紙パック', '野菜ジュース', 'カゴメ', '野菜一日これ一本', '飲料', '4901306047569'] },
+      { id: 'prod-meiji-oishii-milk-200', name: '明治おいしい牛乳 200ml', brand: '明治', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', barcode: '49721119', serving: '200ml', favoriteStore: 'OK', macrosPerUnit: { kcal: 137, p: 6.8, f: 7.8, c: 9.9 }, nutrientsPerUnit: { salt: 0.22, Ca: 227 }, source: 'meiji-official-2026-06', verified: true, defaultQty: 1, step: 1, keywords: ['OK', 'オーケー', 'スーパー', '牛乳', 'ミルク', '明治', 'おいしい牛乳', '飲料', '49721119'] }
     ];
 
     const DEFAULT_PRESETS = {
@@ -3616,7 +3617,7 @@
           id: food.id,
           name: food.name,
           copy: product
-            ? `${food.brand || '商品'} / 1${food.unitLabel || '個'}`
+            ? `${food.favoriteStore === 'OK' ? 'OK候補 / ' : ''}${food.brand || '商品'} / 1${food.unitLabel || '個'}${food.barcode ? ` / ${food.barcode}` : ''}`
             : `${food.category || '食材'} / ${getDefaultUnit(food)?.label || ''}`,
           food
         };
@@ -4044,7 +4045,7 @@
       const products = [
         ...customProducts.filter(product => product.category === '共通' || product.category === TIMINGS[currentTiming].label),
         ...BASE_PRODUCTS.filter(product => product.category === '共通' || product.category === TIMINGS[currentTiming].label)
-      ].slice(0, 4);
+      ].sort((a, b) => productDisplayRank(a) - productDisplayRank(b)).slice(0, 4);
       if (!products.length) {
         root.innerHTML = '<div class="empty-state">商品はまだありません</div>';
         return;
@@ -4052,13 +4053,21 @@
       root.innerHTML = products.map(product => `
         <button type="button" class="library-card" onclick="quickAddFood('${product.id}')">
           <div class="library-top">
-            <div class="preset-badge">商品</div>
+            <div class="preset-badge">${product.favoriteStore === 'OK' ? 'OK候補' : '商品'}</div>
             <div class="section-meta">${product.brand || '商品'}</div>
           </div>
           <div class="library-name">${product.name}</div>
-          <div class="library-copy">1${product.unitLabel || '個'} / ${Math.round(product.macrosPerUnit.kcal || 0)}kcal</div>
+          <div class="library-copy">1${product.unitLabel || '個'} / ${Math.round(product.macrosPerUnit.kcal || 0)}kcal${product.barcode ? ` / ${product.barcode}` : ''}</div>
         </button>
       `).join('');
+    }
+
+    function productDisplayRank(product) {
+      let rank = 0;
+      if (product.favoriteStore === 'OK') rank -= 100;
+      if (product.verified) rank -= 20;
+      if (String(product.id || '').startsWith('product-')) rank -= 10;
+      return rank;
     }
 
     function renderRecipeGrid() {
@@ -5594,11 +5603,25 @@
       return String(raw || '').replace(/\D/g, '');
     }
 
+    function findLocalProductByBarcode(code) {
+      const normalized = normalizeBarcode(code);
+      if (!normalized) return null;
+      return getAllFoods().find(food => isProductCandidate(food) && normalizeBarcode(food.barcode) === normalized) || null;
+    }
+
     async function lookupProductBarcode() {
       const code = normalizeBarcode(document.getElementById('productBarcode').value);
       const status = document.getElementById('barcodeLookupStatus');
       if (!code || code.length < 8) {
         showToast('バーコードを入力してください', 'warn');
+        return;
+      }
+      const localProduct = findLocalProductByBarcode(code);
+      if (localProduct) {
+        applyLocalProductToProductForm(localProduct, code);
+        status.textContent = 'ローカル商品DBから反映しました。ラベルが変わっていないかだけ確認してください。';
+        status.dataset.source = localProduct.source || 'local-product-db';
+        showToast('登録済み商品を反映しました');
         return;
       }
       status.textContent = 'Open Food Facts を検索中...';
@@ -5641,6 +5664,24 @@
       document.getElementById('productFiber').value = offNutrient(nutriments, 'fiber');
       document.getElementById('productSatFat').value = offNutrient(nutriments, 'saturated-fat');
       document.getElementById('productVerified').checked = false;
+    }
+
+    function applyLocalProductToProductForm(product, code) {
+      const nutrients = product.nutrientsPerUnit || {};
+      document.getElementById('productBarcode').value = normalizeBarcode(product.barcode || code);
+      document.getElementById('productName').value = product.name || '';
+      document.getElementById('productBrand').value = product.brand || '';
+      document.getElementById('productCategory').value = product.category || '共通';
+      document.getElementById('productUnit').value = product.unitLabel || '個';
+      document.getElementById('productServing').value = product.serving || '';
+      document.getElementById('productKcal').value = product.macrosPerUnit && product.macrosPerUnit.kcal || '';
+      document.getElementById('productP').value = product.macrosPerUnit && product.macrosPerUnit.p || '';
+      document.getElementById('productF').value = product.macrosPerUnit && product.macrosPerUnit.f || '';
+      document.getElementById('productC').value = product.macrosPerUnit && product.macrosPerUnit.c || '';
+      document.getElementById('productSalt').value = nutrients.salt || '';
+      document.getElementById('productFiber').value = nutrients.fiber || '';
+      document.getElementById('productSatFat').value = nutrients.saturatedFat || '';
+      document.getElementById('productVerified').checked = Boolean(product.verified);
     }
 
     function offNutrient(nutriments, key) {

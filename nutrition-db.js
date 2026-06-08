@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '2026-05-25-a';
+  const VERSION = '2026-06-08-a';
 
   const NUTRIENT_META = {
     energy: { label: 'エネルギー', unit: 'kcal', precision: 0, group: 'macro', target: 2300 },
@@ -121,7 +121,8 @@
     'prod-salad-chicken-herb': definePerUnit({ id: 'prod-salad-chicken-herb', name: 'サラダチキン ハーブ', unitLabel: 'パック', perUnit: { energy: 115, protein: 24.5, fat: 1.2, carb: 1.1, salt: 1.5, Na: 590, K: 360, P: 220, Fe: 0.5, niacin: 12.0, vitB6: 0.7 } }),
     'prod-in-jelly-protein': definePerUnit({ id: 'prod-in-jelly-protein', name: 'inゼリー プロテイン', unitLabel: '個', perUnit: { energy: 112, protein: 10, carb: 17.5, K: 80 } }),
     'prod-ameal': definePerUnit({ id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', unitLabel: '本', perUnit: { energy: 80, protein: 1.4, fat: 6.2, carb: 3.9, fiber: 1.2, Ca: 180, Fe: 0.6, K: 120, vitE: 6.0 } }),
-    'prod-kagome-yasai-ichinichi': definePerUnit({ id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本', unitLabel: '本', perUnit: { energy: 61, protein: 2.1, fat: 0, carb: 14.2, fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 } }),
+    'prod-kagome-yasai-ichinichi': definePerUnit({ id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本 200ml', source: 'カゴメ公式(2026-04閲覧)', coverage: 'official-partial', unitLabel: '本', perUnit: { energy: 61, protein: 2.1, fat: 0, carb: 14.2, fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 } }),
+    'prod-meiji-oishii-milk-200': definePerUnit({ id: 'prod-meiji-oishii-milk-200', name: '明治おいしい牛乳 200ml', source: '明治公式(2026-06閲覧)', coverage: 'official-partial', unitLabel: '本', perUnit: { energy: 137, protein: 6.8, fat: 7.8, saturatedFat: 4.6, carb: 9.9, salt: 0.22, K: 300, Ca: 227, Mg: 20, P: 186, vitA: 78, vitD: 0.6, vitB1: 0.08, vitB2: 0.30, vitB12: 0.6 } }),
 
     // === 常食追加 2026-05-27 (cowork): マネージャー常食リスト由来。八訂/公表値ベース・要監査 ===
     cabbage: definePer100g({ id: 'cabbage', name: 'キャベツ千切り', source: '八訂', units: { '皿': 80, 'つかみ': 30, 'g': 1 }, per100g: { energy: 21, protein: 1.3, fat: 0.2, carb: 5.2, fiber: 1.8, Na: 5, K: 200, Ca: 43, Mg: 14, P: 27, Fe: 0.3, Zn: 0.2, Cu: 0.02, Mn: 0.16, vitA: 4, vitE: 0.1, vitK: 78, vitB1: 0.04, vitB2: 0.03, niacin: 0.2, vitB6: 0.11, folate: 78, pantothenic: 0.22, vitC: 41 } }),
