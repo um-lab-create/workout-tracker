@@ -369,8 +369,53 @@
     }
 
     .panel {
-      margin-top: 18px;
-      padding: 20px;
+      margin-top: 12px;
+      padding: 16px;
+    }
+
+    .panel.compact {
+      padding: 12px;
+    }
+
+    .panel-collapsible {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-collapsible > summary {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 16px;
+      cursor: pointer;
+      list-style: none;
+      font-size: 15px;
+      font-weight: 950;
+    }
+
+    .panel-collapsible > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .panel-collapsible > summary::after {
+      content: "開く";
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .panel-collapsible[open] > summary::after {
+      content: "閉じる";
+    }
+
+    .panel-collapsible-inner {
+      padding: 0 14px 14px;
     }
 
     .target-card {
@@ -444,6 +489,26 @@
       justify-content: space-between;
       gap: 10px;
       margin-bottom: 10px;
+    }
+
+    .action-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .action-chip {
+      min-height: 46px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,138,42,.16);
+      border-radius: 16px;
+      background: linear-gradient(145deg, rgba(255,138,42,.12), rgba(0,0,0,.025));
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 950;
     }
 
     .section-title {
@@ -714,30 +779,63 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .nutrient-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .nutrient-card {
-      padding: 14px 16px;
-      border-radius: 16px;
+      display: grid;
+      grid-template-columns: 82px minmax(0, 1fr) 48px;
+      gap: 8px;
+      align-items: center;
+      min-height: 46px;
+      padding: 8px 10px;
+      border-radius: 14px;
       border: 1px solid var(--line);
       background: var(--panel);
-      box-shadow: var(--shadow);
+      box-shadow: 0 2px 8px rgba(0,0,0,.035);
     }
-    .nutrient-vrow { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
-    .nutrient-target-inline { font-size: 11px; color: var(--muted); font-weight: 700; }
+
+    .nutrient-card.low {
+      border-color: rgba(255,209,90,.26);
+      background: linear-gradient(135deg, rgba(255,209,90,.08), var(--panel));
+    }
+
+    .nutrient-card.high {
+      border-color: rgba(233,78,91,.24);
+      background: linear-gradient(135deg, rgba(233,78,91,.08), var(--panel));
+    }
+
+    .nutrient-card.ok {
+      border-color: rgba(46,184,114,.20);
+    }
+
+    .nutrient-vrow {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin-top: 2px;
+      min-width: 0;
+    }
+
+    .nutrient-target-inline {
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
     .nutrient-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      display: grid;
+      gap: 1px;
+      min-width: 0;
     }
 
     .nutrient-name {
-      font-size: 14px;
+      font-size: 12px;
+      line-height: 1.15;
       font-weight: 950;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .nutrient-target {
@@ -749,13 +847,14 @@
     .status-pill {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       min-height: 24px;
-      padding: 0 8px;
+      padding: 0 7px;
       border-radius: 999px;
       border: 1px solid rgba(0,0,0,.08);
       background: rgba(0,0,0,.05);
       color: var(--muted);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 950;
       white-space: nowrap;
     }
@@ -765,10 +864,11 @@
     .status-pill.high { color: #ff8fa3; border-color: rgba(255,143,163,.35); }
 
     .nutrient-value {
-      margin-top: 8px;
-      font-size: 22px;
+      margin-top: 0;
+      font-size: 14px;
       line-height: 1;
       font-weight: 950;
+      white-space: nowrap;
     }
 
     .track {
@@ -792,7 +892,7 @@
     .gauge-track {
       position: relative;
       height: 12px;
-      margin: 10px 0 6px;
+      margin: 0;
       border-radius: 999px;
       background: rgba(0,0,0,.06);
       overflow: hidden;
@@ -817,17 +917,59 @@
       background: rgba(0,0,0,.30);
     }
     .gauge-scale {
-      display: flex; justify-content: space-between;
-      font-size: 10px; color: var(--dim); font-weight: 700;
-      margin-top: 2px;
+      display: none;
     }
 
     .nutrient-meta {
-      margin-top: 8px;
+      grid-column: 2 / -1;
+      margin-top: -4px;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
-      line-height: 1.45;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nutrient-more {
+      grid-column: 1 / -1;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(0,0,0,.035);
+      overflow: hidden;
+    }
+
+    .nutrient-more > summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      cursor: pointer;
+      list-style: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .nutrient-more > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .nutrient-more > summary::after {
+      content: "開く";
+      font-size: 10px;
+    }
+
+    .nutrient-more[open] > summary::after {
+      content: "閉じる";
+    }
+
+    .nutrient-more-grid {
+      display: grid;
+      gap: 6px;
+      padding: 0 8px 8px;
     }
 
     .timing-grid {
@@ -1254,9 +1396,12 @@
     @media (max-width: 600px) {
       .hero-grid,
       .macro-grid,
-      .nutrient-grid,
       .target-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .nutrient-grid {
+        grid-template-columns: 1fr;
       }
 
       .detail-macro-grid {
@@ -1424,13 +1569,17 @@
           <div class="card-copy">量が曖昧</div>
         </div>
       </div>
+      <div class="action-strip">
+        <a class="action-chip" href="meal.html?date=2026-06-08&timing=morning" id="fixMorningLink">朝を直す</a>
+        <a class="action-chip" href="meal.html?date=2026-06-08&timing=lunch" id="fixLunchLink">昼を直す</a>
+        <a class="action-chip" href="meal.html?date=2026-06-08&timing=dinner" id="fixDinnerLink">夜を直す</a>
+        <a class="action-chip" href="workout.html?date=2026-06-08" id="fixWorkoutLink">運動</a>
+      </div>
     </section>
 
-    <section class="panel">
-      <div class="section-head">
-        <div class="section-title">目標設定</div>
-        <div class="section-note">判定に反映</div>
-      </div>
+    <details class="panel-collapsible">
+      <summary>目標設定</summary>
+      <div class="panel-collapsible-inner">
       <div class="target-card">
         <div class="target-grid">
           <label class="target-field">
@@ -1512,7 +1661,8 @@
           <div class="target-summary" id="carbCycleSummary" style="margin-top:8px;"></div>
         </div>
       </div>
-    </section>
+      </div>
+    </details>
 
     <section class="panel">
       <div class="section-head">
@@ -1564,59 +1714,54 @@
 
     <section class="panel">
       <div class="section-head">
-        <div class="section-title">食事構成</div>
-        <div class="section-note">主食・主菜・副菜</div>
-      </div>
-      <div class="balance-grid" id="mealBalanceGrid"></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
-        <div class="section-title">栄養ランキング</div>
-        <div class="section-note">不足・過剰・強み</div>
-      </div>
-      <div class="ranking-board" id="nutrientRanking"></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
-        <div class="section-title">主要栄養</div>
-        <div class="section-note">暫定目安つき</div>
-      </div>
-      <div class="nutrient-grid" id="nutrientGrid"></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
         <div class="section-title">足す候補</div>
         <div class="section-note">不足から逆引き</div>
       </div>
       <div class="suggest-grid" id="suggestGrid"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel compact">
       <div class="section-head">
-        <div class="section-title">食事ごとの中身</div>
-        <div class="section-note">未保存下書きも含む</div>
+        <div class="section-title">主要栄養</div>
+        <div class="section-note">横バーで一覧</div>
       </div>
+      <div class="nutrient-grid" id="nutrientGrid"></div>
+    </section>
+
+    <details class="panel-collapsible">
+      <summary>食事構成</summary>
+      <div class="panel-collapsible-inner">
+      <div class="balance-grid" id="mealBalanceGrid"></div>
+      </div>
+    </details>
+
+    <details class="panel-collapsible">
+      <summary>栄養ランキング</summary>
+      <div class="panel-collapsible-inner">
+      <div class="ranking-board" id="nutrientRanking"></div>
+      </div>
+    </details>
+
+    <details class="panel-collapsible">
+      <summary>食事ごとの中身</summary>
+      <div class="panel-collapsible-inner">
       <div class="timing-grid" id="timingGrid"></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
-        <div class="section-title">食品別</div>
-        <div class="section-note">何が強いか</div>
       </div>
+    </details>
+
+    <details class="panel-collapsible">
+      <summary>食品別</summary>
+      <div class="panel-collapsible-inner">
       <div class="food-grid" id="foodGrid"></div>
-    </section>
-
-    <section class="panel">
-      <div class="section-head">
-        <div class="section-title">食品ごとの寄与</div>
-        <div class="section-note">どこから入ったか</div>
       </div>
+    </details>
+
+    <details class="panel-collapsible">
+      <summary>食品ごとの寄与</summary>
+      <div class="panel-collapsible-inner">
       <div class="contrib-list" id="contribList"></div>
-    </section>
+      </div>
+    </details>
   </main>
 
   <div class="sheet-backdrop" id="foodDetailBackdrop" onclick="closeFoodDetail(event)">
@@ -2244,6 +2389,7 @@
       document.getElementById('dateInput').value = selectedDate;
       document.getElementById('todayBtn').classList.toggle('active', selectedDate === todayStr());
       document.getElementById('yesterdayBtn').classList.toggle('active', selectedDate === shiftDate(todayStr(), -1));
+      updateActionLinks();
       renderCarbCycleUI();
       renderHero(state);
       renderScore(state);
@@ -2257,6 +2403,20 @@
       renderTimings(state);
       renderFoods(state);
       renderContributions(state);
+    }
+
+    function updateActionLinks() {
+      const date = encodeURIComponent(selectedDate);
+      const links = {
+        fixMorningLink: `meal.html?date=${date}&timing=morning`,
+        fixLunchLink: `meal.html?date=${date}&timing=lunch`,
+        fixDinnerLink: `meal.html?date=${date}&timing=dinner`,
+        fixWorkoutLink: `workout.html?date=${date}`
+      };
+      Object.entries(links).forEach(([id, href]) => {
+        const el = document.getElementById(id);
+        if (el) el.href = href;
+      });
     }
 
     function renderHero(state) {
@@ -2545,7 +2705,16 @@
     function renderNutrients(state) {
       const root = document.getElementById('nutrientGrid');
       const EXCESS = new Set(['salt', 'saturatedFat']);
-      root.innerHTML = Object.entries(NUTRIENT_META).map(([key, meta]) => {
+      const priority = [
+        'energy', 'protein', 'fat', 'carb', 'fiber', 'salt', 'saturatedFat',
+        'Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE',
+        'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3'
+      ];
+      const prioritySet = new Set(priority);
+      const primaryKeys = priority.filter(key => NUTRIENT_META[key]);
+      const otherKeys = Object.keys(NUTRIENT_META).filter(key => !prioritySet.has(key));
+      const renderRows = keys => keys.map(key => {
+        const meta = NUTRIENT_META[key];
         const value = state.nutrients[key] || 0;
         const rawPct = meta.target ? Math.round((value / meta.target) * 100) : 0;
         // バーは 0–150% の範囲を表示（それ以上は端で頭打ち）
@@ -2553,26 +2722,35 @@
         const status = nutrientStatus(key, rawPct, value);
         const isExcess = EXCESS.has(key);
         const leaders = topContributors(state.contributions[key]).slice(0, 2);
+        const leaderText = leaders.length
+          ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、')
+          : '寄与食品なし';
         return `
-          <div class="nutrient-card">
+          <div class="nutrient-card ${status.kind}">
             <div class="nutrient-head">
               <div class="nutrient-name">${meta.label}</div>
-              <div class="status-pill ${status.kind}">${status.label}</div>
-            </div>
-            <div class="nutrient-vrow">
-              <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
-              <div class="nutrient-target-inline">／ 目安 ${formatNutrient(key, targetValue(key))}${meta.unit}</div>
+              <div class="nutrient-vrow">
+                <div class="nutrient-value">${formatNutrient(key, value)}${meta.unit}</div>
+                <div class="nutrient-target-inline">/ ${formatNutrient(key, targetValue(key))}${meta.unit}</div>
+              </div>
             </div>
             <div class="gauge-track ${isExcess ? 'excess' : 'normal'}">
               <div class="gauge-zone"></div>
               <div class="gauge-fill ${status.kind}" style="width:${barPct}%"></div>
               <div class="gauge-mark" style="left:66.66%"></div>
             </div>
-            <div class="gauge-scale"><span>0</span><span>適切</span><span>150%</span></div>
-            <div class="nutrient-meta">${rawPct}% / ${leaders.length ? leaders.map(item => `${item.name} ${formatNutrient(key, item.value)}${meta.unit}`).join('、') : '寄与食品なし'}</div>
+            <div class="status-pill ${status.kind}">${rawPct}%</div>
+            <div class="nutrient-meta">${status.label} / ${leaderText}</div>
           </div>
         `;
       }).join('');
+      root.innerHTML = `
+        ${renderRows(primaryKeys)}
+        <details class="nutrient-more">
+          <summary>その他の栄養素 ${otherKeys.length}項目</summary>
+          <div class="nutrient-more-grid">${renderRows(otherKeys)}</div>
+        </details>
+      `;
     }
 
     function buildNutrientRanking(state) {
