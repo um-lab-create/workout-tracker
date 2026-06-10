@@ -2471,6 +2471,8 @@
               <div class="helper-text" id="estimateCopy">後で見直せるように要確認で入れます。</div>
             </div>
             <div class="estimate-actions">
+              <button class="ghost-btn" type="button" onclick="startProductRegistrationFromSearch()">商品登録</button>
+              <button class="ghost-btn" type="button" onclick="startCustomFoodRegistrationFromSearch()">独自食材</button>
               <button class="ghost-btn" type="button" onclick="addEstimatedFood('light')">軽め</button>
               <button class="ghost-btn" type="button" onclick="addEstimatedFood('normal')">普通</button>
               <button class="ghost-btn" type="button" onclick="addEstimatedFood('heavy')">多め</button>
@@ -2910,6 +2912,7 @@
       { id: 'mozzarella', name: 'モッツァレラ', category: '共通', mode: 'per100g', macros: {kcal:269, p:18.4, f:19.9, c:4.2}, units: [{label:'個', grams:100, step:0.5, defaultQty:1}, {label:'枚', grams:30, step:1, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:30}] },
       { id: 'miso', name: '味噌(淡色)', category: '共通', mode: 'per100g', macros: {kcal:192, p:12.5, f:6.0, c:21.9}, units: [{label:'大さじ', grams:18, step:0.5, defaultQty:1}, {label:'小さじ', grams:6, step:0.5, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:18}] },
       { id: 'soy-sauce', name: '醤油(濃口)', category: '共通', mode: 'per100g', macros: {kcal:76, p:7.7, f:0, c:7.9}, units: [{label:'大さじ', grams:18, step:0.5, defaultQty:1}, {label:'小さじ', grams:6, step:0.5, defaultQty:1}, {label:'ml', grams:1, step:5, defaultQty:18}] },
+      { id: 'bento-oyakodon-20260610', name: '親子丼弁当(自作・7等分)', category: '共通', entryType: 'recipe-food', mode: 'perUnit', unitLabel: '食', macrosPerUnit: {kcal:772, p:45.5, f:22.3, c:93.0}, nutrientsPerUnit: {fiber:4.9, salt:3.5, saturatedFat:7.3, K:1048, Ca:244, Mg:99, Fe:3.2, vitC:52, folate:129, vitD:1.3}, source: 'codex-recipe-standard-seasoning-2026-06-10', verified: false, defaultQty: 1, step: 0.5, keywords: ['親子丼', '弁当', '自作', '7等分', '鶏むねひき肉', '鶏ももひき肉', '白米4合', '丸美屋', 'ひじき五目釜めしの素', 'フジッコ', 'だいず水煮', '牛乳', '調味料標準量', '醤油大さじ4', 'みりん大さじ4', '酒大さじ4', '塩小さじ1/2'] },
       { id: 'vinegar', name: '酢(穀物)', category: '共通', mode: 'per100g', macros: {kcal:25, p:0.1, f:0, c:2.4}, units: [{label:'大さじ', grams:15, step:0.5, defaultQty:1}, {label:'小さじ', grams:5, step:0.5, defaultQty:1}, {label:'ml', grams:1, step:5, defaultQty:15}] },
       { id: 'mayonnaise', name: 'マヨネーズ', category: '共通', mode: 'per100g', macros: {kcal:668, p:1.4, f:76.0, c:3.6}, units: [{label:'大さじ', grams:12, step:0.5, defaultQty:1}, {label:'小さじ', grams:4, step:0.5, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:15}] },
       { id: 'ketchup', name: 'ケチャップ', category: '共通', mode: 'per100g', macros: {kcal:106, p:1.6, f:0.2, c:27.6}, units: [{label:'大さじ', grams:15, step:0.5, defaultQty:1}, {label:'g', grams:1, step:5, defaultQty:15}] },
@@ -3082,6 +3085,7 @@
       { id: 'prod-salad-chicken-herb', name: 'サラダチキン ハーブ', brand: 'セブン', category: '昼', entryType: 'product', mode: 'perUnit', unitLabel: 'パック', macrosPerUnit: { kcal: 115, p: 24.5, f: 1.2, c: 1.1 }, defaultQty: 1, step: 1, keywords: ['鶏胸肉', 'コンビニ'] },
       { id: 'prod-in-jelly-protein', name: 'inゼリー プロテイン', brand: '森永', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '個', macrosPerUnit: { kcal: 112, p: 10, f: 0, c: 17.5 }, defaultQty: 1, step: 1, keywords: ['ゼリー', '補食'] },
       { id: 'prod-ameal', name: 'アーモンド効果 砂糖不使用', brand: 'グリコ', category: '朝', entryType: 'product', mode: 'perUnit', unitLabel: '本', macrosPerUnit: { kcal: 80, p: 1.4, f: 6.2, c: 3.9 }, defaultQty: 1, step: 1, keywords: ['アーモンドミルク', '飲料'] },
+      { id: 'prod-meiji-r1-drink-112', name: '明治プロビオヨーグルトR-1 ドリンクタイプ 112g', brand: '明治', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', barcode: '0000049722079', serving: '112g', favoriteStore: 'OK', macrosPerUnit: { kcal: 76, p: 3.6, f: 0.67, c: 13.9 }, nutrientsPerUnit: { salt: 0.12, Ca: 129 }, source: 'label-estimate-2026-06', verified: false, defaultQty: 1, step: 1, keywords: ['OK', 'オーケー', '明治', 'R-1', 'r1', 'アールワン', 'ヨーグルト', 'ドリンク', '乳酸菌', '49722079', '0000049722079'] },
       { id: 'prod-kagome-yasai-ichinichi', name: '野菜一日これ一本 200ml', brand: 'カゴメ', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', barcode: '4901306047569', serving: '200ml', favoriteStore: 'OK', macrosPerUnit: { kcal: 61, p: 2.1, f: 0, c: 14.2 }, nutrientsPerUnit: { fiber: 2.15, salt: 0.2, K: 590, Ca: 44, Mg: 24, vitA: 820, vitE: 2.95, vitK: 10.5, folate: 45.5 }, source: 'kagome-official-2026-04', verified: true, defaultQty: 1, step: 1, keywords: ['OK', 'オーケー', 'スーパー', '紙パック', '野菜ジュース', 'カゴメ', '野菜一日これ一本', '飲料', '4901306047569'] },
       { id: 'prod-meiji-oishii-milk-200', name: '明治おいしい牛乳 200ml', brand: '明治', category: '共通', entryType: 'product', mode: 'perUnit', unitLabel: '本', barcode: '49721119', serving: '200ml', favoriteStore: 'OK', macrosPerUnit: { kcal: 137, p: 6.8, f: 7.8, c: 9.9 }, nutrientsPerUnit: { salt: 0.22, Ca: 227 }, source: 'meiji-official-2026-06', verified: true, defaultQty: 1, step: 1, keywords: ['OK', 'オーケー', 'スーパー', '牛乳', 'ミルク', '明治', 'おいしい牛乳', '飲料', '49721119'] }
     ];
@@ -3140,6 +3144,14 @@
             { foodId: 'natto', qty: 1, unit: 'パック' },
             { foodId: 'egg', qty: 1, unit: '個' },
             { foodId: 'miso-soup', qty: 1, unit: '杯' }
+          ]
+        },
+        {
+          id: 'preset-lunch-oyakodon-bento',
+          name: '自炊 親子丼弁当',
+          default: true,
+          items: [
+            { foodId: 'bento-oyakodon-20260610', qty: 1, unit: '食' }
           ]
         }
       ],
@@ -3424,15 +3436,32 @@
 
     function loadPresets() {
       const stored = storageGet(PRESET_STORE, null);
-      if (stored && stored.morning && stored.lunch && stored.dinner && stored.snack) return stored;
+      if (stored && stored.morning && stored.lunch && stored.dinner && stored.snack) {
+        const migrated = mergeMissingDefaultPresets(stored);
+        storageSet(PRESET_STORE, migrated);
+        return migrated;
+      }
       if (stored && stored.morning && stored.lunch && stored.dinner) {
         stored.snack = clone(DEFAULT_PRESETS.snack);
-        storageSet(PRESET_STORE, stored);
-        return stored;
+        const migrated = mergeMissingDefaultPresets(stored);
+        storageSet(PRESET_STORE, migrated);
+        return migrated;
       }
-      const seeded = clone(DEFAULT_PRESETS);
+      const seeded = mergeMissingDefaultPresets(clone(DEFAULT_PRESETS));
       storageSet(PRESET_STORE, seeded);
       return seeded;
+    }
+
+    function mergeMissingDefaultPresets(stored) {
+      const next = stored || {};
+      Object.keys(DEFAULT_PRESETS).forEach(timingKey => {
+        if (!Array.isArray(next[timingKey])) next[timingKey] = [];
+        const ids = new Set(next[timingKey].map(preset => preset && preset.id).filter(Boolean));
+        DEFAULT_PRESETS[timingKey].forEach(defaultPreset => {
+          if (defaultPreset.default && !ids.has(defaultPreset.id)) next[timingKey].push(clone(defaultPreset));
+        });
+      });
+      return next;
     }
 
     function savePresets() {
@@ -3561,9 +3590,19 @@
       const input = document.getElementById('foodSearch');
       const typed = input.value.trim();
       if (typed) {
-        const typedFood = getAllFoods().find(food => food.name === typed) ||
-          getAllFoods().find(food => food.name.includes(typed) || typed.includes(food.name) || String(food.brand || '').includes(typed));
+        const normalizedTyped = normalizeForSearch(typed);
+        const typedFood = getAllFoods().find(food => normalizeForSearch(food.name) === normalizedTyped) ||
+          getAllFoods().find(food => {
+            const haystack = normalizeForSearch([
+              food.name,
+              food.brand,
+              food.barcode,
+              food.keywords && food.keywords.join(' ')
+            ].filter(Boolean).join(' '));
+            return haystack.includes(normalizedTyped);
+          });
         if (typedFood) return typedFood;
+        return null;
       }
 
       const selectId = select.value;
@@ -3639,6 +3678,18 @@
           recipe
         }));
       return [...foodCandidates, ...recipeCandidates];
+    }
+
+    function getStarterSearchCandidates(allCandidates) {
+      const timingQuickIds = new Set(QUICK_FOODS[currentTiming] || []);
+      return allCandidates.filter(candidate => {
+        const food = candidate.food;
+        if (!food) return false;
+        if (timingQuickIds.has(food.id)) return true;
+        if (food.favoriteStore === 'OK') return true;
+        if (String(food.id || '').startsWith('product-')) return true;
+        return false;
+      });
     }
 
     // 2026-05-27 (cowork) 検索ゆらぎ吸収: ひらがな↔カタカナ・全角半角・空白除去・大小文字
@@ -4224,19 +4275,16 @@
 
       const select = document.getElementById('foodSelect');
       const suggestions = document.getElementById('foodSuggestions');
-      select.innerHTML = foods.map(food => `<option value="${food.id}">${food.name}</option>`).join('');
+      select.innerHTML = '<option value="">選択なし</option>' + foods.map(food => `<option value="${food.id}">${food.name}</option>`).join('');
       suggestions.innerHTML = foods.map(food => `<option value="${food.name}"></option>`).join('');
 
       if (!foods.length) return;
-      if (!select.value || !getFoodById(select.value)) {
-        select.value = foods[0].id;
-      }
-      const current = resolveFoodSelection() || foods[0];
+      select.value = '';
       // 2026-05-27 (cowork) 検索入力は空で開始（前回選択名のpre-fillをやめる）
       const searchEl = document.getElementById('foodSearch');
       searchEl.value = '';
       searchEl.setAttribute('placeholder', '食材・商品名（ひらがな/カタカナどちらでも）');
-      syncUnitOptions(current);
+      clearBuilderFoodSelection();
       // 食品プレビュー（kcal/PFC/strengths）も初期は非表示にして"食べ物の押し売り"を解消
       renderFoodPreview(null);
       renderSearchResults();
@@ -4271,8 +4319,8 @@
         const picks = [];
         const seen = new Set();
         ranked.forEach(id => { if (byId[id] && !seen.has(id)) { picks.push(byId[id]); seen.add(id); } });
-        // 不足分はベース食材から
-        allCandidates.forEach(c => { if (!seen.has(c.id) && picks.length < 6) { picks.push(c); seen.add(c.id); } });
+        // 不足分は現在タブの定番・OK商品・独自商品だけに限定し、無関係な先頭商品への誘導を避ける。
+        getStarterSearchCandidates(allCandidates).forEach(c => { if (!seen.has(c.id) && picks.length < 6) { picks.push(c); seen.add(c.id); } });
         if (!picks.length) {
           root.innerHTML = '<div class="empty-state">食材名を入力してください。</div>';
           renderEstimateCard(false);
@@ -4319,6 +4367,21 @@
       if (!card) return;
       card.classList.toggle('show', Boolean(show));
       document.getElementById('estimateTitle').textContent = query ? `「${query}」を概算で追加` : '概算で追加';
+      document.getElementById('estimateCopy').textContent = query
+        ? '商品DBに登録、独自食材として保存、または要確認の概算で追加できます。'
+        : '後で見直せるように要確認で入れます。';
+    }
+
+    function clearBuilderFoodSelection() {
+      const unitSelect = document.getElementById('unitSelect');
+      const shortcutRoot = document.getElementById('portionShortcutRow');
+      if (unitSelect) {
+        unitSelect.innerHTML = '<option value="">候補選択後に表示</option>';
+        unitSelect.dataset.prevUnit = '';
+      }
+      if (shortcutRoot) shortcutRoot.innerHTML = '';
+      document.getElementById('qtyInput').value = '1';
+      document.getElementById('unitHint').textContent = '候補を選択';
     }
 
     function getPortionShortcuts(food) {
@@ -5056,6 +5119,31 @@
       closeModal('builderModal');
     }
 
+    function startProductRegistrationFromSearch() {
+      const name = document.getElementById('foodSearch').value.trim();
+      resetProductForm();
+      if (name) document.getElementById('productName').value = name;
+      document.getElementById('productCategory').value = TIMINGS[currentTiming].label || '共通';
+      document.getElementById('productUnit').value = '個';
+      document.getElementById('barcodeLookupStatus').textContent = '未登録商品として追加します。バーコードやラベル値があれば入力してください。';
+      closeModal('builderModal');
+      renderProductList();
+      openModal('productModal');
+      setTimeout(() => { try { document.getElementById(name ? 'productBarcode' : 'productName').focus(); } catch(e){} }, 80);
+    }
+
+    function startCustomFoodRegistrationFromSearch() {
+      const name = document.getElementById('foodSearch').value.trim();
+      resetCustomFoodForm();
+      if (name) document.getElementById('customName').value = name;
+      document.getElementById('customCategory').value = TIMINGS[currentTiming].label || '共通';
+      document.getElementById('customUnit').value = '食分';
+      closeModal('builderModal');
+      renderCustomFoodList();
+      openModal('customFoodModal');
+      setTimeout(() => { try { document.getElementById(name ? 'customKcal' : 'customName').focus(); } catch(e){} }, 80);
+    }
+
     function selectSearchCandidate(kind, id) {
       if (kind === 'recipe') {
         applyRecipe(id);
@@ -5552,6 +5640,7 @@
       document.getElementById('productSatFat').value = '';
       document.getElementById('productServing').value = '';
       document.getElementById('productVerified').checked = false;
+      document.getElementById('barcodeLookupStatus').dataset.source = '';
       document.getElementById('barcodeLookupStatus').textContent = '外部DBは候補です。保存前にラベルで確認してください。';
     }
 
@@ -5603,10 +5692,19 @@
       return String(raw || '').replace(/\D/g, '');
     }
 
+    function compactBarcode(raw) {
+      return normalizeBarcode(raw).replace(/^0+/, '');
+    }
+
     function findLocalProductByBarcode(code) {
       const normalized = normalizeBarcode(code);
+      const compact = compactBarcode(code);
       if (!normalized) return null;
-      return getAllFoods().find(food => isProductCandidate(food) && normalizeBarcode(food.barcode) === normalized) || null;
+      return getAllFoods().find(food => {
+        if (!isProductCandidate(food)) return false;
+        const foodBarcode = normalizeBarcode(food.barcode);
+        return foodBarcode === normalized || compactBarcode(foodBarcode) === compact;
+      }) || null;
     }
 
     async function lookupProductBarcode() {
@@ -6276,13 +6374,24 @@
 
       document.getElementById('foodSearch').addEventListener('change', () => {
         const food = resolveFoodSelection();
-        if (!food) return;
+        if (!food) {
+          document.getElementById('foodSelect').value = '';
+          clearBuilderFoodSelection();
+          renderFoodPreview(null);
+          renderSearchResults();
+          return;
+        }
         document.getElementById('foodSelect').value = food.id;
         syncUnitOptions(food);
         renderSearchResults();
       });
 
-      document.getElementById('foodSearch').addEventListener('input', renderSearchResults);
+      document.getElementById('foodSearch').addEventListener('input', () => {
+        document.getElementById('foodSelect').value = '';
+        clearBuilderFoodSelection();
+        renderFoodPreview(null);
+        renderSearchResults();
+      });
 
       document.getElementById('unitSelect').addEventListener('change', () => {
         const food = resolveFoodSelection();
