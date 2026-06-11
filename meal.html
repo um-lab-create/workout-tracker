@@ -579,6 +579,36 @@
       font-weight: 800;
     }
 
+    .type-guide-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .type-guide-card {
+      min-height: 78px;
+      border-radius: 18px;
+      border: 1px solid rgba(0,0,0,.075);
+      background: rgba(0,0,0,.045);
+      padding: 10px;
+      text-align: left;
+      display: grid;
+      align-content: space-between;
+      gap: 6px;
+    }
+
+    .type-guide-label {
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .type-guide-copy {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+
     .search-cta {
       min-height: 54px;
       border-radius: 18px;
@@ -1251,6 +1281,12 @@
       color: var(--blue);
       border: 1px solid rgba(42,143,255,.28);
       background: rgba(42,143,255,.08);
+    }
+
+    .flag-pill.food {
+      color: var(--good);
+      border: 1px solid rgba(31,184,122,.28);
+      background: rgba(31,184,122,.08);
     }
 
     .flag-pill.recipe {
@@ -2169,7 +2205,7 @@
         <div class="day-line">
           <div class="day-line-main">
             <span id="dayLineKcal">0</span> kcal
-            <div class="day-line-sub" id="dayLineMeta">P0 F0 C0 / 不足チェック待ち</div>
+            <div class="day-line-sub" id="dayLineMeta">0/4 食 / 不足チェック待ち</div>
           </div>
           <a class="day-link" id="dayDetailLink" href="day.html">詳しく</a>
         </div>
@@ -2214,7 +2250,7 @@
           <div class="hydration-head">
             <div>
               <div class="hydration-value"><span id="hydrationLiters">0.0</span><span> L</span></div>
-              <div class="dining-sub">飲み物・汁物の目安</div>
+              <div class="dining-sub">水・お茶・牛乳・汁物。栄養計算とは別ログ</div>
             </div>
             <div class="hydration-status" id="hydrationStatus">目標 1.2L</div>
           </div>
@@ -2268,6 +2304,35 @@
               <button class="tiny-btn bad" type="button" onclick="clearDiningOut()">外食メモ削除</button>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <div class="section-title">機能一覧</div>
+          <div class="section-meta">登録は3分類で整理</div>
+        </div>
+        <button class="mini-btn" type="button" onclick="openManageMenu()">編集</button>
+      </div>
+      <div class="panel-body">
+        <div class="type-guide-grid">
+          <button class="type-guide-card" type="button" onclick="openBuilderWithScope('food')">
+            <div class="flag-pill food">食材</div>
+            <div class="type-guide-label">単体・生鮮</div>
+            <div class="type-guide-copy">卵、鶏肉、野菜など</div>
+          </button>
+          <button class="type-guide-card" type="button" onclick="openBuilderWithScope('product')">
+            <div class="flag-pill product">商品</div>
+            <div class="type-guide-label">加工品</div>
+            <div class="type-guide-copy">バーコード、市販品</div>
+          </button>
+          <button class="type-guide-card" type="button" onclick="openBuilderWithScope('recipe')">
+            <div class="flag-pill recipe">メニュー</div>
+            <div class="type-guide-label">1食セット</div>
+            <div class="type-guide-copy">弁当、作り置き</div>
+          </button>
         </div>
       </div>
     </section>
@@ -2399,7 +2464,7 @@
       <div class="dock-meta">
         <div class="dock-title" id="dockTiming">朝ごはん</div>
         <div class="dock-value"><span id="dockKcal">0</span> kcal</div>
-        <div class="dock-sub"><span id="dockCount">0</span> 品 / P<span id="dockP">0</span> F<span id="dockF">0</span> C<span id="dockC">0</span></div>
+        <div class="dock-sub"><span id="dockCount">0</span> 品 / 未保存</div>
       </div>
       <div class="dock-actions">
         <button class="dock-mini" type="button" onclick="openBuilder()">＋</button>
@@ -2413,8 +2478,8 @@
     <div class="sheet">
       <div class="sheet-head">
         <div>
-          <div class="sheet-title">管理メニュー</div>
-          <div class="sheet-copy">普段は記録だけ。編集や登録はここから開きます。</div>
+          <div class="sheet-title">機能一覧</div>
+          <div class="sheet-copy">食材・商品・メニューを分けて登録します。</div>
         </div>
         <button class="close-btn" type="button" onclick="closeModal('manageMenuModal')">×</button>
       </div>
@@ -2424,16 +2489,16 @@
           <div class="result-meta">朝・昼・夜・間食の定番セットを作る、直す、上書きする。</div>
         </button>
         <button class="result-card" type="button" onclick="openProductManagerFromMenu()">
-          <div class="result-head"><div class="result-name">商品DB</div><div class="preset-badge">バーコード</div></div>
-          <div class="result-meta">市販品を検索・登録。カメラでバーコードも読めます。</div>
+          <div class="result-head"><div class="result-name">商品DB</div><div class="preset-badge">商品</div></div>
+          <div class="result-meta">加工品・市販品を検索、バーコード、ラベル値で登録。</div>
         </button>
         <button class="result-card" type="button" onclick="openRecipeManagerFromMenu()">
-          <div class="result-head"><div class="result-name">自作メニュー</div><div class="preset-badge">作り置き</div></div>
-          <div class="result-meta">複数食材をまとめて保存し、食べた食数で追加。</div>
+          <div class="result-head"><div class="result-name">自作メニュー</div><div class="preset-badge">メニュー</div></div>
+          <div class="result-meta">調理済みの1食セット。作り置きや弁当を保存。</div>
         </button>
         <button class="result-card" type="button" onclick="openCustomFoodManagerFromMenu()">
-          <div class="result-head"><div class="result-name">独自食材</div><div class="preset-badge">概算</div></div>
-          <div class="result-meta">DBにない食材を要確認つきで登録。</div>
+          <div class="result-head"><div class="result-name">独自食材</div><div class="preset-badge">食材</div></div>
+          <div class="result-meta">生鮮食品・単体の食べ物を要確認つきで登録。</div>
         </button>
         <button class="result-card" type="button" onclick="openHistoryFromMenu()">
           <div class="result-head"><div class="result-name">履歴</div><div class="preset-badge">再利用</div></div>
@@ -3637,6 +3702,30 @@
       return false;
     }
 
+    function classifyFood(food) {
+      if (!food) return 'food';
+      if (food.entryType === 'recipe' || food.sourceType === 'recipe' || String(food.id || '').startsWith('recipe-')) return 'recipe';
+      if (isProductCandidate(food)) return 'product';
+      return 'food';
+    }
+
+    function classifyMealItem(item) {
+      if (!item) return 'food';
+      if (item.sourceType === 'recipe') return 'recipe';
+      if (item.sourceType === 'product') return 'product';
+      const food = getFoodById(item.foodId);
+      return classifyFood(food);
+    }
+
+    function foodTypeLabel(kind) {
+      return kind === 'recipe' ? 'メニュー' : kind === 'product' ? '商品' : '食材';
+    }
+
+    function renderTypePill(kind) {
+      const normalized = ['food', 'product', 'recipe'].includes(kind) ? kind : 'food';
+      return `<span class="flag-pill ${normalized}">${foodTypeLabel(normalized)}</span>`;
+    }
+
     function getSearchCandidates() {
       const timingLabel = TIMINGS[currentTiming] && TIMINGS[currentTiming].label;
       const allFoods = getAllFoods()
@@ -3650,12 +3739,12 @@
           return String(a.name).localeCompare(String(b.name), 'ja');
         });
       const foodCandidates = allFoods.map(food => {
-        const product = isProductCandidate(food);
+        const kind = classifyFood(food);
         return {
-          kind: product ? 'product' : 'food',
+          kind,
           id: food.id,
           name: food.name,
-          copy: product
+          copy: kind === 'product'
             ? `${food.favoriteStore === 'OK' ? 'OK候補 / ' : ''}${food.brand || '商品'} / 1${food.unitLabel || '個'}${food.barcode ? ` / ${food.barcode}` : ''}`
             : `${food.category || '食材'} / ${getDefaultUnit(food)?.label || ''}`,
           food
@@ -4010,7 +4099,7 @@
       const dayMax = Math.max(...Object.values(byTiming), 1);
       const gapHint = buildMealGapHint(totals);
       document.getElementById('dayLineKcal').textContent = Math.round(totals.kcal);
-      document.getElementById('dayLineMeta').textContent = `P${Math.round(totals.protein)} F${Math.round(totals.fat)} C${Math.round(totals.carb)} / ${gapHint}`;
+      document.getElementById('dayLineMeta').textContent = `${totals.count}/4 食 / ${gapHint}`;
       document.getElementById('dayDetailLink').href = `day.html?date=${encodeURIComponent(selectedDate)}`;
       document.getElementById('dayKcal').textContent = Math.round(totals.kcal);
       document.getElementById('dayKcalSub').textContent = `${totals.count}/4 食`;
@@ -4084,6 +4173,7 @@
         const portion = calcFoodPortion(food, unit.defaultQty || 1, unit.label);
         return `
           <button type="button" class="quick-card" onclick="quickAddFood('${food.id}')">
+            ${renderTypePill(classifyFood(food))}
             <div class="quick-name">${food.name}</div>
             <div class="quick-meta">${formatQty(unit.defaultQty || 1)}${unit.label} / ${Math.round(portion.kcal)}kcal</div>
           </button>
@@ -4104,8 +4194,8 @@
       root.innerHTML = products.map(product => `
         <button type="button" class="library-card" onclick="quickAddFood('${product.id}')">
           <div class="library-top">
-            <div class="preset-badge">${product.favoriteStore === 'OK' ? 'OK候補' : '商品'}</div>
-            <div class="section-meta">${product.brand || '商品'}</div>
+            ${renderTypePill('product')}
+            <div class="section-meta">${product.favoriteStore === 'OK' ? 'OK候補 / ' : ''}${product.brand || '商品'}</div>
           </div>
           <div class="library-name">${product.name}</div>
           <div class="library-copy">1${product.unitLabel || '個'} / ${Math.round(product.macrosPerUnit.kcal || 0)}kcal${product.barcode ? ` / ${product.barcode}` : ''}</div>
@@ -4131,7 +4221,7 @@
       root.innerHTML = recipes.map(recipe => `
         <button type="button" class="library-card" onclick="applyRecipe('${recipe.id}')">
           <div class="library-top">
-            <div class="preset-badge">メニュー</div>
+            ${renderTypePill('recipe')}
             <div class="section-meta">${TIMINGS[recipe.timingKey || currentTiming].label}</div>
           </div>
           <div class="library-name">${recipe.name}</div>
@@ -4232,20 +4322,21 @@
         const kcal = calcFoodPortion(food, portion.qty, portion.unit).kcal;
         entries.push({
           type: 'quick',
-          kind: portion.source,
+          kind: foodTypeLabel(classifyFood(food)),
           name: food.name,
-          copy: `${formatQty(portion.qty)}${portion.unit} / ${Math.round(kcal)}kcal${portion.pendingReview ? ' / 要確認' : ''}`,
+          copy: `${portion.source} / ${formatQty(portion.qty)}${portion.unit} / ${Math.round(kcal)}kcal${portion.pendingReview ? ' / 要確認' : ''}`,
           action: `quickAddFood('${food.id}')`
         });
       });
 
       smartSuggestions().forEach(entry => {
         const portion = defaultQuickPortion(entry.food);
+        const portionCopy = entry.copy || `${formatQty(portion.qty)}${portion.unit}`;
         entries.push({
           type: 'smart',
-          kind: entry.tag,
+          kind: foodTypeLabel(classifyFood(entry.food)),
           name: entry.food.name,
-          copy: entry.copy || `${formatQty(portion.qty)}${portion.unit}`,
+          copy: `${entry.tag} / ${portionCopy}`,
           action: `quickAddFood('${entry.food.id}')`
         });
       });
@@ -4528,12 +4619,8 @@
           </div>
           <div class="food-preview-kcal">${Math.round(macro.kcal)}kcal</div>
         </div>
-        <div class="food-preview-macros">
-          <div class="food-preview-macro"><span>P</span><strong>${formatMacro(macro.p)}g</strong></div>
-          <div class="food-preview-macro"><span>F</span><strong>${formatMacro(macro.f)}g</strong></div>
-          <div class="food-preview-macro"><span>C</span><strong>${formatMacro(macro.c)}g</strong></div>
-        </div>
         <div class="food-preview-tags">
+          ${renderTypePill(classifyFood(food))}
           ${strengths.length ? strengths.map(item => `<span class="food-preview-tag">${item.label} ${item.pct}%</span>`).join('') : '<span class="food-preview-tag">ミクロ栄養は未整備</span>'}
         </div>
       `;
@@ -4595,30 +4682,32 @@
         return;
       }
       empty.style.display = 'none';
-      root.innerHTML = currentMeal.map(item => `
-        <div class="item-card">
-          <div class="item-head">
-            <div>
-              <div class="item-name">${item.name}</div>
-              <div class="item-qty">${formatQty(item.qty)}${item.unit}${item.grams ? ` / 約${Math.round(item.grams)}g` : ''}</div>
+      root.innerHTML = currentMeal.map(item => {
+        const kind = classifyMealItem(item);
+        return `
+          <div class="item-card">
+            <div class="item-head">
+              <div>
+                <div class="item-name">${item.name}</div>
+                <div class="item-qty">${formatQty(item.qty)}${item.unit}${item.grams ? ` / 約${Math.round(item.grams)}g` : ''}</div>
+              </div>
+              <button type="button" class="tiny-btn bad" onclick="removeMealItem('${item.id}')">削除</button>
             </div>
-            <button type="button" class="tiny-btn bad" onclick="removeMealItem('${item.id}')">削除</button>
+            <div class="item-meta">${Math.round(item.kcal)}kcal</div>
+            <div class="item-flags">
+              ${renderTypePill(kind)}
+              ${item.pendingReview ? '<div class="flag-pill review">要確認</div>' : ''}
+            </div>
+            <div class="item-actions">
+              <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', -1)">−</button>
+              <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', 1)">＋</button>
+              <button type="button" class="tiny-btn" onclick="promptItemQty('${item.id}')">数量</button>
+              <button type="button" class="tiny-btn" onclick="editItemUnit('${item.id}')">単位変更</button>
+              <button type="button" class="tiny-btn" onclick="toggleItemReview('${item.id}')">${item.pendingReview ? '確認済' : '要確認'}</button>
+            </div>
           </div>
-          <div class="item-meta">${Math.round(item.kcal)}kcal / P${Math.round(item.p)}g / F${Math.round(item.f)}g / C${Math.round(item.c)}g</div>
-          <div class="item-flags">
-            ${item.sourceType === 'product' ? '<div class="flag-pill product">商品</div>' : ''}
-            ${item.sourceType === 'recipe' ? '<div class="flag-pill recipe">メニュー</div>' : ''}
-            ${item.pendingReview ? '<div class="flag-pill review">要確認</div>' : ''}
-          </div>
-          <div class="item-actions">
-            <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', -1)">−</button>
-            <button type="button" class="tiny-btn" onclick="changeItemQty('${item.id}', 1)">＋</button>
-            <button type="button" class="tiny-btn" onclick="promptItemQty('${item.id}')">数量</button>
-            <button type="button" class="tiny-btn" onclick="editItemUnit('${item.id}')">単位変更</button>
-            <button type="button" class="tiny-btn" onclick="toggleItemReview('${item.id}')">${item.pendingReview ? '確認済' : '要確認'}</button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
       renderSummary();
       renderSmartGrid();
       renderCandidateGrid();
@@ -4786,7 +4875,7 @@
           workoutAdjustmentMl: workout.extraMl,
           workoutSummary: workout.label,
           entries: record.entries.map(entry => `${entry.label}:${entry.ml}ml`).join(', '),
-          note: '飲み物・汁物の目安。食事由来の水分は含めない。運動日は目標を自動上乗せ。'
+          note: '飲み物・汁物・牛乳などの経口水分量。食事記録とは別管理で、kcal/PFCは水分ログに加算しない。運動日は目標を自動上乗せ。'
         });
         record.synced = true;
         setHydrationForDate(record);
@@ -4818,9 +4907,6 @@
       document.getElementById('sumF').textContent = Math.round(totals.f);
       document.getElementById('sumC').textContent = Math.round(totals.c);
       document.getElementById('dockKcal').textContent = Math.round(totals.kcal);
-      document.getElementById('dockP').textContent = Math.round(totals.p);
-      document.getElementById('dockF').textContent = Math.round(totals.f);
-      document.getElementById('dockC').textContent = Math.round(totals.c);
       document.getElementById('dockCount').textContent = currentMeal.length;
       document.getElementById('macroFillP').style.width = `${pctP}%`;
       document.getElementById('macroFillF').style.width = `${pctF}%`;
@@ -5606,6 +5692,11 @@
       renderFoodSelector();
       updateUnitHint();
       openModal('builderModal');
+    }
+
+    function openBuilderWithScope(scope) {
+      openBuilder();
+      setSearchScope(scope);
     }
 
     function openHistory() {
