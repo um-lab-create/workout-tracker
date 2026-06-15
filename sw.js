@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v9';
+const CACHE = 'cockpit-cache-v10';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 const CORE = [

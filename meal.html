@@ -1023,9 +1023,36 @@
       font-weight: 700;
     }
 
+    .form-status-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 14px;
+    }
+
+    .form-status-card {
+      border-radius: 16px;
+      border: 1px solid rgba(0,0,0,.07);
+      background: rgba(0,0,0,.04);
+      padding: 10px;
+    }
+
+    .form-status-value {
+      font-size: 18px;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .form-status-label {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
     .action-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
       gap: 8px;
     }
 
@@ -2725,6 +2752,21 @@
       </div>
 
       <div class="form-grid">
+        <div class="form-status-grid" id="productDbStatus">
+          <div class="form-status-card">
+            <div class="form-status-value">0</div>
+            <div class="form-status-label">独自商品</div>
+          </div>
+          <div class="form-status-card">
+            <div class="form-status-value">0</div>
+            <div class="form-status-label">確認済み</div>
+          </div>
+          <div class="form-status-card">
+            <div class="form-status-value">0</div>
+            <div class="form-status-label">要確認</div>
+          </div>
+        </div>
+
         <div class="field-group">
           <div class="field-label"><span>商品名</span></div>
           <input class="text-input" id="productName" placeholder="例: ザバス ミルクプロテイン">
@@ -2783,7 +2825,8 @@
 
         <div class="action-row">
           <button class="ghost-btn" type="button" onclick="resetProductForm()">入力をクリア</button>
-          <button class="accent-btn" type="button" onclick="saveProduct()">商品を保存</button>
+          <button class="ghost-btn" type="button" onclick="saveProductAndAdd()">保存して追加</button>
+          <button class="accent-btn" type="button" onclick="saveProduct()">保存</button>
         </div>
       </div>
 
@@ -2824,6 +2867,21 @@
       <div class="action-row">
         <button class="ghost-btn" type="button" onclick="saveCurrentAsRecipe()">今の内容を保存</button>
         <button class="ghost-btn" type="button" onclick="closeModal('recipeModal')">閉じる</button>
+      </div>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field-group">
+          <div class="field-label"><span>メニュー名</span></div>
+          <input class="text-input" id="recipeName" placeholder="例: 親子丼弁当">
+        </div>
+        <div class="field-group">
+          <div class="field-label"><span>作った食数</span></div>
+          <input class="text-input" id="recipeServings" type="number" inputmode="decimal" min="0.25" step="0.25" value="1">
+          <div class="helper-text" id="recipeFormStatus">今の食事内容をメニュー化できます。</div>
+        </div>
+        <div class="action-row">
+          <button class="ghost-btn" type="button" onclick="fillRecipeFormFromCurrent()">今の内容から入力</button>
+          <button class="accent-btn" type="button" onclick="saveRecipeFromForm()">メニュー保存</button>
+        </div>
       </div>
       <div class="manage-list" id="recipeList" style="margin-top:14px"></div>
     </div>
@@ -5429,6 +5487,64 @@
         showToast('保存する食事内容がありません', 'warn');
         return;
       }
+      fillRecipeFormFromCurrent();
+      openModal('recipeModal');
+    }
+
+    function fillRecipeFormFromCurrent() {
+      const nameInput = document.getElementById('recipeName');
+      const servingsInput = document.getElementById('recipeServings');
+      const status = document.getElementById('recipeFormStatus');
+      if (nameInput && !nameInput.value.trim()) nameInput.value = `${TIMINGS[currentTiming].title}メニュー`;
+      if (servingsInput && !servingsInput.value) servingsInput.value = '1';
+      if (status) {
+        const totals = mealTotals();
+        status.textContent = currentMeal.length
+          ? `${currentMeal.length}品 / ${Math.round(totals.kcal)}kcal / P${Math.round(totals.p)} F${Math.round(totals.f)} C${Math.round(totals.c)}`
+          : '今の食事内容をメニュー化できます。';
+      }
+    }
+
+    function saveRecipeFromForm() {
+      if (!currentMeal.length) {
+        showToast('保存する食事内容がありません', 'warn');
+        return;
+      }
+      const name = document.getElementById('recipeName').value.trim();
+      const servings = Number(document.getElementById('recipeServings').value || 1);
+      if (!name) {
+        showToast('メニュー名を入力してください', 'warn');
+        return;
+      }
+      if (!Number.isFinite(servings) || servings <= 0) {
+        showToast('作った食数を数値で入れてください', 'warn');
+        return;
+      }
+      customRecipes.unshift(buildRecipeFromCurrent(name, servings));
+      saveRecipes();
+      renderRecipeGrid();
+      renderRecipeList();
+      document.getElementById('recipeName').value = '';
+      document.getElementById('recipeServings').value = '1';
+      fillRecipeFormFromCurrent();
+      showToast('自作メニューを保存しました');
+    }
+
+    function buildRecipeFromCurrent(name, servings, id = `recipe-${Date.now()}`) {
+      return {
+        id,
+        name: name.trim(),
+        timingKey: currentTiming,
+        servings,
+        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }))
+      };
+    }
+
+    function saveCurrentAsRecipeLegacy() {
+      if (!currentMeal.length) {
+        showToast('保存する食事内容がありません', 'warn');
+        return;
+      }
       const name = window.prompt('自作メニュー名を入力してください', `${TIMINGS[currentTiming].title}メニュー`);
       if (!name) return;
       const servingsInput = window.prompt('作った量は何食分ですか？\n例: 3食分作って、あとで1食分だけ食べる', '1');
@@ -5437,13 +5553,7 @@
         showToast('食数を数値で入れてください', 'warn');
         return;
       }
-      customRecipes.unshift({
-        id: `recipe-${Date.now()}`,
-        name: name.trim(),
-        timingKey: currentTiming,
-        servings,
-        items: currentMeal.map(item => ({ foodId: item.foodId, qty: item.qty, unit: item.unit, pendingReview: item.pendingReview }))
-      });
+      customRecipes.unshift(buildRecipeFromCurrent(name, servings));
       saveRecipes();
       renderRecipeGrid();
       renderRecipeList();
@@ -5525,6 +5635,7 @@
     }
 
     function openRecipeManager() {
+      fillRecipeFormFromCurrent();
       renderRecipeList();
       openModal('recipeModal');
     }
@@ -5693,6 +5804,7 @@
 
     function openProductManager() {
       renderProductList();
+      renderProductDbStatus();
       openModal('productModal');
     }
 
@@ -5741,6 +5853,7 @@
       document.getElementById('productVerified').checked = false;
       document.getElementById('barcodeLookupStatus').dataset.source = '';
       document.getElementById('barcodeLookupStatus').textContent = '外部DBは候補です。保存前にラベルで確認してください。';
+      renderProductDbStatus();
     }
 
     function saveCustomFood() {
@@ -6009,6 +6122,23 @@
     }
 
     function saveProduct() {
+      const saved = saveProductEntry();
+      if (!saved) return null;
+      resetProductForm();
+      showToast('商品を保存しました');
+      return saved;
+    }
+
+    function saveProductAndAdd() {
+      const saved = saveProductEntry();
+      if (!saved) return;
+      quickAddFood(saved.id);
+      resetProductForm();
+      closeModal('productModal');
+      showToast(`${saved.name} を保存して追加しました`);
+    }
+
+    function saveProductEntry() {
       const name = document.getElementById('productName').value.trim();
       const brand = document.getElementById('productBrand').value.trim();
       const category = document.getElementById('productCategory').value;
@@ -6026,7 +6156,7 @@
 
       if (!name || !unit) {
         showToast('商品名と単位は必須です', 'warn');
-        return;
+        return null;
       }
 
       const entry = {
@@ -6068,8 +6198,26 @@
       renderFoodSelector();
       renderProductList();
       renderProductGrid();
-      resetProductForm();
-      showToast('商品を保存しました');
+      renderProductDbStatus();
+      return entry;
+    }
+
+    function renderProductDbStatus() {
+      const root = document.getElementById('productDbStatus');
+      if (!root) return;
+      const total = customProducts.length;
+      const verified = customProducts.filter(product => product.verified).length;
+      const review = Math.max(0, total - verified);
+      root.innerHTML = [
+        { value: total, label: '独自商品' },
+        { value: verified, label: '確認済み' },
+        { value: review, label: '要確認' }
+      ].map(item => `
+        <div class="form-status-card">
+          <div class="form-status-value">${item.value}</div>
+          <div class="form-status-label">${item.label}</div>
+        </div>
+      `).join('');
     }
 
     function editCustomFood(foodId) {
@@ -6116,6 +6264,7 @@
             <div class="preset-badge">${product.verified ? '確認済' : '要確認'}</div>
           </div>
           <div class="manage-actions">
+            <button type="button" class="manage-btn" onclick="quickAddFood('${product.id}')">追加</button>
             <button type="button" class="manage-btn" onclick="editProduct('${product.id}')">編集</button>
             <button type="button" class="manage-btn bad" onclick="deleteProduct('${product.id}')">削除</button>
           </div>
@@ -6143,6 +6292,7 @@
       document.getElementById('productVerified').checked = Boolean(product.verified);
       document.getElementById('barcodeLookupStatus').dataset.source = product.source || 'manual';
       document.getElementById('barcodeLookupStatus').textContent = product.source === 'openfoodfacts' ? 'Open Food Facts 由来。ラベル確認後に保存してください。' : '登録済み商品の編集です。';
+      renderProductDbStatus();
     }
 
     function deleteProduct(productId) {
@@ -6155,6 +6305,7 @@
       renderFoodSelector();
       renderProductList();
       renderProductGrid();
+      renderProductDbStatus();
       recalcCurrentMeal();
       renderCurrentMeal();
       showToast('商品を削除しました');
@@ -6174,15 +6325,50 @@
               <div class="item-name">${recipe.name}</div>
               <div class="item-meta">${summarizeRecipe(recipe)}</div>
             </div>
-            <div class="preset-badge">メニュー</div>
+            <div class="preset-badge">${customRecipes.some(entry => entry.id === recipe.id) ? '自作' : '固定'}</div>
           </div>
           <div class="manage-actions">
             <button type="button" class="manage-btn" onclick="applyRecipe('${recipe.id}')">追加</button>
-            <button type="button" class="manage-btn" onclick="renameRecipe('${recipe.id}')">名前変更</button>
-            <button type="button" class="manage-btn bad" onclick="deleteRecipe('${recipe.id}')">削除</button>
+            <button type="button" class="manage-btn" onclick="loadRecipeForEditing('${recipe.id}')">現在に読み込む</button>
+            ${customRecipes.some(entry => entry.id === recipe.id) ? `
+              <button type="button" class="manage-btn" onclick="overwriteRecipeFromCurrent('${recipe.id}')">上書き</button>
+              <button type="button" class="manage-btn" onclick="renameRecipe('${recipe.id}')">名前変更</button>
+              <button type="button" class="manage-btn bad" onclick="deleteRecipe('${recipe.id}')">削除</button>
+            ` : ''}
           </div>
         </div>
       `).join('');
+    }
+
+    function loadRecipeForEditing(recipeId) {
+      const recipe = getAllRecipes().find(entry => entry.id === recipeId);
+      if (!recipe) return;
+      const servings = Number(recipe.servings) || 1;
+      currentMeal = (recipe.items || []).map(item => {
+        const food = getFoodById(item.foodId);
+        return food ? createMealItem(food, (Number(item.qty) || 0) / servings, item.unit, { pendingReview: item.pendingReview }) : null;
+      }).filter(Boolean);
+      renderCurrentMeal();
+      persistCurrentTimingDraft();
+      closeModal('recipeModal');
+      showToast('1食分として読み込みました');
+    }
+
+    function overwriteRecipeFromCurrent(recipeId) {
+      if (!currentMeal.length) {
+        showToast('今の食事内容が空です', 'warn');
+        return;
+      }
+      const recipe = customRecipes.find(entry => entry.id === recipeId);
+      if (!recipe) return;
+      if (!window.confirm(`「${recipe.name}」を今の内容で上書きしますか？`)) return;
+      const servings = Number(recipe.servings) || 1;
+      const next = buildRecipeFromCurrent(recipe.name, servings, recipe.id);
+      customRecipes = customRecipes.map(entry => entry.id === recipeId ? next : entry);
+      saveRecipes();
+      renderRecipeGrid();
+      renderRecipeList();
+      showToast('自作メニューを上書きしました');
     }
 
     function renameRecipe(recipeId) {
