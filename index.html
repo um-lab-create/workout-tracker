@@ -1760,6 +1760,7 @@ const MEAL_RECORD_STORE = 'meal_recs_v3';
 const MEAL_PRODUCT_STORE = 'meal_products_v1';
 const MEAL_RECIPE_STORE = 'meal_recipes_v1';
 const MEAL_DRAFT_STORE = 'meal_draft_v4';
+const MEAL_HABIT_STORE = 'meal_habits_v1';
 const WORKOUT_HISTORY_STORE = 'wt:history:v2';
 const WORKOUT_QUEUE_STORE = 'wt:queue:v2';
 const HYDRATION_STORE = 'hydration_recs_v1';
@@ -2066,6 +2067,13 @@ function isoDateOffset(baseDate, offsetDays) {
 function collectDailyNutrition(dateStr) {
   const recs = lsGet(MEAL_RECORD_STORE, []) || [];
   const todays = recs.filter(r => r && r.date === dateStr);
+  const savedTimings = new Set(todays.map(record => record.timingKey || record.timing).filter(Boolean));
+  const drafts = storageGet(MEAL_DRAFT_STORE, {});
+  ['morning', 'lunch', 'dinner', 'snack'].forEach(timingKey => {
+    if (savedTimings.has(timingKey)) return;
+    const draft = getMealDraftFor(drafts, dateStr, timingKey);
+    if (mealDraftHasContent(draft)) todays.push({ ...draft, timingKey });
+  });
   const db = window.HSNutritionDB;
   const nutrients = {};
   if (db && db.KEYS) db.KEYS.forEach(k => nutrients[k] = 0);
@@ -2179,7 +2187,14 @@ function draftKey(dateStr, timingKey) {
 }
 
 function getMealDraftFor(drafts, dateStr, timingKey) {
-  return drafts[draftKey(dateStr, timingKey)] || drafts[timingKey] || null;
+  const key = draftKey(dateStr, timingKey);
+  if (Object.prototype.hasOwnProperty.call(drafts, key)) return drafts[key];
+  if (Object.prototype.hasOwnProperty.call(drafts, timingKey)) return drafts[timingKey];
+  const presets = storageGet(MEAL_PRESET_STORE, {});
+  const habits = storageGet(MEAL_HABIT_STORE, {});
+  const presetId = habits[timingKey] && habits[timingKey].presetId;
+  const preset = ((presets && presets[timingKey]) || []).find(item => item && item.id === presetId);
+  return preset ? { items: preset.items || [], source: 'habit-default-virtual', autoDefault: true } : null;
 }
 
 function mealItemCount(entry) {
@@ -2196,8 +2211,17 @@ function mealDraftHasContent(draft) {
 function nutritionEnergy(entry) {
   if (!entry) return 0;
   if (Number.isFinite(Number(entry.kcal))) return Number(entry.kcal) || 0;
-  const items = Array.isArray(entry.structuredItems) ? entry.structuredItems : [];
-  return items.reduce((sum, item) => sum + Number(item && item.nutrients && item.nutrients.energy || 0), 0);
+  const items = Array.isArray(entry.structuredItems) && entry.structuredItems.length
+    ? entry.structuredItems
+    : Array.isArray(entry.items) ? entry.items : [];
+  const db = window.HSNutritionDB;
+  return items.reduce((sum, item) => {
+    if (item && item.nutrients) return sum + Number(item.nutrients.energy || 0);
+    if (!db || !item) return sum;
+    const food = db.getFood(item.foodId);
+    const portion = food && db.calcPortion(food, item.qty, item.unit);
+    return sum + Number(portion && portion.totals && portion.totals.energy || 0);
+  }, 0);
 }
 
 function renderDailyHub() {

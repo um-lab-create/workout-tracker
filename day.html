@@ -1779,6 +1779,8 @@
 
     const RECORD_STORE = 'meal_recs_v3';
     const DRAFT_STORE = 'meal_draft_v4';
+    const PRESET_STORE = 'meal_presets_v3';
+    const HABIT_STORE = 'meal_habits_v1';
     const TARGET_STORE = 'nutrition_targets_v1';
     const SERVER_RECORD_STORE = 'meal_server_records_v1';
     const READ_AUTH_STORE = 'hs:read-auth:v1';
@@ -2207,6 +2209,16 @@
       return `${dateStr}:${timingKey}`;
     }
 
+    function getEffectiveDraft(drafts, dateStr, timingKey) {
+      const key = draftKey(dateStr, timingKey);
+      if (Object.prototype.hasOwnProperty.call(drafts, key)) return drafts[key];
+      const presets = storageGet(PRESET_STORE, {});
+      const habits = storageGet(HABIT_STORE, {});
+      const presetId = habits[timingKey] && habits[timingKey].presetId;
+      const preset = ((presets && presets[timingKey]) || []).find(item => item && item.id === presetId);
+      return preset ? { items: preset.items || [], source: 'habit-default-virtual', autoDefault: true } : null;
+    }
+
     function calcFoodPortion(food, qty, unitLabel) {
       if (!NUTRITION_DB || !food) return null;
       const portion = NUTRITION_DB.calcPortion(food, qty, unitLabel);
@@ -2260,12 +2272,12 @@
 
       Object.keys(TIMING_LABELS).forEach(timingKey => {
         if (timingState[timingKey]) return;
-        const draft = drafts[draftKey(selectedDate, timingKey)];
+        const draft = getEffectiveDraft(drafts, selectedDate, timingKey);
         const items = getEntryItems(draft);
         if (!items.length) return;
         const totals = computeItemsSummary(items);
         timingState[timingKey] = {
-          source: 'draft',
+          source: draft && draft.autoDefault ? 'default' : 'draft',
           title: TIMING_LABELS[timingKey].label,
           memo: summarizeItems(items),
           kcal: totals.energy,
@@ -3028,7 +3040,7 @@
           <div class="timing-card">
             <div class="timing-top">
               <div class="timing-title">${entry.title}</div>
-              <div class="timing-badge">${entry.source === 'draft' ? '下書き' : '保存済み'}</div>
+              <div class="timing-badge">${entry.source === 'default' ? '普段' : entry.source === 'draft' ? '下書き' : '保存済み'}</div>
             </div>
             <div class="timing-copy">${entry.memo || 'メモなし'}</div>
             <div class="timing-copy" style="color:var(--accent-2)">${Math.round(entry.kcal)}kcal / P${Math.round(entry.p)} / F${Math.round(entry.f)} / C${Math.round(entry.c)}</div>

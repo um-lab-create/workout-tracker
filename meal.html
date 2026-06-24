@@ -5014,9 +5014,9 @@
         });
         record.synced = true;
         setHydrationForDate(record);
-        setSyncStatus('synced', '水分同期済み');
+        setSyncStatus('synced', '水分送信要求済み');
         setTimeout(() => setSyncStatus('', '待機中'), 2800);
-        showToast('水分を送信しました');
+        showToast('水分の送信リクエストを出しました');
         return true;
       } catch (err) {
         console.warn('[meal] sendHydration failed', err);
@@ -5089,7 +5089,7 @@
               <div class="history-card">
                 <div class="history-card-head">
                   <div class="history-title">${record.title || record.timing}</div>
-                  ${record.synced ? '<div class="history-badge">同期済み</div>' : ''}
+                  ${record.synced ? '<div class="history-badge">送信要求済み</div>' : ''}
                 </div>
                 <div class="history-detail">${record.memo}</div>
                 <div class="history-detail" style="margin-top:6px;color:var(--accent-2)">
@@ -6585,7 +6585,7 @@
         setTimeout(() => setSyncStatus('', '待機中'), 2800);
         return false;
       }
-      setSyncStatus('synced', '同期済み');
+      setSyncStatus('synced', '送信要求済み');
       setTimeout(() => setSyncStatus('', '待機中'), 2800);
       return true;
     }
@@ -6777,13 +6777,13 @@
       if (button) button.disabled = false;
       updateMealBatchButton();
       if (sent === pending.length) {
-        setSyncStatus('synced', '同期済み');
+        setSyncStatus('synced', '送信要求済み');
         setTimeout(() => setSyncStatus('', '待機中'), 2800);
-        showToast(`${sent}件をまとめて送信しました`);
+        showToast(`${sent}件の送信リクエストを出しました`);
       } else {
         setSyncStatus('error', '一部未送信');
         setTimeout(() => setSyncStatus('', '待機中'), 2800);
-        showToast(`${sent}/${pending.length}件を送信しました`, 'warn');
+        showToast(`${sent}/${pending.length}件の送信リクエストを出しました`, 'warn');
       }
     }
 

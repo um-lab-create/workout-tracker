@@ -1462,7 +1462,7 @@ async function sendDraftRecords() {
   setSendAllState(sent.length ? 'saved' : 'queued');
   updateActionButtons();
   renderStats();
-  showToast(sent.length ? `${sent.length}件をまとめて送信しました` : '通信できないため再送キューへ移しました', sent.length ? 'ok' : 'warn');
+  showToast(sent.length ? `${sent.length}件の送信リクエストを出しました` : '通信できないため再送キューへ移しました', sent.length ? 'ok' : 'warn');
   haptic(sent.length ? [8, 24, 8] : [20, 40, 20]);
   setTimeout(() => setSendAllState('ready'), 1400);
 }
@@ -1592,7 +1592,7 @@ function setSendAllState(stateName) {
     icon.textContent = '…';
   } else if (stateName === 'saved') {
     button.classList.add('saved');
-    text.textContent = '送信済み';
+    text.textContent = '送信要求済み';
     icon.textContent = '✓';
   } else if (stateName === 'queued') {
     button.classList.add('queued');
