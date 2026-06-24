@@ -2234,7 +2234,10 @@
 
     <section class="panel current-meal-panel">
       <div class="section-head">
-        <div class="section-title" id="currentMealTitle">今の食事</div>
+        <div>
+          <div class="section-title" id="currentMealTitle">今の食事</div>
+          <div class="helper-text" id="mealSourceStatus"></div>
+        </div>
         <div class="header-tools">
           <button class="mini-btn" type="button" onclick="saveCurrentAsHabit()">普段にする</button>
           <button class="mini-btn" type="button" onclick="clearCurrentMeal()">クリア</button>
@@ -3479,10 +3482,23 @@
       return getRecords().filter(record => record && record.date === dateStr && !record.synced);
     }
 
+    function draftHasContent(draft) {
+      if (!draft) return false;
+      const dining = normalizeDiningOut(draft.diningOut);
+      return Boolean((draft.items && draft.items.length) || String(draft.note || '').trim() || dining.enabled);
+    }
+
+    function pendingDraftTimings(dateStr = selectedDate) {
+      return Object.keys(TIMINGS).filter(timingKey => {
+        if (findSavedRecordForTiming(dateStr, timingKey)) return false;
+        return draftHasContent(drafts[draftKey(dateStr, timingKey)]);
+      });
+    }
+
     function updateMealBatchButton() {
       const button = document.getElementById('sendMealBatchButton');
       if (!button) return;
-      const count = unsyncedMealRecords(selectedDate).length;
+      const count = unsyncedMealRecords(selectedDate).length + pendingDraftTimings(selectedDate).length;
       button.textContent = `送信 ${count}`;
       button.classList.toggle('has-queue', count > 0);
       button.setAttribute('aria-label', count ? `${count}件をまとめて送信` : '未送信の食事はありません');
@@ -3647,6 +3663,52 @@
 
     function saveHabits() {
       storageSet(HABIT_STORE, habits);
+    }
+
+    function defaultDraftFromPreset(preset) {
+      const mealItems = (preset.items || []).map(item => {
+        const food = getFoodById(item.foodId);
+        return food ? createMealItem(food, item.qty, item.unit, { pendingReview: item.pendingReview }) : null;
+      }).filter(Boolean);
+      return {
+        items: toStoredMealItems(mealItems),
+        structuredItems: mealItems.map(buildStructuredItem),
+        nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
+        note: '',
+        diningOut: blankDiningOut(),
+        source: 'habit-default',
+        defaultPresetId: preset.id,
+        autoDefault: true
+      };
+    }
+
+    function seedDefaultDraftsForDate(dateStr) {
+      let changed = false;
+      Object.keys(TIMINGS).forEach(timingKey => {
+        const key = draftKey(dateStr, timingKey);
+        if (Object.prototype.hasOwnProperty.call(drafts, key)) return;
+        if (findSavedRecordForTiming(dateStr, timingKey)) return;
+        const preset = getHabitPreset(timingKey);
+        if (!preset) return;
+        const draft = defaultDraftFromPreset(preset);
+        if (!draft.items.length) return;
+        drafts[key] = draft;
+        changed = true;
+      });
+      if (changed) storageSet(DRAFT_STORE, drafts);
+      return changed;
+    }
+
+    function refreshUntouchedDefaultDrafts(preset) {
+      if (!preset || !preset.id) return;
+      let changed = false;
+      Object.keys(drafts).forEach(key => {
+        const draft = drafts[key];
+        if (!draft || !draft.autoDefault || draft.defaultPresetId !== preset.id) return;
+        drafts[key] = defaultDraftFromPreset(preset);
+        changed = true;
+      });
+      if (changed) storageSet(DRAFT_STORE, drafts);
     }
 
     // loadWritePin / saveWritePin / promptWritePin / makeAuthNonce / buildAuthedPayload
@@ -4054,8 +4116,8 @@
       return Number.isInteger(num) ? String(num) : String(Math.round(num * 10) / 10);
     }
 
-    function mealTotals() {
-      return currentMeal.reduce((acc, item) => {
+    function mealTotalsFor(items) {
+      return (items || []).reduce((acc, item) => {
         acc.kcal += item.kcal || 0;
         acc.p += item.p || 0;
         acc.f += item.f || 0;
@@ -4063,6 +4125,10 @@
         acc.review += item.pendingReview ? 1 : 0;
         return acc;
       }, { kcal: 0, p: 0, f: 0, c: 0, review: 0 });
+    }
+
+    function mealTotals() {
+      return mealTotalsFor(currentMeal);
     }
 
     function setTodayChip() {
@@ -4127,31 +4193,24 @@
         }
       });
 
-      const draftKeyNow = draftKey(dateStr, currentTiming);
-      const hasSavedForTiming = records.some(record => record.timingKey === currentTiming);
-      const draft = drafts[draftKeyNow];
-      const shouldCountCurrent = !hasSavedForTiming && selectedDate === dateStr && currentMeal.length;
-      const hasDraftOnly = !shouldCountCurrent && !hasSavedForTiming && draft && (draft.items || []).length;
-      if (shouldCountCurrent || hasDraftOnly) {
-        const draftTotals = shouldCountCurrent
-          ? mealTotals()
-          : (draft.items || []).reduce((acc, item) => {
-              const food = getFoodById(item.foodId);
-              if (!food) return acc;
-              const portion = calcFoodPortion(food, item.qty, item.unit);
-              acc.kcal += portion.kcal || 0;
-              acc.p += portion.p || 0;
-              acc.f += portion.f || 0;
-              acc.c += portion.c || 0;
-              return acc;
-            }, { kcal: 0, p: 0, f: 0, c: 0 });
+      Object.keys(TIMINGS).forEach(timingKey => {
+        if (records.some(record => record.timingKey === timingKey)) return;
+        const draft = drafts[draftKey(dateStr, timingKey)];
+        const useCurrent = selectedDate === dateStr && currentTiming === timingKey;
+        const items = useCurrent
+          ? currentMeal
+          : restoreMealItems((draft && draft.items) || [], (draft && draft.structuredItems) || []);
+        const dining = useCurrent ? normalizeDiningOut(diningOutDraft) : normalizeDiningOut(draft && draft.diningOut);
+        const note = useCurrent ? document.getElementById('mealNote').value : String(draft && draft.note || '');
+        if (!items.length && !dining.enabled && !note.trim()) return;
+        const draftTotals = mealTotalsFor(items);
         totals.kcal += Math.round(draftTotals.kcal);
         totals.protein += Math.round(draftTotals.p);
         totals.fat += Math.round(draftTotals.f);
         totals.carb += Math.round(draftTotals.c);
         totals.count += 1;
-        byTiming[currentTiming] += Math.round(draftTotals.kcal);
-      }
+        byTiming[timingKey] += Math.round(draftTotals.kcal);
+      });
 
       return { totals, byTiming };
     }
@@ -4733,6 +4792,16 @@
     function renderCurrentMeal() {
       const root = document.getElementById('currentItems');
       const empty = document.getElementById('currentEmpty');
+      const sourceStatus = document.getElementById('mealSourceStatus');
+      const draft = drafts[draftKey(selectedDate, currentTiming)];
+      const savedRecord = findSavedRecordForTiming(selectedDate, currentTiming);
+      if (sourceStatus) {
+        sourceStatus.textContent = savedRecord
+          ? '保存済み。変更すると上書きできます'
+          : draft && draft.autoDefault
+            ? '普段の食事を自動配置。違う日だけ変更'
+            : 'この日の内容を編集中';
+      }
       if (!currentMeal.length) {
         root.innerHTML = '';
         empty.style.display = 'block';
@@ -5085,21 +5154,28 @@
       `).join('');
     }
 
-    function persistCurrentTimingDraft() {
+    function persistCurrentTimingDraft(options = {}) {
       const storedItems = toStoredMealItems(currentMeal);
-      drafts[draftKey(selectedDate, currentTiming)] = {
+      const key = draftKey(selectedDate, currentTiming);
+      const previous = drafts[key] || {};
+      const preserveAutoDefault = Boolean(options.preserveAutoDefault);
+      drafts[key] = {
         items: storedItems,
         structuredItems: currentMeal.map(buildStructuredItem),
         nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
         note: document.getElementById('mealNote').value,
-        diningOut: normalizeDiningOut(diningOutDraft)
+        diningOut: normalizeDiningOut(diningOutDraft),
+        source: preserveAutoDefault ? (previous.source || 'manual') : 'manual',
+        defaultPresetId: previous.defaultPresetId || '',
+        autoDefault: preserveAutoDefault && Boolean(previous.autoDefault)
       };
       storageSet(DRAFT_STORE, drafts);
     }
 
     function loadCurrentTimingDraft() {
       const key = draftKey(selectedDate, currentTiming);
-      const draft = drafts[key] || { items: [], structuredItems: [], note: '', diningOut: blankDiningOut() };
+      const hasDraft = Object.prototype.hasOwnProperty.call(drafts, key);
+      const draft = hasDraft ? drafts[key] : { items: [], structuredItems: [], note: '', diningOut: blankDiningOut() };
       const savedRecord = findSavedRecordForTiming(selectedDate, currentTiming);
       editingRecordId = savedRecord ? savedRecord.id : null;
       let sourceItems = draft.items || [];
@@ -5110,7 +5186,7 @@
         sourceNote = savedRecord.note || '';
         sourceDiningOut = normalizeDiningOut(savedRecord);
       }
-      if (!sourceItems.length && !savedRecord && !sourceDiningOut.enabled) {
+      if (!hasDraft && !sourceItems.length && !savedRecord && !sourceDiningOut.enabled) {
         const habitPreset = getHabitPreset();
         if (habitPreset) {
           sourceItems = habitPreset.items || [];
@@ -5124,7 +5200,7 @@
     }
 
     function selectTiming(key) {
-      persistCurrentTimingDraft();
+      persistCurrentTimingDraft({ preserveAutoDefault: true });
       currentTiming = key;
       loadCurrentTimingDraft();
       renderTimingGrid();
@@ -5140,7 +5216,7 @@
       renderHydration();
       renderDayBoard();
       renderPresetManager();
-      persistCurrentTimingDraft();
+      persistCurrentTimingDraft({ preserveAutoDefault: true });
     }
 
     function applyHabitPlan() {
@@ -5182,6 +5258,7 @@
       }
       savePresets();
       saveHabits();
+      refreshUntouchedDefaultDrafts(getHabitPreset());
       renderPresetGrid();
       renderPresetManager();
       renderHabitCard();
@@ -5190,8 +5267,9 @@
 
     function setRecordDate(nextDate) {
       if (!nextDate) return;
-      persistCurrentTimingDraft();
+      persistCurrentTimingDraft({ preserveAutoDefault: true });
       selectedDate = nextDate;
+      seedDefaultDraftsForDate(selectedDate);
       loadCurrentTimingDraft();
       renderSelectedDate();
       renderHabitCard();
@@ -5436,6 +5514,12 @@
       syncDiningFieldsFromState();
       renderCurrentMeal();
       persistCurrentTimingDraft();
+      const key = draftKey(selectedDate, currentTiming);
+      drafts[key].source = 'manual-empty';
+      drafts[key].autoDefault = false;
+      storageSet(DRAFT_STORE, drafts);
+      renderCurrentMeal();
+      updateMealBatchButton();
     }
 
     function clearHistory() {
@@ -6581,8 +6665,62 @@
       saveButton.textContent = editingRecordId ? '更新' : '追加';
     }
 
+    function materializeDraftRecords(dateStr = selectedDate) {
+      const records = getRecords();
+      let added = 0;
+      pendingDraftTimings(dateStr).forEach(timingKey => {
+        const draft = drafts[draftKey(dateStr, timingKey)];
+        if (!draftHasContent(draft)) return;
+        const items = restoreMealItems(draft.items || [], draft.structuredItems || []);
+        const dining = normalizeDiningOut(draft.diningOut);
+        const note = String(draft.note || '').trim();
+        const totals = mealTotalsFor(items);
+        const timing = TIMINGS[timingKey];
+        const memoParts = [];
+        if (items.length) memoParts.push(summarizeItems(items));
+        if (dining.enabled) {
+          const diningParts = ['外食'];
+          if (dining.restaurantName) diningParts.push(dining.restaurantName);
+          if (dining.diningText) diningParts.push(dining.diningText);
+          memoParts.push(diningParts.join(': '));
+        }
+        if (note) memoParts.push(`メモ: ${note}`);
+        records.push({
+          id: `rec-${dateStr}-${timingKey}`,
+          date: dateStr,
+          timing: timing.label,
+          timingKey,
+          title: timing.title,
+          memo: memoParts.join(' / '),
+          note,
+          items: toStoredMealItems(items),
+          structuredItems: items.map(buildStructuredItem),
+          nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
+          diningOut: dining.enabled,
+          restaurantName: dining.restaurantName,
+          googleMapUrl: dining.googleMapUrl,
+          diningText: dining.diningText,
+          calcStatus: dining.enabled ? '未計算' : '',
+          calcMemo: '',
+          kcal: Math.round(totals.kcal),
+          protein: Math.round(totals.p),
+          fat: Math.round(totals.f),
+          carb: Math.round(totals.c),
+          reviewCount: totals.review,
+          synced: false,
+          source: draft.autoDefault ? 'habit-default' : 'draft',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        added += 1;
+      });
+      if (added) saveRecords(records);
+      return added;
+    }
+
     async function sendMealBatch() {
       if (isSaving) return;
+      materializeDraftRecords(selectedDate);
       const pending = unsyncedMealRecords(selectedDate);
       const button = document.getElementById('sendMealBatchButton');
       if (!pending.length) {
@@ -6757,6 +6895,7 @@
 
     function initialize() {
       buildFoodLookup();
+      seedDefaultDraftsForDate(selectedDate);
       setTodayChip();
       renderSelectedDate();
       setSyncStatus('', '待機中');
@@ -6789,6 +6928,7 @@
       const date = params.get('date');
       if (date) {
         selectedDate = date;
+        seedDefaultDraftsForDate(selectedDate);
         renderSelectedDate();
         loadCurrentTimingDraft();
         renderHabitCard();
@@ -6799,7 +6939,7 @@
       }
       const timing = params.get('timing');
       if (timing && TIMINGS[timing]) {
-        persistCurrentTimingDraft();
+        persistCurrentTimingDraft({ preserveAutoDefault: true });
         currentTiming = timing;
         loadCurrentTimingDraft();
         renderTimingGrid();
