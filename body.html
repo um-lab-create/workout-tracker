@@ -294,20 +294,19 @@
         '調子': condLabel(selectedCond),
         'メモ': memo
       });
-      setSync('synced', '同期済み');
-      showToast('記録しました');
+      setSync('synced', '送信要求済み');
+      showToast('送信リクエストを出しました');
     } catch (err) {
       if (err && err.code === 'AUTH_REQUIRED') {
-        setSync('', '待機中');
-        showToast('PIN を設定してから送信してください');
+        setSync('error', 'ローカル保存');
+        showToast('ローカル保存しました。PIN 設定後に送信してください');
       } else {
-        setSync('error', '送信は後で再試行');
+        setSync('error', 'ローカル保存');
         showToast('オフライン保存しました（後で自動送信）');
       }
     } finally {
       btn.disabled = false; btn.textContent = '記録する';
       document.getElementById('memoInput').value = '';
-      setTimeout(() => setSync('', '待機中'), 2600);
     }
   }
 

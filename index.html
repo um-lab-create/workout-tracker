@@ -1870,9 +1870,9 @@ function renderBodyStatus() {
   if (!valueEl || !copyEl) return;
   const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   if (!recs.length) {
-    if (cardEl) cardEl.href = '#actions';
+    if (cardEl) cardEl.href = 'body.html';
     valueEl.textContent = '体組成';
-    copyEl.textContent = 'eufy CSVを取込すると表示';
+    copyEl.textContent = '手動記録 or eufy取込で表示';
     if (statusEl) {
       statusEl.className = 'daily-status warn';
       statusEl.textContent = '未連携';
@@ -1904,7 +1904,7 @@ function renderBodyStatus() {
     statusEl.className = `daily-status ${days <= 14 ? 'ok' : days <= 45 ? '' : 'warn'}`;
     statusEl.textContent = isToday ? '今日' : formatBodyAge(days);
   }
-  if (cardEl) cardEl.href = days > 45 ? '#actions' : 'body.html';
+  if (cardEl) cardEl.href = 'body.html';
 }
 
 function daysSinceDate(date, baseDate) {

@@ -249,7 +249,7 @@ async function flushPendingQueue() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item.payload)
       });
-      // no-cors では成否不明だが、fetch 例外が出なければ送信済みとみなす
+      // no-cors では成否不明。fetch 例外が出なければ送信要求済みとしてキューから外す。
     } catch {
       failed.push(item);
     }

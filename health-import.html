@@ -760,6 +760,7 @@ function boot() {
 
   $('#parseBtn').addEventListener('click', parseSelectedZip);
   $('#sendBtn').addEventListener('click', sendRows);
+  $('#sendBtn').disabled = true;
   $('#resetBtn').addEventListener('click', () => {
     $('#zipInput').value = '';
     state.file = null;
@@ -863,6 +864,8 @@ function resetResult() {
   $('#recordCount').textContent = '0';
   $('#dayCount').textContent = '0';
   $('#sendCount').textContent = '0';
+  $('#sendBtn').disabled = true;
+  $('#sendBtn').textContent = 'スプレッドシートへ送信';
   $('#preview').classList.remove('show');
   $('#rowList').innerHTML = '';
 }
