@@ -1,0 +1,1625 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff8ef">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>健康参謀</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+/* ================================================================
+   app.html — 健康参謀 統合アプリ（2026-07-02 リデザイン）
+   設計方針:
+     - ホーム / 食事 / 運動 / からだ の4タブSPA。iPhone一画面完結。
+     - データ契約は旧ページと完全互換（localStorageキー・Apps Script POST）。
+     - 旧 index/day/meal/workout/body はそのまま併存（詳細画面として利用可）。
+   ================================================================ */
+:root {
+  --bg: #fff8ef;
+  --card: #ffffff;
+  --ink: #3a352d;
+  --muted: #9b917e;
+  --line: #f0e4d0;
+  --accent: #ff8a2a;
+  --accent-deep: #f07300;
+  --accent-soft: #ffefdd;
+  --green: #4fbd63;
+  --green-soft: #e7f7e9;
+  --red: #ef6461;
+  --red-soft: #fdecec;
+  --blue: #6ba7ff;
+  --radius: 20px;
+  --shadow: 0 2px 10px rgba(122, 92, 47, .07);
+  --tabbar-h: 62px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", -apple-system, "Helvetica Neue", sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  overscroll-behavior-y: none;
+}
+button { font-family: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 */ color: var(--ink); }
+
+/* ---------- ヘッダー ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 4px;
+  padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
+  background: rgba(255, 248, 239, .92);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.brand { font-size: 15px; font-weight: 700; letter-spacing: .04em; margin-right: auto; display: flex; align-items: center; gap: 7px; }
+.brand .logo {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), #ffb25e);
+  color: #fff; font-size: 13px; font-weight: 800;
+  display: grid; place-items: center;
+}
+.date-nav { display: flex; align-items: center; gap: 2px; }
+.date-nav .arrow {
+  width: 36px; height: 36px; border-radius: 12px; font-size: 19px; color: var(--muted);
+  display: grid; place-items: center;
+}
+.date-nav .arrow:active { background: var(--accent-soft); }
+.date-label {
+  min-width: 96px; height: 36px; padding: 0 10px;
+  border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
+  font-size: 13.5px; font-weight: 700; text-align: center;
+}
+.date-label.is-today { color: var(--accent-deep); }
+.gear-btn { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--muted); }
+.gear-btn:active { background: var(--accent-soft); }
+
+/* ---------- レイアウト ---------- */
+main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); max-width: 560px; margin: 0 auto; }
+.view { display: none; animation: fadeUp .18s ease; }
+.view.active { display: block; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.card {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 14px;
+}
+.section-label {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  letter-spacing: .08em; margin: 14px 2px 6px;
+}
+
+/* ---------- ホーム: ヒーロー ---------- */
+.hero {
+  display: flex; gap: 14px; align-items: center;
+  background: linear-gradient(160deg, #fff 55%, #fff3e2 100%);
+  margin-top: 6px;
+}
+.ring-wrap { position: relative; width: 92px; height: 92px; flex: none; }
+.ring-wrap svg { transform: rotate(-90deg); }
+.ring-score {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+}
+.ring-score b { font-size: 26px; line-height: 1; }
+.ring-score span { font-size: 9.5px; color: var(--muted); letter-spacing: .05em; }
+.hero-right { flex: 1; min-width: 0; }
+.kcal-line { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.kcal-line b { font-size: 27px; line-height: 1.1; letter-spacing: -.01em; }
+.kcal-line .u { font-size: 12px; color: var(--muted); font-weight: 700; }
+.kcal-line.over b { color: var(--red); }
+.kcal-sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.macro-bars { margin-top: 8px; display: grid; gap: 5px; }
+.mb { display: grid; grid-template-columns: 15px 1fr 74px; gap: 8px; align-items: center; }
+.mb .k { font-size: 11px; font-weight: 800; color: var(--muted); }
+.mb .bar { height: 7px; border-radius: 4px; background: #f4ead9; overflow: hidden; }
+.mb .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width .4s ease; }
+.mb .bar i.ok { background: var(--green); }
+.mb .bar i.over { background: var(--red); }
+.mb .v { font-size: 10.5px; color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.train-row { display: flex; gap: 8px; margin-top: 10px; }
+.train-chip {
+  flex: 1; height: 40px; border-radius: 14px;
+  background: var(--card); box-shadow: var(--shadow);
+  font-size: 12.5px; font-weight: 700; color: var(--muted);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.train-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd3c0; }
+.train-chip.on { color: var(--accent-deep); background: var(--accent-soft); }
+.train-chip.on .dot { background: var(--accent); }
+
+/* ---------- ホーム: 食事グリッド ---------- */
+.meal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.meal-cell {
+  background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+  padding: 10px 4px 9px; text-align: center; min-height: 74px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transition: transform .08s ease;
+}
+.meal-cell:active { transform: scale(.96); }
+.meal-cell .t {
+  width: 30px; height: 30px; border-radius: 10px; font-size: 14px; font-weight: 800;
+  display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-deep);
+}
+.meal-cell.done .t { background: var(--green-soft); color: var(--green); }
+.meal-cell .kc { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.meal-cell .kc.empty { color: #cdc4b0; font-weight: 800; }
+.meal-cell .lbl { font-size: 9.5px; color: var(--muted); }
+
+/* ---------- ホーム: 運動/からだ ---------- */
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mini-card { text-align: left; display: flex; flex-direction: column; gap: 4px; min-height: 86px; transition: transform .08s ease; }
+.mini-card:active { transform: scale(.97); }
+.mini-card .head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.mini-card .head .ic { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+.mini-card .big { font-size: 17px; font-weight: 800; }
+.mini-card .sub { font-size: 11px; color: var(--muted); }
+.ic.wk { background: #eef4ff; color: var(--blue); }
+.ic.bd { background: var(--green-soft); color: var(--green); }
+
+/* ---------- セグメント（食事タイミング） ---------- */
+.seg {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  background: #f6ecdc; border-radius: 16px; padding: 4px; margin-top: 6px;
+}
+.seg button {
+  height: 40px; border-radius: 13px; font-size: 14px; font-weight: 700; color: var(--muted);
+}
+.seg button.active { background: var(--card); color: var(--accent-deep); box-shadow: var(--shadow); }
+
+/* ---------- クイック行 ---------- */
+.quick-row { display: flex; gap: 8px; overflow-x: auto; padding: 10px 2px 2px; scrollbar-width: none; }
+.quick-row::-webkit-scrollbar { display: none; }
+.quick-chip {
+  flex: none; max-width: 210px; height: 52px; padding: 0 14px;
+  border-radius: 16px; background: var(--card); box-shadow: var(--shadow);
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  transition: transform .08s ease;
+}
+.quick-chip:active { transform: scale(.96); }
+.quick-chip .n { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.quick-chip .d { font-size: 10px; color: var(--muted); }
+.quick-chip.accent { background: var(--accent-soft); }
+.quick-chip.accent .n { color: var(--accent-deep); }
+
+/* ---------- 食事アイテム ---------- */
+.items-card { margin-top: 8px; padding: 6px 12px; }
+.item-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.item-row:last-child { border-bottom: 0; }
+.item-main { flex: 1; min-width: 0; }
+.item-name { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-kcal { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stepper { display: flex; align-items: center; gap: 2px; flex: none; }
+.stepper button {
+  width: 34px; height: 34px; border-radius: 11px; background: var(--bg);
+  font-size: 17px; font-weight: 800; color: var(--accent-deep);
+  display: grid; place-items: center;
+}
+.stepper button:active { background: var(--accent-soft); }
+.qty-box { min-width: 54px; text-align: center; }
+.qty-box .q { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.qty-box .un {
+  display: block; font-size: 9.5px; color: var(--accent-deep); font-weight: 700;
+  text-decoration: underline dotted; text-underline-offset: 2px;
+}
+.del-btn { width: 32px; height: 32px; border-radius: 10px; color: #d0c5ae; font-size: 16px; display: grid; place-items: center; flex: none; }
+.del-btn:active { background: var(--red-soft); color: var(--red); }
+.empty-note { text-align: center; color: #cdc4b0; font-size: 12.5px; padding: 16px 0; }
+
+/* ---------- 検索 ---------- */
+.search-card { margin-top: 8px; padding: 10px 12px; }
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border-radius: 14px; padding: 0 12px; height: 44px;
+}
+.search-box svg { flex: none; color: var(--muted); }
+.search-box input { flex: 1; border: 0; background: none; outline: none; height: 100%; }
+.result-row {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  padding: 10px 2px; border-bottom: 1px solid var(--line);
+}
+.result-row:last-child { border-bottom: 0; }
+.result-row .rn { flex: 1; font-size: 13.5px; font-weight: 700; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result-row .badge {
+  flex: none; font-size: 9px; font-weight: 800; color: var(--blue);
+  background: #eef4ff; border-radius: 6px; padding: 2px 5px;
+}
+.result-row .rk { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.result-row .add {
+  flex: none; width: 32px; height: 32px; border-radius: 11px;
+  background: var(--accent-soft); color: var(--accent-deep); font-size: 18px; font-weight: 800;
+  display: grid; place-items: center;
+}
+.hint-label { font-size: 10.5px; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin: 8px 2px 2px; }
+.memo-details { margin-top: 8px; }
+.memo-details summary { font-size: 12px; color: var(--muted); font-weight: 700; padding: 4px 2px; cursor: pointer; list-style: none; }
+.memo-details textarea {
+  width: 100%; border: 0; border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+  padding: 10px 12px; min-height: 56px; resize: vertical; outline: none; margin-top: 4px;
+}
+
+/* ---------- 食事フッター ---------- */
+.meal-footer {
+  position: fixed; left: 0; right: 0; z-index: 25;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 10px;
+  max-width: 560px; margin: 0 auto; padding: 8px 14px;
+  background: linear-gradient(to top, var(--bg) 70%, rgba(255,248,239,0));
+}
+.meal-footer .totals { flex: 1; min-width: 0; }
+.meal-footer .totals b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.meal-footer .totals .u { font-size: 11px; color: var(--muted); font-weight: 700; }
+.meal-footer .totals .pfc { display: block; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.primary-btn {
+  height: 50px; padding: 0 26px; border-radius: 17px;
+  background: linear-gradient(135deg, var(--accent), #ff9d47);
+  color: #fff; font-size: 15.5px; font-weight: 800; letter-spacing: .05em;
+  box-shadow: 0 4px 14px rgba(255, 138, 42, .35);
+  transition: transform .08s ease;
+}
+.primary-btn:active { transform: scale(.96); }
+.primary-btn:disabled { opacity: .55; }
+.primary-btn.full { width: 100%; margin-top: 12px; }
+
+/* ---------- 運動 ---------- */
+.exo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px; }
+.exo-chip {
+  background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+  padding: 9px 2px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  border: 2px solid transparent; transition: transform .08s ease;
+}
+.exo-chip:active { transform: scale(.95); }
+.exo-chip .kj {
+  width: 34px; height: 34px; border-radius: 12px; color: #fff;
+  font-size: 16px; font-weight: 800; display: grid; place-items: center;
+}
+.exo-chip .sn { font-size: 9.5px; color: var(--muted); font-weight: 700; }
+.exo-chip.active { border-color: var(--accent); }
+.exo-chip.active .sn { color: var(--accent-deep); }
+.field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; }
+.field-row .fl { font-size: 13px; font-weight: 700; color: var(--muted); }
+.field-row .stepper button { width: 40px; height: 40px; }
+.field-row .fv { min-width: 76px; text-align: center; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.field-row .fv small { font-size: 10.5px; color: var(--muted); font-weight: 700; margin-left: 2px; }
+.log-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.log-row:last-child { border-bottom: 0; }
+.log-row .kj2 { width: 26px; height: 26px; border-radius: 9px; color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.log-row .desc { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-row .tm { color: var(--muted); font-size: 10.5px; flex: none; }
+
+/* ---------- からだ ---------- */
+.body-field { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+.body-field .bl { font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.body-field .stepper button { width: 42px; height: 42px; }
+.body-field .fv { min-width: 88px; text-align: center; font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.body-field .fv small { font-size: 11px; color: var(--muted); font-weight: 700; }
+.cond-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 2px; }
+.cond-btn {
+  height: 46px; border-radius: 13px; background: var(--bg);
+  font-size: 10.5px; font-weight: 700; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+}
+.cond-btn .em { font-size: 14px; font-weight: 800; }
+.cond-btn.active { background: var(--accent-soft); color: var(--accent-deep); }
+.memo-input {
+  width: 100%; border: 0; background: var(--bg); border-radius: 13px;
+  padding: 10px 12px; outline: none; margin-top: 8px;
+}
+
+/* ---------- タブバー ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding: 6px 10px calc(env(safe-area-inset-bottom) + 4px);
+  background: rgba(255, 255, 255, .88);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  max-width: 100%;
+}
+.tab-btn {
+  border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  color: #b9ae97; font-size: 9.5px; font-weight: 700;
+}
+.tab-btn svg { width: 22px; height: 22px; }
+.tab-btn.active { color: var(--accent-deep); background: var(--accent-soft); }
+
+/* ---------- トースト / モーダル ---------- */
+#toast {
+  position: fixed; left: 50%; transform: translateX(-50%) translateY(8px);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 70px);
+  background: rgba(58, 53, 45, .93); color: #fff; font-size: 13px; font-weight: 700;
+  padding: 10px 18px; border-radius: 14px; opacity: 0; pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease; z-index: 60; max-width: 86vw; text-align: center;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.modal-back {
+  position: fixed; inset: 0; z-index: 50; background: rgba(58, 53, 45, .4);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.modal-back.show { display: flex; }
+.modal {
+  width: 100%; max-width: 560px; max-height: 82vh; overflow-y: auto;
+  background: var(--bg); border-radius: 24px 24px 0 0;
+  padding: 16px 18px calc(env(safe-area-inset-bottom) + 20px);
+  animation: sheetUp .22s ease;
+}
+@keyframes sheetUp { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+.modal h3 { margin: 4px 0 12px; font-size: 16px; }
+.modal .close-row { display: flex; justify-content: center; padding-bottom: 6px; }
+.modal .grip { width: 40px; height: 5px; border-radius: 3px; background: #e2d7c2; }
+.set-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.set-row .sl { flex: 1; font-size: 13.5px; font-weight: 700; }
+.set-row input {
+  width: 120px; border: 0; background: var(--card); border-radius: 11px;
+  padding: 9px 11px; outline: none; box-shadow: var(--shadow); text-align: center;
+}
+.link-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.link-grid a {
+  display: block; background: var(--card); border-radius: 13px; box-shadow: var(--shadow);
+  padding: 11px 12px; font-size: 12.5px; font-weight: 700; color: var(--ink); text-decoration: none;
+}
+.link-grid a span { display: block; font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+.sync-note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+
+/* 単位切替シート */
+.unit-sheet-list { display: grid; gap: 6px; }
+.unit-sheet-list button {
+  height: 48px; border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+  font-size: 14.5px; font-weight: 700;
+}
+.unit-sheet-list button.cur { background: var(--accent-soft); color: var(--accent-deep); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="logo">参</span>健康参謀</div>
+  <div class="date-nav">
+    <button class="arrow" id="datePrev" aria-label="前の日">‹</button>
+    <button class="date-label" id="dateLabel">今日</button>
+    <button class="arrow" id="dateNext" aria-label="次の日">›</button>
+  </div>
+  <button class="gear-btn" id="gearBtn" aria-label="設定">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</header>
+
+<main>
+
+  <!-- ============ ホーム ============ -->
+  <section class="view" id="view-home">
+    <div class="card hero">
+      <div class="ring-wrap">
+        <svg width="92" height="92" viewBox="0 0 92 92">
+          <circle cx="46" cy="46" r="40" fill="none" stroke="#f4ead9" stroke-width="9"/>
+          <circle id="ringArc" cx="46" cy="46" r="40" fill="none" stroke="var(--green)" stroke-width="9"
+                  stroke-linecap="round" stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+        </svg>
+        <div class="ring-score"><div><b id="scoreNum">–</b><br><span>スコア</span></div></div>
+      </div>
+      <div class="hero-right">
+        <div class="kcal-line" id="kcalLine"><b id="kcalRemain">–</b><span class="u" id="kcalRemainUnit">kcal 残り</span></div>
+        <div class="kcal-sub" id="kcalSub"></div>
+        <div class="macro-bars">
+          <div class="mb"><span class="k">P</span><span class="bar"><i id="barP"></i></span><span class="v" id="valP"></span></div>
+          <div class="mb"><span class="k">F</span><span class="bar"><i id="barF"></i></span><span class="v" id="valF"></span></div>
+          <div class="mb"><span class="k">C</span><span class="bar"><i id="barC"></i></span><span class="v" id="valC"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="train-row">
+      <button class="train-chip" id="trainToggle"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
+    </div>
+
+    <div class="section-label">食事をつける</div>
+    <div class="meal-grid" id="homeMealGrid"></div>
+
+    <div class="section-label">きょうの記録</div>
+    <div class="row2">
+      <button class="card mini-card" id="homeWorkoutCard">
+        <span class="head"><span class="ic wk">運</span>運動</span>
+        <span class="big" id="homeWorkoutBig">–</span>
+        <span class="sub" id="homeWorkoutSub"></span>
+      </button>
+      <button class="card mini-card" id="homeBodyCard">
+        <span class="head"><span class="ic bd">体</span>からだ</span>
+        <span class="big" id="homeBodyBig">–</span>
+        <span class="sub" id="homeBodySub"></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ 食事 ============ -->
+  <section class="view" id="view-meal">
+    <div class="seg" id="timingSeg"></div>
+    <div class="quick-row" id="quickRow"></div>
+
+    <div class="card items-card">
+      <div id="mealItems"></div>
+      <div class="empty-note" id="mealEmpty">下の検索か、上の「いつもの」から追加</div>
+    </div>
+
+    <div class="card search-card">
+      <div class="search-box">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="foodSearch" type="search" placeholder="食材・商品をさがす" autocomplete="off">
+      </div>
+      <div id="searchResults"></div>
+    </div>
+
+    <details class="memo-details" id="memoDetails">
+      <summary>＋ メモをつける</summary>
+      <textarea id="mealNote" placeholder="外食の内容、体調メモなど"></textarea>
+    </details>
+
+    <div style="height:76px"></div>
+    <footer class="meal-footer" id="mealFooter">
+      <div class="totals">
+        <b id="totKcal">0</b><span class="u"> kcal</span>
+        <span class="pfc" id="totPfc">P0 / F0 / C0</span>
+      </div>
+      <button class="primary-btn" id="saveMealBtn">記録する</button>
+    </footer>
+  </section>
+
+  <!-- ============ 運動 ============ -->
+  <section class="view" id="view-workout">
+    <div class="exo-grid" id="exoGrid"></div>
+    <div class="card" style="margin-top:10px">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px" id="exoTitle"></div>
+      <div id="exoFields"></div>
+      <button class="primary-btn full" id="saveWorkoutBtn">この内容で記録する</button>
+    </div>
+    <div class="section-label">この日の記録</div>
+    <div class="card" style="padding:6px 14px" id="workoutTodayCard">
+      <div id="workoutTodayList"></div>
+      <div class="empty-note" id="workoutEmpty">まだ記録がありません</div>
+    </div>
+  </section>
+
+  <!-- ============ からだ ============ -->
+  <section class="view" id="view-body">
+    <div class="card" style="margin-top:6px">
+      <div class="body-field">
+        <span class="bl">体重</span>
+        <div class="stepper">
+          <button data-body="weight" data-d="-0.1">−</button>
+          <span class="fv"><span id="bodyWeight">–</span><small> kg</small></span>
+          <button data-body="weight" data-d="0.1">＋</button>
+        </div>
+      </div>
+      <div class="body-field">
+        <span class="bl">体脂肪率</span>
+        <div class="stepper">
+          <button data-body="fat" data-d="-0.1">−</button>
+          <span class="fv"><span id="bodyFat">–</span><small> %</small></span>
+          <button data-body="fat" data-d="0.1">＋</button>
+        </div>
+      </div>
+      <div class="cond-row" id="condRow"></div>
+      <input class="memo-input" id="bodyMemo" placeholder="メモ（任意）">
+      <button class="primary-btn full" id="saveBodyBtn">記録する</button>
+    </div>
+    <div class="section-label">最近のからだ</div>
+    <div class="card" style="padding:6px 14px">
+      <div id="bodyList"></div>
+      <div class="empty-note" id="bodyEmpty">まだ記録がありません</div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ タブバー ============ -->
+<nav class="tabbar">
+  <button class="tab-btn" data-view="home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10.5 9-7.5 9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+    ホーム
+  </button>
+  <button class="tab-btn" data-view="meal">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V3"/><path d="M6 12v9"/><path d="M6 3v4"/><path d="M19 3c-2.2 0-4 2.2-4 5v5h4v8"/></svg>
+    食事
+  </button>
+  <button class="tab-btn" data-view="workout">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M3 9v6"/><path d="M21 9v6"/><path d="M6.5 12h11"/></svg>
+    運動
+  </button>
+  <button class="tab-btn" data-view="body">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 13.5c1-1.2 1.5-2.5 1.5-4A5.5 5.5 0 0 0 12 6a5.5 5.5 0 0 0-9 3.5c0 1.5.5 2.8 1.5 4L12 21z"/></svg>
+    からだ
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<!-- 設定モーダル -->
+<div class="modal-back" id="settingsBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>設定</h3>
+    <div class="set-row"><span class="sl">利用PIN（書込）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
+    <div class="set-row"><span class="sl">READ_PIN（読取）</span><input id="setReadPin" type="password" inputmode="numeric" placeholder="未設定"></div>
+    <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
+    <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
+    <div class="section-label" style="margin-top:16px">くわしい画面（従来ページ）</div>
+    <div class="link-grid">
+      <a href="day.html">栄養ダッシュボード<span>day.html — 詳細な栄養分析</span></a>
+      <a href="meal.html">食事の詳細入力<span>meal.html — 商品DB・自作メニュー</span></a>
+      <a href="index.html">コックピット<span>index.html — 従来ホーム</span></a>
+      <a href="health-import.html">ヘルスケア取込<span>Apple Health XML</span></a>
+    </div>
+    <div class="sync-note" id="connCheckNote">送信は Apps Script に届くまで数秒かかります。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続成功！」と表示されればOK）。</div>
+  </div>
+</div>
+
+<!-- 単位切替シート -->
+<div class="modal-back" id="unitBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3 id="unitSheetTitle">単位をえらぶ</h3>
+    <div class="unit-sheet-list" id="unitSheetList"></div>
+  </div>
+</div>
+
+<script src="nutrition-db.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/api-client.js"></script>
+<script src="js/nutrition-calc.js"></script>
+<script src="js/food-catalog.js"></script>
+<script>
+'use strict';
+/* ================================================================
+   app.js 部（inline）
+   互換契約:
+     - meal_recs_v3 / meal_draft_v4 / meal_presets_v3 / meal_custom_foods_v1 /
+       meal_products_v1 / body_recs_v1 / wt:lastValues:v2 / wt:history:v2 /
+       nutrition_targets_v1 / hs:carb-cycle:v1 は旧ページと同一形式で読み書き。
+     - POST: 食事ログ / 食事明細(rows) / 筋トレログ / 体組成ログ手動（キー・形式は旧ページと同一）
+   ================================================================ */
+
+// ---------------- ユーティリティ ----------------
+const $ = (s) => document.querySelector(s);
+const NUTRITION_DB = window.HSNutritionDB || null;
+const CATALOG = window.HSFoodCatalog || { BASE_FOODS: [], BASE_PRODUCTS: [] };
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function shiftDate(dateStr, days) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function fmtDateLabel(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const base = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
+  if (dateStr === todayStr()) return `今日 ${base}`;
+  if (dateStr === shiftDate(todayStr(), -1)) return `昨日 ${base}`;
+  return base;
+}
+function fmtNum(n) { return Math.round(n).toLocaleString('ja-JP'); }
+function fmtQty(v) { return Number((Math.round(v * 100) / 100).toFixed(2)).toString(); }
+let toastTimer = null;
+function showToast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function haptic(pattern) { if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function normalizeForSearch(s) {
+  return String(s || '')
+    .replace(/[ァ-ン]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+// ---------------- グローバル状態 ----------------
+const TIMINGS = {
+  morning: { label: '朝', title: '朝ごはん' },
+  lunch:   { label: '昼', title: '昼ごはん' },
+  dinner:  { label: '夜', title: '夜ごはん' },
+  snack:   { label: '間食', title: '間食' }
+};
+const TIMING_KEYS = ['morning', 'lunch', 'dinner', 'snack'];
+const DEFAULT_TARGETS = { energy: 2100, protein: 155, fat: 60, carb: 235 };
+
+const state = {
+  view: 'home',
+  date: todayStr(),
+  timing: autoTiming(),
+  items: [],            // 現在編集中の食事アイテム（createMealItem形式）
+  editingRecordId: null,
+  exoId: lsGet(LS_KEYS.WT_SELECTED, 'shoulder'),
+  exoValues: {},
+  body: { weight: null, fat: null, cond: 3 }
+};
+
+function autoTiming() {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  if (h >= 4 && h < 10.5) return 'morning';
+  if (h >= 10.5 && h < 14.5) return 'lunch';
+  if (h >= 14.5 && h < 17) return 'snack';
+  if (h >= 17 && h < 23) return 'dinner';
+  return 'snack';
+}
+
+// ---------------- 食材カタログ ----------------
+// BASE_FOODS + BASE_PRODUCTS + 独自食材 + 独自商品 を1つの lookup に統合。
+// （自作メニューは旧 meal.html の管理画面で編集。検索対象は次版で対応）
+let foodLookup = {};
+let allFoods = [];
+function buildCatalog() {
+  const customFoods = lsGet(LS_KEYS.MEAL_CUSTOM_FOODS, []) || [];
+  const userProducts = lsGet(LS_KEYS.MEAL_PRODUCTS, []) || [];
+  allFoods = []
+    .concat(CATALOG.BASE_FOODS || [])
+    .concat(CATALOG.BASE_PRODUCTS || [])
+    .concat(Array.isArray(customFoods) ? customFoods : [])
+    .concat(Array.isArray(userProducts) ? userProducts : [])
+    .filter((f) => f && f.id && f.name);
+  foodLookup = {};
+  allFoods.forEach((f) => { foodLookup[f.id] = f; });
+}
+function getFoodById(id) { return foodLookup[id] || null; }
+
+function getUnitsForFood(food) {
+  if (!food) return [];
+  if (food.mode === 'perUnit') {
+    return [{ label: food.unitLabel || '個', grams: null, step: food.step || 1, defaultQty: food.defaultQty || 1 }];
+  }
+  return food.units || [{ label: 'g', grams: 1, step: 10, defaultQty: 100 }];
+}
+function getDefaultUnit(food) { return getUnitsForFood(food)[0]; }
+
+function calcFoodPortion(food, qty, unitLabel) {
+  const safeQty = Number(qty) || 0;
+  if (!food || safeQty <= 0) return { grams: 0, kcal: 0, p: 0, f: 0, c: 0 };
+  if (food.mode === 'perUnit') {
+    const m = food.macrosPerUnit || {};
+    return { grams: null, kcal: (m.kcal || 0) * safeQty, p: (m.p || 0) * safeQty, f: (m.f || 0) * safeQty, c: (m.c || 0) * safeQty };
+  }
+  const unit = getUnitsForFood(food).find((u) => u.label === unitLabel) || getDefaultUnit(food);
+  const grams = safeQty * (unit ? unit.grams : 0);
+  const ratio = grams / 100;
+  const m = food.macros || {};
+  return { grams, kcal: (m.kcal || 0) * ratio, p: (m.p || 0) * ratio, f: (m.f || 0) * ratio, c: (m.c || 0) * ratio };
+}
+
+function createMealItem(food, qty, unitLabel, options = {}) {
+  const portion = calcFoodPortion(food, qty, unitLabel);
+  return {
+    id: `meal-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    foodId: food.id,
+    name: food.name,
+    qty: Number(qty),
+    unit: unitLabel,
+    grams: portion.grams,
+    kcal: portion.kcal,
+    p: portion.p,
+    f: portion.f,
+    c: portion.c,
+    pendingReview: Boolean(options.pendingReview),
+    sourceType: food.entryType || 'food',
+    brand: food.brand || ''
+  };
+}
+function recalcItem(item) {
+  const food = getFoodById(item.foodId);
+  if (!food) return item;
+  const portion = calcFoodPortion(food, item.qty, item.unit);
+  return { ...item, name: food.name, grams: portion.grams, kcal: portion.kcal, p: portion.p, f: portion.f, c: portion.c };
+}
+function mealTotalsFor(items) {
+  return (items || []).reduce((acc, it) => {
+    acc.kcal += it.kcal || 0; acc.p += it.p || 0; acc.f += it.f || 0; acc.c += it.c || 0;
+    acc.review += it.pendingReview ? 1 : 0;
+    return acc;
+  }, { kcal: 0, p: 0, f: 0, c: 0, review: 0 });
+}
+
+// ---------------- 記録・下書きストア（旧 meal.html と共通） ----------------
+function getRecords() { return lsGet(LS_KEYS.MEAL_RECORDS, []) || []; }
+function saveRecords(records) { lsSet(LS_KEYS.MEAL_RECORDS, records); }
+function findRecord(dateStr, timingKey) {
+  const list = getRecords().filter((r) => r.date === dateStr && r.timingKey === timingKey);
+  return list.length ? list[list.length - 1] : null;
+}
+function draftKey(dateStr, timingKey) { return `${dateStr}:${timingKey}`; }
+function loadDrafts() { return lsGet(LS_KEYS.MEAL_DRAFT, {}) || {}; }
+function blankDiningOut() { return { enabled: false, restaurantName: '', googleMapUrl: '', diningText: '' }; }
+
+function toStoredMealItems(items) {
+  return (items || []).map((it) => ({ foodId: it.foodId, qty: Number(it.qty) || 0, unit: it.unit, pendingReview: Boolean(it.pendingReview) }));
+}
+function buildStructuredItem(item) {
+  if (NUTRITION_DB && NUTRITION_DB.structureItem) {
+    try { return NUTRITION_DB.structureItem(item, getFoodById(item.foodId)); } catch (e) { /* fallthrough */ }
+  }
+  return {
+    foodId: item.foodId,
+    foodName: item.name,
+    qty: Number(item.qty) || 0,
+    unit: item.unit,
+    grams: item.grams == null ? null : Number(item.grams) || 0,
+    pendingReview: Boolean(item.pendingReview),
+    nutrients: { energy: Number(item.kcal) || 0, protein: Number(item.p) || 0, fat: Number(item.f) || 0, carb: Number(item.c) || 0 }
+  };
+}
+// stored items / structuredItems から編集用アイテムを復元
+function restoreMealItems(rawItems, rawStructured) {
+  const source = (rawItems && rawItems.length)
+    ? rawItems
+    : (rawStructured || []).map((s) => ({ foodId: s.foodId, qty: s.qty, unit: s.unit, pendingReview: s.pendingReview }));
+  return source.map((it) => {
+    const food = getFoodById(it.foodId);
+    if (food) return createMealItem(food, it.qty, it.unit, { pendingReview: it.pendingReview });
+    // カタログに無い食品（旧レシピ等）は structuredItems の栄養値をそのまま保持
+    const st = (rawStructured || []).find((s) => s.foodId === it.foodId);
+    if (!st || !st.nutrients) return null;
+    return {
+      id: `meal-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      foodId: it.foodId, name: st.foodName || it.foodId,
+      qty: Number(it.qty) || 1, unit: it.unit || '個',
+      grams: st.grams == null ? null : st.grams,
+      kcal: st.nutrients.energy || 0, p: st.nutrients.protein || 0, f: st.nutrients.fat || 0, c: st.nutrients.carb || 0,
+      pendingReview: Boolean(it.pendingReview), sourceType: 'food', brand: '', frozen: true // frozen=数量変更で再計算不可
+    };
+  }).filter(Boolean);
+}
+
+function persistDraft() {
+  const drafts = loadDrafts();
+  drafts[draftKey(state.date, state.timing)] = {
+    items: toStoredMealItems(state.items),
+    structuredItems: state.items.map(buildStructuredItem),
+    nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
+    note: $('#mealNote').value,
+    diningOut: blankDiningOut(),
+    source: 'manual',
+    defaultPresetId: '',
+    autoDefault: false
+  };
+  lsSet(LS_KEYS.MEAL_DRAFT, drafts);
+}
+
+function loadMealFor(dateStr, timingKey) {
+  state.mealLoadedFor = `${dateStr}:${timingKey}`;
+  const drafts = loadDrafts();
+  const key = draftKey(dateStr, timingKey);
+  const saved = findRecord(dateStr, timingKey);
+  state.editingRecordId = saved ? saved.id : null;
+  const draft = drafts[key];
+  if (draft && ((draft.items && draft.items.length) || draft.note)) {
+    state.items = restoreMealItems(draft.items, draft.structuredItems);
+    $('#mealNote').value = draft.note || '';
+  } else if (saved) {
+    state.items = restoreMealItems(saved.items, saved.structuredItems);
+    $('#mealNote').value = saved.note || '';
+  } else {
+    state.items = [];
+    $('#mealNote').value = '';
+  }
+  $('#memoDetails').open = Boolean($('#mealNote').value);
+}
+
+// ---------------- プリセット / 頻出食材 ----------------
+function loadPresets() {
+  const stored = lsGet(LS_KEYS.MEAL_PRESET, null);
+  return (stored && typeof stored === 'object') ? stored : {};
+}
+function frequentFoods(timingKey, limit) {
+  const counts = {};
+  getRecords().forEach((r) => {
+    const weight = (r.timingKey === timingKey) ? 2 : 1; // 同タイミングを優先
+    (r.items || []).forEach((it) => {
+      if (!it.foodId || !getFoodById(it.foodId)) return;
+      counts[it.foodId] = (counts[it.foodId] || 0) + weight;
+    });
+  });
+  return Object.keys(counts)
+    .sort((a, b) => counts[b] - counts[a])
+    .slice(0, limit)
+    .map((id) => getFoodById(id));
+}
+
+// ---------------- 食事ビュー描画 ----------------
+function renderTimingSeg() {
+  $('#timingSeg').innerHTML = TIMING_KEYS.map((k) =>
+    `<button data-timing="${k}" class="${k === state.timing ? 'active' : ''}">${TIMINGS[k].label}</button>`
+  ).join('');
+}
+
+function renderQuickRow() {
+  const chips = [];
+  // 前回と同じ（同タイミングの直近記録。今日をのぞく）
+  const past = getRecords()
+    .filter((r) => r.timingKey === state.timing && r.date < state.date && r.items && r.items.length)
+    .slice(-1)[0];
+  if (past) {
+    chips.push(`<button class="quick-chip accent" data-quick="last"><span class="n">前回と同じ</span><span class="d">${fmtNum(past.kcal || 0)} kcal・${fmtDateLabel(past.date)}</span></button>`);
+  }
+  // プリセット
+  const presets = loadPresets()[state.timing] || [];
+  presets.forEach((p, i) => {
+    if (!p || !p.items || !p.items.length) return;
+    const kcal = p.items.reduce((sum, it) => {
+      const food = getFoodById(it.foodId);
+      return sum + (food ? calcFoodPortion(food, it.qty, it.unit).kcal : 0);
+    }, 0);
+    chips.push(`<button class="quick-chip" data-quick="preset" data-pi="${i}"><span class="n">${escapeHtml(p.name || 'セット')}</span><span class="d">${fmtNum(kcal)} kcal・${p.items.length}品</span></button>`);
+  });
+  $('#quickRow').innerHTML = chips.join('');
+  $('#quickRow').style.display = chips.length ? '' : 'none';
+}
+
+function renderItems() {
+  const wrap = $('#mealItems');
+  $('#mealEmpty').style.display = state.items.length ? 'none' : '';
+  wrap.innerHTML = state.items.map((it, i) => {
+    const unitsCount = getUnitsForFood(getFoodById(it.foodId)).length;
+    const unitHtml = (it.frozen || unitsCount <= 1)
+      ? `<span class="un" style="text-decoration:none">${escapeHtml(it.unit)}</span>`
+      : `<span class="un" data-unit-of="${i}">${escapeHtml(it.unit)}</span>`;
+    return `
+    <div class="item-row">
+      <div class="item-main">
+        <div class="item-name">${escapeHtml(it.name)}</div>
+        <div class="item-kcal">${fmtNum(it.kcal)} kcal　P${it.p.toFixed(1)} F${it.f.toFixed(1)} C${it.c.toFixed(1)}</div>
+      </div>
+      <div class="stepper">
+        <button data-step="-1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>−</button>
+        <span class="qty-box"><span class="q">${fmtQty(it.qty)}</span>${unitHtml}</span>
+        <button data-step="1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>＋</button>
+      </div>
+      <button class="del-btn" data-del="${i}">✕</button>
+    </div>`;
+  }).join('');
+  renderTotals();
+}
+
+function renderTotals() {
+  const t = mealTotalsFor(state.items);
+  $('#totKcal').textContent = fmtNum(t.kcal);
+  $('#totPfc').textContent = `P${Math.round(t.p)} / F${Math.round(t.f)} / C${Math.round(t.c)}`;
+  $('#saveMealBtn').textContent = state.editingRecordId ? '更新する' : '記録する';
+}
+
+function renderSearch() {
+  const q = $('#foodSearch').value.trim();
+  const box = $('#searchResults');
+  let list, label;
+  if (!q) {
+    list = frequentFoods(state.timing, 8);
+    if (!list.length) list = allFoods.slice(0, 8);
+    label = 'よくつかう';
+  } else {
+    const nq = normalizeForSearch(q);
+    const tokens = nq.split(/\s+/).filter(Boolean);
+    list = allFoods.filter((f) => {
+      const hay = normalizeForSearch([f.name, f.brand, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
+      return tokens.every((t) => hay.includes(t));
+    }).slice(0, 10);
+    label = list.length ? '検索結果' : '見つかりません（旧「食事の詳細入力」で独自食材を登録できます）';
+  }
+  const rows = list.map((f) => {
+    const unit = getDefaultUnit(f);
+    const kcal = calcFoodPortion(f, unit.defaultQty || 1, unit.label).kcal;
+    const isProduct = f.entryType === 'product' || String(f.id).startsWith('prod-');
+    return `<button class="result-row" data-add="${escapeHtml(f.id)}">
+      <span class="rn">${escapeHtml(f.name)}</span>
+      ${isProduct ? '<span class="badge">商品</span>' : ''}
+      <span class="rk">${fmtQty(unit.defaultQty || 1)}${escapeHtml(unit.label)}・${fmtNum(kcal)}kcal</span>
+      <span class="add">＋</span>
+    </button>`;
+  }).join('');
+  box.innerHTML = `<div class="hint-label">${label}</div>${rows}`;
+}
+
+function addFoodById(id) {
+  const food = getFoodById(id);
+  if (!food) return;
+  const unit = getDefaultUnit(food);
+  // 同じ食材・単位が既にあれば数量を1単位ぶん増やす（重複行を作らない）
+  const existing = state.items.findIndex((it) => it.foodId === id && it.unit === unit.label && !it.frozen);
+  if (existing >= 0) {
+    stepItem(existing, 1);
+  } else {
+    state.items.push(createMealItem(food, unit.defaultQty || 1, unit.label));
+    renderItems();
+    persistDraft();
+  }
+  haptic(8);
+}
+
+function stepItem(i, dir) {
+  const it = state.items[i];
+  if (!it || it.frozen) return;
+  const food = getFoodById(it.foodId);
+  const unit = getUnitsForFood(food).find((u) => u.label === it.unit) || getDefaultUnit(food);
+  const step = Math.max(Number(unit && unit.step) || 1, 0.1);
+  let next = (Number(it.qty) || 0) + dir * step;
+  next = Math.round(next / step) * step;
+  if (next < step) {
+    // 最小より下げたら削除確認の代わりにそのまま削除
+    state.items.splice(i, 1);
+  } else {
+    it.qty = Number(next.toFixed(2));
+    state.items[i] = recalcItem(it);
+  }
+  renderItems();
+  persistDraft();
+}
+
+// 単位切替シート
+let unitSheetIndex = -1;
+function openUnitSheet(i) {
+  const it = state.items[i];
+  const food = getFoodById(it && it.foodId);
+  if (!food) return;
+  unitSheetIndex = i;
+  $('#unitSheetTitle').textContent = `${food.name} の単位`;
+  $('#unitSheetList').innerHTML = getUnitsForFood(food).map((u) =>
+    `<button data-unit="${escapeHtml(u.label)}" class="${u.label === it.unit ? 'cur' : ''}">${escapeHtml(u.label)}（${fmtQty(u.defaultQty || 1)}${escapeHtml(u.label)}〜）</button>`
+  ).join('');
+  $('#unitBack').classList.add('show');
+}
+
+// ---------------- 食事保存（旧 meal.html と同一契約） ----------------
+function summarizeItems(items) {
+  return items.map((it) => `${it.name} ${fmtQty(it.qty)}${it.unit}`).join(' / ');
+}
+function buildMealDetailRows(record) {
+  return state.items.map((it) => ({
+    date: record.date,
+    timing: record.timing,
+    timingKey: record.timingKey,
+    recordId: record.id,
+    foodId: it.foodId,
+    name: it.name,
+    qty: Number(it.qty) || 0,
+    unit: it.unit,
+    grams: it.grams == null ? '' : Math.round((Number(it.grams) || 0) * 10) / 10,
+    pendingReview: Boolean(it.pendingReview)
+  }));
+}
+
+let isSavingMeal = false;
+async function saveMeal() {
+  if (isSavingMeal) return;
+  const note = $('#mealNote').value.trim();
+  if (!state.items.length && !note) { showToast('食事内容を入れてください'); return; }
+  isSavingMeal = true;
+  const btn = $('#saveMealBtn');
+  btn.disabled = true;
+
+  const totals = mealTotalsFor(state.items);
+  const timing = TIMINGS[state.timing];
+  const saved = findRecord(state.date, state.timing);
+  const memoParts = [];
+  if (state.items.length) memoParts.push(summarizeItems(state.items));
+  if (note) memoParts.push(`メモ: ${note}`);
+
+  const record = {
+    id: state.editingRecordId || `rec-${Date.now()}`,
+    date: state.date,
+    timing: timing.label,
+    timingKey: state.timing,
+    title: timing.title,
+    memo: memoParts.join(' / '),
+    note,
+    items: toStoredMealItems(state.items),
+    structuredItems: state.items.map(buildStructuredItem),
+    nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
+    diningOut: false,
+    restaurantName: '',
+    googleMapUrl: '',
+    diningText: '',
+    calcStatus: '',
+    calcMemo: '',
+    kcal: Math.round(totals.kcal),
+    protein: Math.round(totals.p),
+    fat: Math.round(totals.f),
+    carb: Math.round(totals.c),
+    reviewCount: totals.review,
+    synced: false,
+    createdAt: (saved && saved.createdAt) || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  // ローカル保存（既存レコードは置換）
+  const records = getRecords();
+  const idx = records.findIndex((r) => r.id === record.id);
+  if (idx >= 0) records[idx] = record; else records.push(record);
+  saveRecords(records);
+  state.editingRecordId = record.id;
+  persistDraft();
+
+  // サーバー送信（食事ログ + 食事明細。recordId で upsert される）
+  let sent = true;
+  try {
+    await postToSheet({ sheet: '食事ログ', ...record });
+    const rows = buildMealDetailRows(record);
+    if (rows.length) await postToSheet({ sheet: '食事明細', rows });
+  } catch (err) {
+    sent = false;
+    if (err && err.code === 'AUTH_REQUIRED') showToast('PIN を設定してから送信してください（ローカル保存済み）');
+    else showToast('オフライン保存しました（復帰後に自動送信）');
+  }
+  if (sent) showToast(`${timing.title}を記録しました`);
+  haptic([8, 24, 8]);
+
+  isSavingMeal = false;
+  btn.disabled = false;
+  renderItems();
+  renderHome();
+}
+
+// ---------------- 目標値・スコア（ホーム） ----------------
+function baseTargets() {
+  const stored = lsGet(LS_KEYS.NUTRITION_TARGETS, null);
+  if (stored && stored.energy) {
+    return { energy: Number(stored.energy) || DEFAULT_TARGETS.energy,
+             protein: Number(stored.protein) || DEFAULT_TARGETS.protein,
+             fat: Number(stored.fat) || DEFAULT_TARGETS.fat,
+             carb: Number(stored.carb) || DEFAULT_TARGETS.carb };
+  }
+  return { ...DEFAULT_TARGETS };
+}
+function activeTargets() {
+  try { return applyCarbCycle(baseTargets(), state.date); } catch (e) { return baseTargets(); }
+}
+
+// その日の摂取合計: 保存済みレコード優先、未保存タイミングは下書きを加算
+function computeDayIntake(dateStr) {
+  const drafts = loadDrafts();
+  const totals = { energy: 0, protein: 0, fat: 0, carb: 0 };
+  const perTiming = {};
+  TIMING_KEYS.forEach((tk) => {
+    const rec = findRecord(dateStr, tk);
+    if (rec) {
+      const e = Number(rec.kcal) || 0;
+      totals.energy += e; totals.protein += Number(rec.protein) || 0;
+      totals.fat += Number(rec.fat) || 0; totals.carb += Number(rec.carb) || 0;
+      perTiming[tk] = { kcal: e, recorded: true };
+      return;
+    }
+    const draft = drafts[draftKey(dateStr, tk)];
+    if (draft && draft.structuredItems && draft.structuredItems.length) {
+      let e = 0;
+      draft.structuredItems.forEach((s) => {
+        const n = s && s.nutrients ? s.nutrients : null;
+        if (!n) return;
+        e += n.energy || 0;
+        totals.energy += n.energy || 0; totals.protein += n.protein || 0;
+        totals.fat += n.fat || 0; totals.carb += n.carb || 0;
+      });
+      perTiming[tk] = { kcal: e, recorded: false, draft: true };
+    } else {
+      perTiming[tk] = { kcal: 0, recorded: false };
+    }
+  });
+  return { totals, perTiming };
+}
+
+function renderHome() {
+  const targets = activeTargets();
+  const { totals, perTiming } = computeDayIntake(state.date);
+
+  // スコアリング
+  let score = null;
+  const hasAny = totals.energy > 0;
+  if (hasAny && typeof computeDailyScore === 'function') {
+    score = computeDailyScore(totals, targets, {});
+  }
+  const arc = $('#ringArc');
+  const C = 251.3;
+  if (score) {
+    $('#scoreNum').textContent = score.score;
+    arc.style.strokeDashoffset = String(C - C * score.score / 100);
+    arc.style.stroke = score.kind === 'good' ? 'var(--green)' : score.kind === 'mid' ? 'var(--accent)' : 'var(--red)';
+  } else {
+    $('#scoreNum').textContent = '–';
+    arc.style.strokeDashoffset = String(C);
+  }
+
+  // 残りkcal
+  const remain = targets.energy - totals.energy;
+  const line = $('#kcalLine');
+  if (remain >= 0) {
+    line.classList.remove('over');
+    $('#kcalRemain').textContent = fmtNum(remain);
+    $('#kcalRemainUnit').textContent = 'kcal 残り';
+  } else {
+    line.classList.add('over');
+    $('#kcalRemain').textContent = fmtNum(-remain);
+    $('#kcalRemainUnit').textContent = 'kcal オーバー';
+  }
+  $('#kcalSub').textContent = `摂取 ${fmtNum(totals.energy)} / 目標 ${fmtNum(targets.energy)} kcal${targets.dayType === 'training' ? '（筋トレ日 +C）' : ''}`;
+
+  // PFCバー
+  [['P', 'protein'], ['F', 'fat'], ['C', 'carb']].forEach(([k, key]) => {
+    const v = totals[key], t = targets[key] || 1;
+    const ratio = v / t;
+    const bar = $(`#bar${k}`);
+    bar.style.width = `${Math.min(100, ratio * 100)}%`;
+    bar.className = ratio > 1.2 ? 'over' : (ratio >= 0.8 ? 'ok' : '');
+    $(`#val${k}`).textContent = `${Math.round(v)} / ${Math.round(t)}g`;
+  });
+
+  // 筋トレ日トグル
+  let training = false;
+  try { training = isTrainingDay(state.date); } catch (e) {}
+  $('#trainToggle').classList.toggle('on', training);
+  $('#trainLabel').textContent = training
+    ? `筋トレ日（炭水化物 +${(loadCarbCycle().carbDelta) || 0}g）`
+    : '筋トレ日として記録する';
+
+  // 食事グリッド
+  $('#homeMealGrid').innerHTML = TIMING_KEYS.map((tk) => {
+    const info = perTiming[tk];
+    const done = info.recorded;
+    const kc = info.kcal > 0
+      ? `<span class="kc">${fmtNum(info.kcal)}</span>`
+      : '<span class="kc empty">＋</span>';
+    return `<button class="meal-cell ${done ? 'done' : ''}" data-meal-timing="${tk}">
+      <span class="t">${TIMINGS[tk].label}</span>${kc}
+      <span class="lbl">${done ? '記録済み' : (info.draft ? '下書き' : 'kcal')}</span>
+    </button>`;
+  }).join('');
+
+  // 運動サマリー
+  const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  const todayLogs = history.filter((h) => h['日付'] === state.date);
+  if (todayLogs.length) {
+    const names = [...new Set(todayLogs.map((h) => h['種目']))];
+    $('#homeWorkoutBig').textContent = `${todayLogs.length}件`;
+    $('#homeWorkoutSub').textContent = names.slice(0, 3).join('・');
+  } else {
+    $('#homeWorkoutBig').textContent = '未記録';
+    $('#homeWorkoutSub').textContent = 'タップして記録';
+  }
+
+  // からだサマリー
+  const bodyRecs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const latest = bodyRecs[0];
+  if (latest) {
+    $('#homeBodyBig').textContent = `${latest.weight || '–'} kg`;
+    $('#homeBodySub').textContent = `体脂肪 ${latest.fat || '–'}%・${fmtDateLabel(latest.date)}`;
+  } else {
+    $('#homeBodyBig').textContent = '未記録';
+    $('#homeBodySub').textContent = 'タップして記録';
+  }
+}
+
+// ---------------- 運動ビュー（旧 workout.html と同一契約） ----------------
+const EXERCISES = [
+  { id: 'shoulder', kanji: '肩', name: 'ショルダープレス', short: 'ショルダー', color: '#ff9861', fields: ['weight', 'reps', 'sets'], defaults: { weight: 30, reps: 10, sets: 3 } },
+  { id: 'chest', kanji: '胸', name: 'チェストプレス', short: 'チェスト', color: '#ff5f7f', fields: ['weight', 'reps', 'sets'], defaults: { weight: 40, reps: 10, sets: 3 } },
+  { id: 'back', kanji: '背', name: 'ラットプルダウン', short: 'ラットプル', color: '#a889ff', fields: ['weight', 'reps', 'sets'], defaults: { weight: 40, reps: 10, sets: 3 } },
+  { id: 'leg', kanji: '脚', name: 'レッグプレス', short: 'レッグ', color: '#42e79b', fields: ['weight', 'reps', 'sets'], defaults: { weight: 60, reps: 10, sets: 3 } },
+  { id: 'inner', kanji: '内', name: 'アダクション', short: 'アダク', color: '#ff8bc7', fields: ['weight', 'reps', 'sets'], defaults: { weight: 30, reps: 12, sets: 3 } },
+  { id: 'outer', kanji: '外', name: 'アブダクション', short: 'アブダク', color: '#58d8ff', fields: ['weight', 'reps', 'sets'], defaults: { weight: 30, reps: 12, sets: 3 } },
+  { id: 'abs', kanji: '腹', name: 'アブベンチ', short: 'アブ', color: '#ffd15a', fields: ['reps', 'sets', 'difficulty'], defaults: { reps: 20, sets: 3, difficulty: 3 } },
+  { id: 'run', kanji: '走', name: 'トレッドミル', short: 'ラン', color: '#6ba7ff', fields: ['minutes', 'distance', 'intensity', 'incline'], defaults: { minutes: 20, distance: 2, intensity: 12, incline: 0 } }
+];
+const FIELD = {
+  weight: { label: '重量', unit: 'kg', step: 2.5, min: 0, max: 300, decimals: 1 },
+  reps: { label: '回数', unit: '回', step: 1, min: 0, max: 200, decimals: 0 },
+  sets: { label: 'セット', unit: 'set', step: 1, min: 1, max: 12, decimals: 0 },
+  minutes: { label: '時間', unit: '分', step: 1, min: 0, max: 180, decimals: 0 },
+  distance: { label: '距離', unit: 'km', step: .1, min: 0, max: 50, decimals: 1 },
+  intensity: { label: '強度', unit: '/20', step: 1, min: 1, max: 20, decimals: 0 },
+  difficulty: { label: '難度', unit: '/5', step: 1, min: 1, max: 5, decimals: 0 },
+  incline: { label: '傾斜', unit: '/10', step: 1, min: 0, max: 10, decimals: 0 }
+};
+function exoById(id) { return EXERCISES.find((e) => e.id === id) || EXERCISES[0]; }
+function calculateSpeed(v) {
+  const minutes = Number(v.minutes) || 0, distance = Number(v.distance) || 0;
+  if (minutes <= 0 || distance <= 0) return '0.0';
+  return (distance / minutes * 60).toFixed(1);
+}
+function calculateRunLoad(v) {
+  const inclineFactor = 1 + Math.max(0, Number(v.incline) || 0) * 0.06;
+  return Math.round((Number(v.distance) || 0) * (Number(v.intensity) || 0) * inclineFactor * 10);
+}
+function calculateAbsLoad(v) {
+  return Math.round((Number(v.reps) || 0) * (Number(v.sets) || 0) * (Number(v.difficulty) || 1));
+}
+
+function loadExoValues(exo) {
+  const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
+  const remembered = last[exo.id] || {};
+  const values = {};
+  exo.fields.forEach((f) => {
+    const v = remembered[f];
+    values[f] = (v === undefined || v === null || v === '') ? exo.defaults[f] : Number(v);
+  });
+  return values;
+}
+
+function renderExoGrid() {
+  $('#exoGrid').innerHTML = EXERCISES.map((e) =>
+    `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}">
+      <span class="kj" style="background:${e.color}">${e.kanji}</span><span class="sn">${e.short}</span>
+    </button>`
+  ).join('');
+}
+function renderExoCard() {
+  const exo = exoById(state.exoId);
+  $('#exoTitle').textContent = exo.name;
+  $('#exoFields').innerHTML = exo.fields.map((f) => {
+    const meta = FIELD[f];
+    const v = state.exoValues[f];
+    return `<div class="field-row">
+      <span class="fl">${meta.label}</span>
+      <div class="stepper">
+        <button data-wf="${f}" data-d="-1">−</button>
+        <span class="fv">${Number(v).toFixed(meta.decimals)}<small>${meta.unit}</small></span>
+        <button data-wf="${f}" data-d="1">＋</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderWorkoutToday() {
+  const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  const logs = history.filter((h) => h['日付'] === state.date);
+  $('#workoutEmpty').style.display = logs.length ? 'none' : '';
+  $('#workoutTodayList').innerHTML = logs.map((h) => {
+    const exo = EXERCISES.find((e) => e.name === h['種目']) || { kanji: '運', color: '#b9ae97' };
+    const parts = [];
+    if (h['重量']) parts.push(`${h['重量']}kg`);
+    if (h['回数']) parts.push(`${h['回数']}回`);
+    if (h['セット数']) parts.push(`${h['セット数']}set`);
+    if (h['時間']) parts.push(`${h['時間']}分`);
+    if (h['距離']) parts.push(`${h['距離']}km`);
+    const time = h._ts ? new Date(h._ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div class="log-row">
+      <span class="kj2" style="background:${exo.color}">${exo.kanji}</span>
+      <span class="desc"><b>${escapeHtml(h['種目'] || '')}</b>　${parts.join(' ')}</span>
+      <span class="tm">${time}</span>
+    </div>`;
+  }).join('');
+}
+
+async function saveWorkout() {
+  const exo = exoById(state.exoId);
+  const v = state.exoValues;
+  const record = {
+    sheet: '筋トレログ',
+    日付: state.date,
+    種目: exo.name,
+    重量: v.weight ?? '',
+    回数: v.reps ?? '',
+    セット数: v.sets ?? '',
+    時間: v.minutes ?? '',
+    距離: v.distance ?? '',
+    速さ: exo.id === 'run' ? calculateSpeed(v) : '',
+    強度: exo.id === 'run' ? (v.intensity ?? '') : exo.id === 'abs' ? (v.difficulty ?? '') : '',
+    傾斜: exo.id === 'run' ? (v.incline ?? 0) : '',
+    負荷: exo.id === 'run' ? calculateRunLoad(v) : exo.id === 'abs' ? calculateAbsLoad(v) : ''
+  };
+  const btn = $('#saveWorkoutBtn');
+  btn.disabled = true;
+  let sent = true;
+  try {
+    await postToSheet(record);
+  } catch (err) {
+    sent = false;
+    if (err && err.code === 'AUTH_REQUIRED') { showToast('PIN を設定してから送信してください'); btn.disabled = false; return; }
+  }
+  // lastValues / history 保存（旧 workout.html と同キー）
+  const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
+  last[exo.id] = { ...v };
+  lsSet(LS_KEYS.WT_LAST, last);
+  const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  history.unshift({ ...record, _ts: Date.now(), _exerciseId: exo.id, _queued: !sent });
+  lsSet(LS_KEYS.WT_HISTORY, history.slice(0, 80));
+  lsSet(LS_KEYS.WT_SELECTED, state.exoId);
+
+  showToast(sent ? `${exo.short}を記録しました` : 'オフライン保存しました（復帰後に自動送信）');
+  haptic([8, 24, 8]);
+  btn.disabled = false;
+  renderWorkoutToday();
+  renderHome();
+}
+
+// ---------------- からだビュー（旧 body.html と同一契約） ----------------
+const CONDITIONS = [
+  { v: 5, label: '絶好調', emo: '◎' },
+  { v: 4, label: '好調', emo: '○' },
+  { v: 3, label: '普通', emo: '–' },
+  { v: 2, label: 'いまいち', emo: '▽' },
+  { v: 1, label: '不調', emo: '×' }
+];
+function condLabel(v) { return (CONDITIONS.find((c) => c.v === v) || {}).label || '普通'; }
+
+function initBodyDefaults() {
+  const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const latest = recs[0];
+  if (state.body.weight == null) state.body.weight = latest && latest.weight ? Number(latest.weight) : 69.0;
+  if (state.body.fat == null) state.body.fat = latest && latest.fat ? Number(latest.fat) : 18.0;
+}
+function renderBodyView() {
+  initBodyDefaults();
+  $('#bodyWeight').textContent = state.body.weight.toFixed(1);
+  $('#bodyFat').textContent = state.body.fat.toFixed(1);
+  $('#condRow').innerHTML = CONDITIONS.map((c) =>
+    `<button class="cond-btn ${c.v === state.body.cond ? 'active' : ''}" data-cond="${c.v}"><span class="em">${c.emo}</span>${c.label}</button>`
+  ).join('');
+  const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 5);
+  $('#bodyEmpty').style.display = recs.length ? 'none' : '';
+  $('#bodyList').innerHTML = recs.map((r) =>
+    `<div class="log-row">
+      <span class="desc"><b>${r.weight || '–'} kg</b>　体脂肪 ${r.fat || '–'}%　${escapeHtml(condLabel(r.cond))}</span>
+      <span class="tm">${fmtDateLabel(r.date)}</span>
+    </div>`
+  ).join('');
+}
+
+async function saveBody() {
+  const record = {
+    date: state.date,
+    weight: Number(state.body.weight.toFixed(1)),
+    fat: Number(state.body.fat.toFixed(1)),
+    cond: state.body.cond,
+    memo: $('#bodyMemo').value.trim(),
+    ts: Date.now()
+  };
+  const recs = lsGet('body_recs_v1', []) || [];
+  recs.push(record);
+  lsSet('body_recs_v1', recs);
+
+  const btn = $('#saveBodyBtn');
+  btn.disabled = true;
+  try {
+    await postToSheet({
+      sheet: '体組成ログ手動',
+      '日付': record.date,
+      '体重kg': record.weight || '',
+      '体脂肪率%': record.fat || '',
+      '調子': condLabel(record.cond),
+      'メモ': record.memo
+    });
+    showToast('からだを記録しました');
+  } catch (err) {
+    if (err && err.code === 'AUTH_REQUIRED') showToast('PIN 設定後に送信されます（ローカル保存済み）');
+    else showToast('オフライン保存しました（復帰後に自動送信）');
+  }
+  haptic([8, 24, 8]);
+  btn.disabled = false;
+  $('#bodyMemo').value = '';
+  renderBodyView();
+  renderHome();
+}
+
+// ---------------- ナビゲーション ----------------
+function showView(name) {
+  state.view = name;
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  $('#mealFooter').style.display = name === 'meal' ? '' : 'none';
+  if (name === 'home') renderHome();
+  if (name === 'meal') {
+    // 他タブで日付が変わっていたら現在日の内容を読み直す
+    if (state.mealLoadedFor !== `${state.date}:${state.timing}`) loadMealFor(state.date, state.timing);
+    renderTimingSeg(); renderQuickRow(); renderItems(); renderSearch();
+  }
+  if (name === 'workout') { state.exoValues = loadExoValues(exoById(state.exoId)); renderExoGrid(); renderExoCard(); renderWorkoutToday(); }
+  if (name === 'body') renderBodyView();
+  window.scrollTo(0, 0);
+}
+
+function setDate(dateStr) {
+  persistDraftSafe();
+  state.date = dateStr;
+  const lbl = $('#dateLabel');
+  lbl.textContent = fmtDateLabel(dateStr);
+  lbl.classList.toggle('is-today', dateStr === todayStr());
+  if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); }
+  if (state.view === 'workout') renderWorkoutToday();
+  if (state.view === 'body') renderBodyView();
+  renderHome();
+}
+function persistDraftSafe() {
+  // 食事ビューで編集中なら下書きを確定してから移動
+  if (state.view === 'meal') { try { persistDraft(); } catch (e) {} }
+}
+function setTiming(tk) {
+  persistDraftSafe();
+  state.timing = tk;
+  loadMealFor(state.date, tk);
+  renderTimingSeg();
+  renderQuickRow();
+  renderItems();
+  renderSearch();
+}
+
+// ---------------- 設定モーダル ----------------
+function openSettings() {
+  $('#setWritePin').value = loadWritePin();
+  $('#setReadPin').value = loadReadPin();
+  try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
+  $('#settingsBack').classList.add('show');
+}
+function saveSettings() {
+  const wp = $('#setWritePin').value.trim();
+  const rp = $('#setReadPin').value.trim();
+  if (wp) saveWritePin(wp);
+  if (rp) saveReadPin(rp);
+  try {
+    const cfg = loadCarbCycle();
+    cfg.carbDelta = Number($('#setCarbDelta').value) || 50;
+    saveCarbCycle(cfg);
+  } catch (e) {}
+  $('#settingsBack').classList.remove('show');
+  showToast('設定を保存しました');
+  renderHome();
+}
+
+// ---------------- イベント ----------------
+document.querySelectorAll('.tab-btn').forEach((b) => {
+  b.addEventListener('click', () => { persistDraftSafe(); showView(b.dataset.view); });
+});
+$('#datePrev').addEventListener('click', () => setDate(shiftDate(state.date, -1)));
+$('#dateNext').addEventListener('click', () => setDate(shiftDate(state.date, 1)));
+$('#dateLabel').addEventListener('click', () => setDate(todayStr()));
+$('#gearBtn').addEventListener('click', openSettings);
+$('#saveSettingsBtn').addEventListener('click', saveSettings);
+$('#settingsBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#settingsBack').classList.remove('show'); });
+$('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#unitBack').classList.remove('show'); });
+$('#connCheckLink').addEventListener('click', (e) => { e.preventDefault(); window.open(GAS_URL, '_blank'); });
+
+// ホーム
+$('#trainToggle').addEventListener('click', () => {
+  try {
+    const on = !isTrainingDay(state.date);
+    setTrainingDay(state.date, on);
+    showToast(on ? '筋トレ日にしました（炭水化物の目標が増えます）' : '休養日に戻しました');
+  } catch (e) {}
+  renderHome();
+});
+$('#homeMealGrid').addEventListener('click', (e) => {
+  const cell = e.target.closest('[data-meal-timing]');
+  if (!cell) return;
+  state.timing = cell.dataset.mealTiming;
+  loadMealFor(state.date, state.timing);
+  showView('meal');
+});
+$('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
+$('#homeBodyCard').addEventListener('click', () => showView('body'));
+
+// 食事
+$('#timingSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-timing]');
+  if (b) setTiming(b.dataset.timing);
+});
+$('#quickRow').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-quick]');
+  if (!chip) return;
+  if (chip.dataset.quick === 'last') {
+    const past = getRecords().filter((r) => r.timingKey === state.timing && r.date < state.date && r.items && r.items.length).slice(-1)[0];
+    if (!past) return;
+    state.items = restoreMealItems(past.items, past.structuredItems);
+    showToast('前回の内容を入れました');
+  } else {
+    const presets = loadPresets()[state.timing] || [];
+    const p = presets[Number(chip.dataset.pi)];
+    if (!p) return;
+    const restored = (p.items || []).map((it) => {
+      const food = getFoodById(it.foodId);
+      return food ? createMealItem(food, it.qty, it.unit) : null;
+    }).filter(Boolean);
+    if (state.items.length) state.items = state.items.concat(restored);
+    else state.items = restored;
+    showToast(`「${p.name}」を入れました`);
+  }
+  haptic(8);
+  renderItems();
+  persistDraft();
+});
+$('#mealItems').addEventListener('click', (e) => {
+  const step = e.target.closest('[data-step]');
+  if (step) { stepItem(Number(step.dataset.i), Number(step.dataset.step)); return; }
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    state.items.splice(Number(del.dataset.del), 1);
+    renderItems(); persistDraft(); haptic(8);
+    return;
+  }
+  const un = e.target.closest('[data-unit-of]');
+  if (un) openUnitSheet(Number(un.dataset.unitOf));
+});
+$('#unitSheetList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-unit]');
+  if (!b || unitSheetIndex < 0) return;
+  const it = state.items[unitSheetIndex];
+  const food = getFoodById(it && it.foodId);
+  if (food) {
+    const unit = getUnitsForFood(food).find((u) => u.label === b.dataset.unit);
+    if (unit) {
+      it.unit = unit.label;
+      it.qty = unit.defaultQty || 1;
+      state.items[unitSheetIndex] = recalcItem(it);
+      renderItems(); persistDraft();
+    }
+  }
+  $('#unitBack').classList.remove('show');
+});
+let searchTimer = null;
+$('#foodSearch').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderSearch, 120);
+});
+$('#searchResults').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-add]');
+  if (b) addFoodById(b.dataset.add);
+});
+$('#mealNote').addEventListener('input', () => persistDraft());
+$('#saveMealBtn').addEventListener('click', saveMeal);
+
+// 運動
+$('#exoGrid').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-exo]');
+  if (!chip) return;
+  state.exoId = chip.dataset.exo;
+  lsSet(LS_KEYS.WT_SELECTED, state.exoId);
+  state.exoValues = loadExoValues(exoById(state.exoId));
+  renderExoGrid();
+  renderExoCard();
+});
+$('#exoFields').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wf]');
+  if (!b) return;
+  const f = b.dataset.wf, meta = FIELD[f];
+  let v = (Number(state.exoValues[f]) || 0) + Number(b.dataset.d) * meta.step;
+  v = Math.max(meta.min, Math.min(meta.max, v));
+  state.exoValues[f] = Number(v.toFixed(meta.decimals));
+  renderExoCard();
+  haptic(6);
+});
+$('#saveWorkoutBtn').addEventListener('click', saveWorkout);
+
+// からだ
+document.querySelectorAll('[data-body]').forEach((b) => {
+  b.addEventListener('click', () => {
+    const key = b.dataset.body;
+    const d = Number(b.dataset.d);
+    state.body[key] = Math.max(0, Number(((state.body[key] || 0) + d).toFixed(1)));
+    renderBodyView();
+    haptic(6);
+  });
+});
+$('#condRow').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cond]');
+  if (!b) return;
+  state.body.cond = Number(b.dataset.cond);
+  renderBodyView();
+});
+$('#saveBodyBtn').addEventListener('click', saveBody);
+
+// ---------------- 初期化 ----------------
+buildCatalog();
+setDate(todayStr());
+loadMealFor(state.date, state.timing);
+showView('home');
+try { flushPendingQueue(); } catch (e) {}
+</script>
+</body>
+</html>

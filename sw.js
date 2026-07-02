@@ -9,13 +9,13 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v13';
+const CACHE = 'cockpit-cache-v14';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 const CORE = [
   './',
-  'index.html', 'day.html', 'meal.html', 'workout.html', 'body.html', 'health-import.html',
-  'nutrition-db.js', 'js/storage.js', 'js/api-client.js', 'js/nutrition-calc.js',
+  'index.html', 'day.html', 'meal.html', 'workout.html', 'body.html', 'health-import.html', 'app.html',
+  'nutrition-db.js', 'js/storage.js', 'js/api-client.js', 'js/nutrition-calc.js', 'js/food-catalog.js',
   'manifest.webmanifest',
   'icons/cockpit.svg', 'icons/cockpit-192.png', 'icons/cockpit-512.png', 'icons/apple-touch-icon.png'
 ];
