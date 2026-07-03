@@ -1208,6 +1208,18 @@ function renderItems() {
   renderTotals();
 }
 
+function writeStatusText(result) {
+  if (!result) return '送信要求済み';
+  if (result.status === 'confirmed') return result.dedup ? '送信済み ✓（重複なし）' : '送信済み ✓';
+  if (result.status === 'queued') return '未送信（あとで再送）';
+  return '送信要求済み';
+}
+function mergeWriteStatuses(results) {
+  if ((results || []).some((r) => r && r.status === 'queued')) return { status: 'queued' };
+  if ((results || []).some((r) => r && r.status === 'requested')) return { status: 'requested' };
+  return { status: 'confirmed', dedup: (results || []).some((r) => r && r.dedup) };
+}
+
 function renderTotals() {
   const t = mealTotalsFor(state.items);
   $('#totKcal').textContent = fmtNum(t.kcal);
@@ -1392,20 +1404,22 @@ async function saveMeal() {
   persistDraft();
 
   // サーバー送信（食事ログ + 食事明細。recordId で upsert される）
-  let sent = true;
+  let writeResult = null;
+  let writeError = null;
   try {
-    await postToSheet({ sheet: '食事ログ', ...record });
+    const results = [];
+    results.push(await writeToSheet({ sheet: '食事ログ', ...record }));
     const rows = buildMealDetailRows(record);
-    if (rows.length) await postToSheet({ sheet: '食事明細', rows });
+    if (rows.length) results.push(await writeToSheet({ sheet: '食事明細', rows }));
+    writeResult = mergeWriteStatuses(results);
   } catch (err) {
-    sent = false;
+    writeError = err;
     if (err && err.code === 'AUTH_REQUIRED') showToast('PIN を設定してから送信してください（ローカル保存済み）');
-    else showToast('オフライン保存しました（復帰後に自動送信）');
+    else showToast(`送信エラー: ${err && err.message ? err.message : err}`);
   }
-  if (sent) {
-    markMealSynced(record.id, true);
-    flashSuccess(btn, '✓ 記録しました');
-  }
+  if (writeResult && writeResult.status !== 'queued') markMealSynced(record.id, true);
+  if (writeResult && writeResult.status === 'confirmed') flashSuccess(btn, '✓ 記録しました');
+  if (writeResult && !writeError) showToast(`${timing.title}: ${writeStatusText(writeResult)}`);
   haptic([8, 24, 8]);
 
   isSavingMeal = false;
@@ -1552,8 +1566,8 @@ function undoHydration() {
 async function sendHydration() {
   const rec = hydrationForDate();
   const total = hydrationTotal(rec);
-  if (!total) return;
-  await postToSheet({
+  if (!total) { showToast('水分量が0です'); return null; }
+  const result = await writeToSheet({
     sheet: '水分ログ',
     date: state.date,
     totalMl: total,
@@ -1562,8 +1576,9 @@ async function sendHydration() {
     entries: (rec.entries || []).map((e) => `${e.label}:${e.ml}ml`).join(' / '),
     note: '飲み物・汁物・牛乳などの経口水分量。食事とは別管理。'
   });
-  rec.synced = true;
+  rec.synced = result.status !== 'queued';
   saveHydration(state.date, rec);
+  return result;
 }
 function pendingSendCount() {
   const unsyncedMeals = getRecords().filter((r) => r && r.synced === false).length;
@@ -1583,10 +1598,13 @@ async function retryPending() {
   const unsynced = getRecords().filter((r) => r && r.synced === false);
   for (const rec of unsynced) {
     try {
-      await postToSheet({ sheet: '食事ログ', ...rec });
+      const results = [];
+      results.push(await writeToSheet({ sheet: '食事ログ', ...rec }));
       const rows = detailRowsFromRecord(rec);
-      if (rows.length) await postToSheet({ sheet: '食事明細', rows });
-      markMealSynced(rec.id, true);
+      if (rows.length) results.push(await writeToSheet({ sheet: '食事明細', rows }));
+      const status = mergeWriteStatuses(results);
+      if (status.status !== 'queued') markMealSynced(rec.id, true);
+      if (status.status === 'queued') break;
     } catch (e) {
       break;
     }
@@ -2006,8 +2024,8 @@ async function sendWorkoutDrafts() {
   const queued = [];
   for (const item of drafts) {
     try {
-      await postToSheet(item);
-      sent.push({ ...item, _draft: false, _queued: !navigator.onLine, _ts: Date.now() });
+      const result = await writeToSheet(item);
+      sent.push({ ...item, _draft: false, _queued: result.status === 'queued', _writeStatus: result.status, _ts: Date.now() });
     } catch (err) {
       if (err && err.code === 'AUTH_REQUIRED') { showToast('PIN を設定してから送信してください'); btn.disabled = false; return; }
       queued.push({ ...item, _queuedAt: Date.now() });
@@ -2020,7 +2038,9 @@ async function sendWorkoutDrafts() {
   }
   state.workoutDrafts = [];
   lsSet('wt:draftQueue:v1', state.workoutDrafts);
-  showToast(`${sent.length}件の送信要求を出しました`);
+  const confirmed = sent.filter((item) => item._writeStatus === 'confirmed').length;
+  const queuedCount = sent.filter((item) => item._queued).length + queued.length;
+  showToast(queuedCount ? `${queuedCount}件を未送信に保存しました` : `${confirmed ? '送信済み ✓' : '送信要求済み'} ${sent.length}件`);
   btn.disabled = false;
   renderWorkoutToday();
   renderHome();
@@ -2113,7 +2133,7 @@ async function saveBody() {
   const btn = $('#saveBodyBtn');
   btn.disabled = true;
   try {
-    await postToSheet({
+    const result = await writeToSheet({
       sheet: '体組成ログ手動',
       '日付': record.date,
       '体重kg': record.weight || '',
@@ -2121,7 +2141,8 @@ async function saveBody() {
       '調子': condLabel(record.cond),
       'メモ': record.memo
     });
-    flashSuccess(btn, '✓ 記録しました');
+    if (result.status === 'confirmed') flashSuccess(btn, '✓ 記録しました');
+    showToast(`からだ: ${writeStatusText(result)}`);
   } catch (err) {
     if (err && err.code === 'AUTH_REQUIRED') showToast('PIN 設定後に送信されます（ローカル保存済み）');
     else showToast('オフライン保存しました（復帰後に自動送信）');
@@ -2351,7 +2372,7 @@ $('#hydrationCard').addEventListener('click', async (e) => {
   const water = e.target.closest('[data-water]');
   if (water) { addHydration(Number(water.dataset.water), water.dataset.waterLabel); return; }
   if (e.target.closest('#sendWaterBtn')) {
-    try { await sendHydration(); showToast('水分の送信要求を出しました'); renderHydration(); renderHome(); }
+    try { const result = await sendHydration(); if (result) showToast(`水分: ${writeStatusText(result)}`); renderHydration(); renderHome(); }
     catch (err) { showToast('水分送信はローカル保存しました'); }
     return;
   }

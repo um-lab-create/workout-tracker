@@ -7,8 +7,10 @@
 // 定数
 // ----------------------------------------------------------------
 
-/** Apps Script Web App エンドポイント（全ページ共通・本番デプロイ @8） */
+/** Apps Script Web App エンドポイント（全ページ共通・本番デプロイ @16） */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxvR0eEzHRsJMn-z9reSVx__4GJsuiFLfSemHrUV6ByMlPN-fYDawpIUN52DWfQI0pS/exec';
+const WRITE_ACK_VERSION = 1;
+const WRITE_TIMEOUT_MS = 8000;
 
 // ----------------------------------------------------------------
 // 内部ヘルパー
@@ -176,6 +178,78 @@ async function postToSheet(payload) {
   }
 }
 
+function fetchWithTimeout(url, options = {}, timeoutMs = WRITE_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+function buildWritePayload(payload) {
+  const base = payload && payload.authPin ? { ...payload } : buildAuthedPayload(payload);
+  return {
+    ...base,
+    authPin: loadWritePin() || base.authPin,
+    authTs: Date.now(),
+    authNonce: makeAuthNonce(),
+    requestId: base.requestId || makeAuthNonce(),
+    ackVersion: WRITE_ACK_VERSION
+  };
+}
+
+async function _sendWritePayload(authed) {
+  if (!navigator.onLine) {
+    _enqueueOffline(authed);
+    return { status: 'queued' };
+  }
+  try {
+    const res = await fetchWithTimeout(GAS_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      body: JSON.stringify(authed)
+    }, WRITE_TIMEOUT_MS);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      parseErr.name = 'WriteAckParseError';
+      throw parseErr;
+    }
+    if (data && data.status === 'ok') {
+      return { status: 'confirmed', dedup: Boolean(data.dedup), data };
+    }
+    throw new Error(data && data.message ? data.message : 'server error');
+  } catch (err) {
+    if (err && (err.name === 'AbortError' || err.name === 'WriteAckParseError' || err instanceof TypeError)) {
+      try {
+        await fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(authed)
+        });
+        return { status: 'requested' };
+      } catch {
+        _enqueueOffline(authed);
+        return { status: 'queued' };
+      }
+    }
+    throw err;
+  }
+}
+
+/**
+ * Apps Script にWRITE_PIN付きで書き込み、可能なら確定応答を読む。
+ * status:
+ * - confirmed: サーバーが {status:'ok'} を返した
+ * - requested: no-cors フォールバックで送信要求のみ出した
+ * - queued: オフライン/送信不可のためローカルキューへ積んだ
+ */
+async function writeToSheet(payload) {
+  return _sendWritePayload(buildWritePayload(payload));
+}
+
 // ----------------------------------------------------------------
 // 公開: READ_PIN 認証付き読み取り
 // ----------------------------------------------------------------
@@ -222,6 +296,8 @@ async function readFromSheet(read, params = {}, forcePrompt = false) {
 
 function _enqueueOffline(authedPayload) {
   const queue = lsGet(LS_KEYS.PENDING_QUEUE, []);
+  const requestId = authedPayload && authedPayload.requestId;
+  if (requestId && queue.some((item) => item && item.payload && item.payload.requestId === requestId)) return;
   queue.push({ payload: authedPayload, queuedAt: Date.now() });
   lsSet(LS_KEYS.PENDING_QUEUE, queue);
 }
@@ -236,25 +312,30 @@ function _enqueueOffline(authedPayload) {
  * @returns {Promise<void>}
  */
 async function flushPendingQueue() {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine) return { confirmed: 0, requested: 0, queued: 0 };
   const queue = lsGet(LS_KEYS.PENDING_QUEUE, []);
-  if (!queue.length) return;
+  if (!queue.length) return { confirmed: 0, requested: 0, queued: 0 };
 
   const failed = [];
+  const summary = { confirmed: 0, requested: 0, queued: 0 };
   for (const item of queue) {
     try {
-      await fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item.payload)
-      });
-      // no-cors では成否不明。fetch 例外が出なければ送信要求済みとしてキューから外す。
+      const refreshed = buildWritePayload(item.payload || {});
+      const result = await _sendWritePayload(refreshed);
+      if (result.status === 'queued') {
+        failed.push({ payload: refreshed, queuedAt: item.queuedAt || Date.now() });
+        summary.queued += 1;
+      } else if (result.status === 'confirmed') {
+        summary.confirmed += 1;
+      } else {
+        summary.requested += 1;
+      }
     } catch {
       failed.push(item);
     }
   }
   lsSet(LS_KEYS.PENDING_QUEUE, failed);
+  return summary;
 }
 
 // ネットワーク復帰時に自動再送
