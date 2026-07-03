@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>健康参謀</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest-app.webmanifest">
 <link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
@@ -161,6 +161,64 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .mini-card .sub { font-size: 11px; color: var(--muted); }
 .ic.wk { background: #eef4ff; color: var(--blue); }
 .ic.bd { background: var(--green-soft); color: var(--green); }
+
+/* ---------- SPEC-001 統合: 週間・コーチ・数量シート・体重推移 ---------- */
+.coach-hint {
+  margin-top: 8px; font-size: 11px; color: var(--accent-deep); font-weight: 700;
+  background: var(--accent-soft); border-radius: 10px; padding: 6px 10px; line-height: 1.5;
+}
+.coach-hint.good { color: var(--green); background: var(--green-soft); }
+.coach-hint.warn { color: #c98a00; background: #fff3d6; }
+.week-card { margin-top: 8px; padding: 12px 14px; }
+.week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.wd {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 9.5px; color: var(--muted); font-weight: 700; padding: 2px 0;
+}
+.wd .dn {
+  width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center;
+  font-size: 11.5px; font-weight: 800; background: var(--bg); color: #cdc4b0;
+  font-variant-numeric: tabular-nums;
+}
+.wd.meal .dn { background: var(--accent-soft); color: var(--accent-deep); }
+.wd.today .dn { box-shadow: inset 0 0 0 2px var(--accent); }
+.wd .tri { width: 6px; height: 6px; border-radius: 2px; background: transparent; }
+.wd.strength .tri { background: var(--blue); }
+.week-stats { display: flex; gap: 6px; margin-top: 10px; }
+.ws { flex: 1; background: var(--bg); border-radius: 12px; padding: 7px 4px 6px; text-align: center; }
+.ws b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.ws b .g { color: var(--muted); font-size: 10.5px; font-weight: 700; }
+.ws span { display: block; font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: .04em; }
+.ws.achieved { background: var(--green-soft); }
+.ws.achieved b { color: var(--green); }
+.items-foot { border-top: 1px solid var(--line); padding: 8px 0 2px; margin-top: 2px; }
+.usual-btn {
+  height: 36px; padding: 0 12px; border-radius: 12px; background: var(--bg);
+  color: var(--accent-deep); font-size: 12px; font-weight: 800;
+}
+.qty-sheet-row { display: flex; gap: 8px; align-items: center; }
+.qty-sheet-row input {
+  flex: 1; border: 0; background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 13px 14px; outline: none; font-size: 20px; font-weight: 800; text-align: center;
+}
+.qty-sheet-row .unit-l { font-size: 14px; font-weight: 700; color: var(--muted); }
+.qty-sheet-row .ok {
+  height: 48px; padding: 0 20px; border-radius: 14px;
+  background: var(--accent); color: #fff; font-size: 14px; font-weight: 800;
+}
+.body-date-line { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.body-date-line b { color: var(--accent-deep); }
+.spark-card { margin-top: 8px; padding: 12px 14px; }
+.spark-head { display: flex; align-items: baseline; gap: 8px; }
+.spark-head .sl { font-size: 12px; font-weight: 700; color: var(--muted); }
+.spark-head b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.spark-head .diff { font-size: 11px; font-weight: 800; }
+.spark-head .diff.down { color: var(--green); }
+.spark-head .diff.up { color: var(--red); }
+.spark-head .range { margin-left: auto; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.spark-svg { width: 100%; height: 56px; margin-top: 6px; display: block; }
+.primary-btn.success { background: linear-gradient(135deg, var(--green), #6fd381); box-shadow: 0 4px 14px rgba(79, 189, 99, .35); }
+.date-nav .arrow.disabled { opacity: .3; pointer-events: none; }
 
 /* ---------- セグメント（食事タイミング） ---------- */
 .seg {
@@ -465,6 +523,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
         </div>
       </div>
     </div>
+    <div class="coach-hint" id="coachHint"></div>
 
     <div class="train-row">
       <button class="train-chip" id="trainToggle"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
@@ -477,6 +536,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <button class="status-card" id="homeSyncCard">
         <span class="cap">送信</span><span class="val" id="homeSyncVal">0件</span><span class="sub" id="homeSyncSub">待機なし</span>
       </button>
+    </div>
+
+    <div class="card week-card">
+      <div class="week-days" id="weekDays"></div>
+      <div class="week-stats" id="weekStats"></div>
     </div>
 
     <div class="section-label">食事をつける</div>
@@ -531,6 +595,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="card items-card">
       <div id="mealItems"></div>
       <div class="empty-note" id="mealEmpty">下の検索か、上の「いつもの」から追加</div>
+      <div class="items-foot" id="itemsFoot" style="display:none">
+        <button class="usual-btn" id="saveUsualBtn">☆ 普段の食事に保存</button>
+      </div>
     </div>
 
     <div class="card search-card">
@@ -577,6 +644,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   <!-- ============ からだ ============ -->
   <section class="view" id="view-body">
     <div class="card" style="margin-top:6px">
+      <div class="body-date-line">記録日: <b id="bodyDateLabel">今日</b>（上の日付で変更できます）</div>
       <div class="body-field">
         <span class="bl">体重</span>
         <div class="stepper">
@@ -597,6 +665,16 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <input class="memo-input" id="bodyMemo" placeholder="メモ（任意）">
       <button class="primary-btn full" id="saveBodyBtn">記録する</button>
     </div>
+    <div class="card spark-card" id="sparkCard" style="display:none">
+      <div class="spark-head">
+        <span class="sl">体重の推移</span>
+        <b id="sparkLatest">–</b>
+        <span class="diff" id="sparkDiff"></span>
+        <span class="range" id="sparkRange"></span>
+      </div>
+      <svg class="spark-svg" id="sparkSvg" viewBox="0 0 300 56" preserveAspectRatio="none"></svg>
+    </div>
+
     <div class="section-label">最近のからだ</div>
     <div class="card" style="padding:6px 14px">
       <div id="bodyList"></div>
@@ -658,6 +736,19 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="close-row"><div class="grip"></div></div>
     <h3 id="unitSheetTitle">単位をえらぶ</h3>
     <div class="unit-sheet-list" id="unitSheetList"></div>
+  </div>
+</div>
+
+<!-- 数量直接入力シート -->
+<div class="modal-back" id="qtyBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3 id="qtySheetTitle">数量を入力</h3>
+    <div class="qty-sheet-row">
+      <input id="qtySheetInput" type="number" inputmode="decimal" min="0" step="0.1">
+      <span class="unit-l" id="qtySheetUnit"></span>
+      <button class="ok" id="qtySheetOk">OK</button>
+    </div>
   </div>
 </div>
 
@@ -1059,15 +1150,20 @@ function renderTimingSeg() {
   ).join('');
 }
 
+function recentRecordsForTiming(limit) {
+  return getRecords()
+    .filter((r) => r.timingKey === state.timing && r.date < state.date && r.items && r.items.length)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, limit);
+}
+
 function renderQuickRow() {
   const chips = [];
-  // 前回と同じ（同タイミングの直近記録。今日をのぞく）
-  const past = getRecords()
-    .filter((r) => r.timingKey === state.timing && r.date < state.date && r.items && r.items.length)
-    .slice(-1)[0];
-  if (past) {
-    chips.push(`<button class="quick-chip accent" data-quick="last"><span class="n">前回と同じ</span><span class="d">${fmtNum(past.kcal || 0)} kcal・${fmtDateLabel(past.date)}</span></button>`);
-  }
+  // 直近の同タイミング記録を最大3件（先頭は「前回と同じ」）
+  recentRecordsForTiming(3).forEach((r, i) => {
+    const label = i === 0 ? '前回と同じ' : fmtDateLabel(r.date);
+    chips.push(`<button class="quick-chip ${i === 0 ? 'accent' : ''}" data-quick="record" data-rid="${escapeHtml(r.id)}"><span class="n">${label}</span><span class="d">${fmtNum(r.kcal || 0)} kcal・${(r.items || []).length}品</span></button>`);
+  });
   // プリセット
   const presets = loadPresets()[state.timing] || [];
   presets.forEach((p, i) => {
@@ -1085,11 +1181,15 @@ function renderQuickRow() {
 function renderItems() {
   const wrap = $('#mealItems');
   $('#mealEmpty').style.display = state.items.length ? 'none' : '';
+  if ($('#itemsFoot')) $('#itemsFoot').style.display = state.items.length ? '' : 'none';
   wrap.innerHTML = state.items.map((it, i) => {
     const unitsCount = getUnitsForFood(getFoodById(it.foodId)).length;
     const unitHtml = (it.frozen || unitsCount <= 1)
       ? `<span class="un" style="text-decoration:none">${escapeHtml(it.unit)}</span>`
       : `<span class="un" data-unit-of="${i}">${escapeHtml(it.unit)}</span>`;
+    const qtyHtml = it.frozen
+      ? `<span class="q">${fmtQty(it.qty)}</span>`
+      : `<span class="q" data-qty-of="${i}">${fmtQty(it.qty)}</span>`;
     return `
     <div class="item-row">
       <div class="item-main">
@@ -1099,7 +1199,7 @@ function renderItems() {
       <button class="review-chip ${it.pendingReview ? 'on' : ''}" data-review="${i}">${it.pendingReview ? '要確認' : '確認'}</button>
       <div class="stepper">
         <button data-step="-1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>−</button>
-        <span class="qty-box"><span class="q">${fmtQty(it.qty)}</span>${unitHtml}</span>
+        <span class="qty-box">${qtyHtml}${unitHtml}</span>
         <button data-step="1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>＋</button>
       </div>
       <button class="del-btn" data-del="${i}">✕</button>
@@ -1302,13 +1402,68 @@ async function saveMeal() {
     if (err && err.code === 'AUTH_REQUIRED') showToast('PIN を設定してから送信してください（ローカル保存済み）');
     else showToast('オフライン保存しました（復帰後に自動送信）');
   }
-  if (sent) showToast(`${timing.title}の送信要求を出しました`);
+  if (sent) {
+    markMealSynced(record.id, true);
+    flashSuccess(btn, '✓ 記録しました');
+  }
   haptic([8, 24, 8]);
 
   isSavingMeal = false;
   btn.disabled = false;
   renderItems();
   renderHome();
+}
+
+
+function markMealSynced(recordId, synced) {
+  const records = getRecords();
+  const idx = records.findIndex((r) => r.id === recordId);
+  if (idx >= 0) { records[idx].synced = Boolean(synced); saveRecords(records); }
+}
+
+function detailRowsFromRecord(record) {
+  const rows = (record.structuredItems || []).map((s) => ({
+    date: record.date,
+    timing: record.timing,
+    timingKey: record.timingKey,
+    recordId: record.id,
+    foodId: s.foodId,
+    name: s.foodName || s.foodId,
+    qty: Number(s.qty) || 0,
+    unit: s.unit,
+    grams: s.grams == null ? '' : Math.round((Number(s.grams) || 0) * 10) / 10,
+    pendingReview: Boolean(s.pendingReview)
+  }));
+  if (record.diningOut) {
+    rows.push({
+      date: record.date, timing: record.timing, timingKey: record.timingKey, recordId: record.id,
+      foodId: 'dining-out-pending',
+      name: record.restaurantName ? `外食: ${record.restaurantName}` : '外食未計算',
+      qty: 1, unit: '件', grams: '', pendingReview: true,
+      diningOut: true, restaurantName: record.restaurantName,
+      googleMapUrl: record.googleMapUrl, diningText: record.diningText,
+      calcStatus: '未計算', calcMemo: ''
+    });
+  }
+  return rows;
+}
+
+function saveCurrentAsUsual() {
+  if (!state.items.length) { showToast('保存する食事内容がありません'); return; }
+  const presets = loadPresets();
+  const list = Array.isArray(presets[state.timing]) ? presets[state.timing].slice() : [];
+  const usual = {
+    id: `preset-${state.timing}-usual-app`,
+    name: `普段の${TIMINGS[state.timing].title}`,
+    items: toStoredMealItems(state.items)
+  };
+  const idx = list.findIndex((p) => p && p.id === usual.id);
+  if (idx >= 0) list[idx] = { ...list[idx], ...usual };
+  else list.unshift(usual);
+  presets[state.timing] = list;
+  lsSet(LS_KEYS.MEAL_PRESET, presets);
+  renderQuickRow();
+  showToast(`「${usual.name}」に保存しました`);
 }
 
 // ---------------- 外食 / 水分 / 送信状態 ----------------
@@ -1411,9 +1566,11 @@ async function sendHydration() {
   saveHydration(state.date, rec);
 }
 function pendingSendCount() {
+  const unsyncedMeals = getRecords().filter((r) => r && r.synced === false).length;
   return (lsGet(LS_KEYS.PENDING_QUEUE, []) || []).length
     + (lsGet(LS_KEYS.WT_QUEUE, []) || []).length
-    + (state.workoutDrafts || []).length;
+    + (state.workoutDrafts || []).length
+    + unsyncedMeals;
 }
 function renderSyncStatus() {
   const pending = pendingSendCount();
@@ -1423,8 +1580,20 @@ function renderSyncStatus() {
 }
 async function retryPending() {
   try { await flushPendingQueue(); } catch (e) {}
+  const unsynced = getRecords().filter((r) => r && r.synced === false);
+  for (const rec of unsynced) {
+    try {
+      await postToSheet({ sheet: '食事ログ', ...rec });
+      const rows = detailRowsFromRecord(rec);
+      if (rows.length) await postToSheet({ sheet: '食事明細', rows });
+      markMealSynced(rec.id, true);
+    } catch (e) {
+      break;
+    }
+  }
   renderSyncStatus();
-  showToast('再送を試しました');
+  renderHome();
+  showToast(pendingSendCount() ? `未送信が ${pendingSendCount()}件 残っています` : '再送しました');
 }
 
 // ---------------- 目標値・スコア（ホーム） ----------------
@@ -1472,6 +1641,116 @@ function computeDayIntake(dateStr) {
     }
   });
   return { totals, perTiming };
+}
+
+
+// ---------------- 週間指標（北極星: 筋トレ週3 / PFC達成5日 / 継続） ----------------
+const STRENGTH_NAMES = ['ショルダープレス', 'チェストプレス', 'ラットプルダウン', 'レッグプレス', 'アダクション', 'アブダクション'];
+function weekDatesOf(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const dow = (d.getDay() + 6) % 7; // 月曜=0
+  const monday = shiftDate(dateStr, -dow);
+  return Array.from({ length: 7 }, (_, i) => shiftDate(monday, i));
+}
+function dayMealTotals(dateStr) {
+  const totals = { energy: 0, protein: 0, fat: 0, carb: 0 };
+  let has = false;
+  TIMING_KEYS.forEach((tk) => {
+    const rec = findRecord(dateStr, tk);
+    if (!rec) return;
+    has = true;
+    totals.energy += Number(rec.kcal) || 0;
+    totals.protein += Number(rec.protein) || 0;
+    totals.fat += Number(rec.fat) || 0;
+    totals.carb += Number(rec.carb) || 0;
+  });
+  return has ? totals : null;
+}
+function isPfcAchieved(dateStr) {
+  const totals = dayMealTotals(dateStr);
+  if (!totals) return false;
+  let targets;
+  try { targets = applyCarbCycle(baseTargets(), dateStr); } catch (e) { targets = baseTargets(); }
+  return ['protein', 'fat', 'carb'].every((k) => {
+    const r = totals[k] / (targets[k] || 1);
+    return r >= 0.8 && r <= 1.2;
+  });
+}
+function strengthDatesSet() {
+  const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  const set = {};
+  history.forEach((h) => {
+    if (h && h['日付'] && STRENGTH_NAMES.includes(h['種目'])) set[h['日付']] = true;
+  });
+  return set;
+}
+function mealStreak() {
+  const recorded = {};
+  getRecords().forEach((r) => { if (r && r.date) recorded[r.date] = true; });
+  let d = todayStr();
+  if (!recorded[d]) d = shiftDate(d, -1);
+  let n = 0;
+  while (recorded[d]) { n++; d = shiftDate(d, -1); }
+  return n;
+}
+function renderWeekCard() {
+  if (!$('#weekDays') || !$('#weekStats')) return;
+  const week = weekDatesOf(state.date);
+  const strength = strengthDatesSet();
+  const today = todayStr();
+  const DOW = ['月', '火', '水', '木', '金', '土', '日'];
+  $('#weekDays').innerHTML = week.map((d, i) => {
+    const hasMeal = Boolean(dayMealTotals(d));
+    const cls = [hasMeal ? 'meal' : '', strength[d] ? 'strength' : '', d === today ? 'today' : ''].join(' ');
+    return `<div class="wd ${cls}"><span>${DOW[i]}</span><span class="dn">${Number(d.slice(8))}</span><span class="tri"></span></div>`;
+  }).join('');
+  const strengthCount = week.filter((d) => strength[d]).length;
+  const pfcDays = week.filter((d) => d <= today && isPfcAchieved(d)).length;
+  const streak = mealStreak();
+  $('#weekStats').innerHTML = `
+    <div class="ws ${strengthCount >= 3 ? 'achieved' : ''}"><b>${strengthCount}<span class="g">/3</span></b><span>筋トレ日</span></div>
+    <div class="ws ${pfcDays >= 5 ? 'achieved' : ''}"><b>${pfcDays}<span class="g">/5日</span></b><span>PFC達成</span></div>
+    <div class="ws ${streak >= 7 ? 'achieved' : ''}"><b>${streak}<span class="g">日</span></b><span>連続記録</span></div>`;
+}
+
+function proteinSuggestion(deficit) {
+  let best = null;
+  allFoods.forEach((f) => {
+    const unit = getDefaultUnit(f);
+    const p = calcFoodPortion(f, unit.defaultQty || 1, unit.label);
+    if (p.p >= 12 && p.kcal <= 280 && p.kcal > 0) {
+      const score = p.p / p.kcal;
+      if (!best || score > best.score) best = { food: f, unit, p, score };
+    }
+  });
+  if (!best) return '';
+  return ` → ${best.food.name} ${fmtQty(best.unit.defaultQty || 1)}${best.unit.label}で +${Math.round(best.p.p)}g`;
+}
+function renderCoachHint(totals, targets) {
+  const el = $('#coachHint');
+  if (!el) return;
+  const remain = targets.energy - totals.energy;
+  const pRemain = targets.protein - totals.protein;
+  const fRatio = totals.fat / (targets.fat || 1);
+  const cRemain = targets.carb - totals.carb;
+  let text = '', cls = '';
+  if (totals.energy <= 0) {
+    text = 'まずは1食記録。前回と同じなら数秒で入ります';
+  } else if (fRatio > 1.2) {
+    text = `脂質が多め（${Math.round(totals.fat)}g / ${Math.round(targets.fat)}g）。残りは脂質ひかえめ`; cls = 'warn';
+  } else if (pRemain >= 20 && remain > 100) {
+    text = `たんぱく質 あと${Math.round(pRemain)}g${proteinSuggestion(pRemain)}`;
+  } else if (targets.dayType === 'training' && cRemain > 50 && remain > 100) {
+    text = `筋トレ日。炭水化物をあと${Math.round(cRemain)}g補給`;
+  } else if (remain < -150) {
+    text = `目標を${fmtNum(-remain)}kcalオーバー。次の食事で調整`; cls = 'warn';
+  } else if (remain <= 150 && remain >= -150) {
+    text = 'いいバランス。今日はこのまま締めればOK'; cls = 'good';
+  } else {
+    text = `あと${fmtNum(remain)}kcal。PFCを見て足すものを選ぶ`;
+  }
+  el.textContent = text;
+  el.className = `coach-hint ${cls}`;
 }
 
 function renderHome() {
@@ -1527,6 +1806,8 @@ function renderHome() {
     ? `筋トレ日（炭水化物 +${(loadCarbCycle().carbDelta) || 0}g）`
     : '筋トレ日として記録する';
 
+  renderCoachHint(totals, targets);
+  renderWeekCard();
   renderHydration();
   renderSyncStatus();
 
@@ -1693,6 +1974,13 @@ function rememberWorkout(record) {
   lsSet(LS_KEYS.WT_SELECTED, state.exoId);
 }
 
+function flashSuccess(btn, doneText) {
+  const original = btn.textContent;
+  btn.classList.add('success');
+  btn.textContent = doneText;
+  setTimeout(() => { btn.classList.remove('success'); btn.textContent = original; }, 1400);
+}
+
 async function saveWorkout() {
   const exo = exoById(state.exoId);
   const btn = $('#saveWorkoutBtn');
@@ -1754,8 +2042,46 @@ function initBodyDefaults() {
   if (state.body.weight == null) state.body.weight = latest && latest.weight ? Number(latest.weight) : 69.0;
   if (state.body.fat == null) state.body.fat = latest && latest.fat ? Number(latest.fat) : 18.0;
 }
+
+function renderBodySpark() {
+  const recs = (lsGet('body_recs_v1', []) || [])
+    .filter((r) => r && Number(r.weight) > 0)
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .slice(-14);
+  const card = $('#sparkCard');
+  if (!card) return;
+  if (recs.length < 2) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const ws = recs.map((r) => Number(r.weight));
+  const min = Math.min(...ws), max = Math.max(...ws);
+  const pad = Math.max(0.3, (max - min) * 0.15);
+  const lo = min - pad, hi = max + pad;
+  const W = 300, H = 56;
+  const pts = ws.map((w, i) => {
+    const x = ws.length === 1 ? W / 2 : (i / (ws.length - 1)) * (W - 8) + 4;
+    const y = H - 6 - ((w - lo) / (hi - lo)) * (H - 12);
+    return [x, y];
+  });
+  const path = pts.map((p) => p.map((n) => n.toFixed(1)).join(',')).join(' ');
+  const last = pts[pts.length - 1];
+  $('#sparkSvg').innerHTML =
+    `<polyline points="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.5" fill="var(--accent)"/>`;
+  const latest = ws[ws.length - 1];
+  const prev = ws[ws.length - 2];
+  const diff = latest - prev;
+  $('#sparkLatest').textContent = `${latest.toFixed(1)}kg`;
+  const diffEl = $('#sparkDiff');
+  diffEl.textContent = diff === 0 ? '±0' : `${diff > 0 ? '+' : ''}${diff.toFixed(1)}`;
+  diffEl.className = `diff ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`;
+  $('#sparkRange').textContent = `${min.toFixed(1)}〜${max.toFixed(1)}kg・${recs.length}回`;
+}
+
 function renderBodyView() {
   initBodyDefaults();
+  if ($('#bodyDateLabel')) $('#bodyDateLabel').textContent = fmtDateLabel(state.date);
+  renderBodySpark();
   $('#bodyWeight').textContent = state.body.weight.toFixed(1);
   $('#bodyFat').textContent = state.body.fat.toFixed(1);
   $('#condRow').innerHTML = CONDITIONS.map((c) =>
@@ -1795,7 +2121,7 @@ async function saveBody() {
       '調子': condLabel(record.cond),
       'メモ': record.memo
     });
-    showToast('からだを記録しました');
+    flashSuccess(btn, '✓ 記録しました');
   } catch (err) {
     if (err && err.code === 'AUTH_REQUIRED') showToast('PIN 設定後に送信されます（ローカル保存済み）');
     else showToast('オフライン保存しました（復帰後に自動送信）');
@@ -1825,11 +2151,13 @@ function showView(name) {
 }
 
 function setDate(dateStr) {
+  if (dateStr > todayStr()) { showToast('未来の日付には記録できません'); return; }
   persistDraftSafe();
   state.date = dateStr;
   const lbl = $('#dateLabel');
   lbl.textContent = fmtDateLabel(dateStr);
   lbl.classList.toggle('is-today', dateStr === todayStr());
+  $('#dateNext').classList.toggle('disabled', dateStr === todayStr());
   if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderHydration(); }
   if (state.view === 'workout') renderWorkoutToday();
   if (state.view === 'body') renderBodyView();
@@ -1882,6 +2210,7 @@ $('#gearBtn').addEventListener('click', openSettings);
 $('#saveSettingsBtn').addEventListener('click', saveSettings);
 $('#settingsBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#settingsBack').classList.remove('show'); });
 $('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#unitBack').classList.remove('show'); });
+$('#qtyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#qtyBack').classList.remove('show'); });
 $('#connCheckLink').addEventListener('click', (e) => { e.preventDefault(); window.open(GAS_URL, '_blank'); });
 
 // ホーム
@@ -1913,11 +2242,11 @@ $('#timingSeg').addEventListener('click', (e) => {
 $('#quickRow').addEventListener('click', (e) => {
   const chip = e.target.closest('[data-quick]');
   if (!chip) return;
-  if (chip.dataset.quick === 'last') {
-    const past = getRecords().filter((r) => r.timingKey === state.timing && r.date < state.date && r.items && r.items.length).slice(-1)[0];
+  if (chip.dataset.quick === 'record') {
+    const past = getRecords().find((r) => r.id === chip.dataset.rid);
     if (!past) return;
     state.items = restoreMealItems(past.items, past.structuredItems);
-    showToast('前回の内容を入れました');
+    showToast(chip.classList.contains('accent') ? '前回の内容を入れました' : '過去の内容を入れました');
   } else {
     const presets = loadPresets()[state.timing] || [];
     const p = presets[Number(chip.dataset.pi)];
@@ -1952,24 +2281,38 @@ $('#mealItems').addEventListener('click', (e) => {
     }
     return;
   }
-  const qty = e.target.closest('.qty-box');
-  if (qty) {
-    const row = qty.closest('.item-row');
-    const index = [...$('#mealItems').querySelectorAll('.item-row')].indexOf(row);
-    const it = state.items[index];
-    if (it && !it.frozen) {
-      const next = window.prompt(`${it.name} の量`, fmtQty(it.qty));
-      if (next != null && next !== '') {
-        it.qty = Math.max(0.01, Number(next) || it.qty);
-        state.items[index] = recalcItem(it);
-        renderItems(); persistDraft();
-      }
-    }
-    return;
-  }
+  const qty = e.target.closest('[data-qty-of]');
+  if (qty) { openQtySheet(Number(qty.dataset.qtyOf)); return; }
   const un = e.target.closest('[data-unit-of]');
   if (un) openUnitSheet(Number(un.dataset.unitOf));
 });
+
+let qtySheetIndex = -1;
+function openQtySheet(i) {
+  const it = state.items[i];
+  if (!it || it.frozen) return;
+  qtySheetIndex = i;
+  $('#qtySheetTitle').textContent = `${it.name} の数量`;
+  $('#qtySheetInput').value = fmtQty(it.qty);
+  $('#qtySheetUnit').textContent = it.unit;
+  $('#qtyBack').classList.add('show');
+  setTimeout(() => $('#qtySheetInput').focus(), 50);
+}
+function applyQtySheet() {
+  const it = state.items[qtySheetIndex];
+  if (!it || it.frozen) return;
+  const next = Number($('#qtySheetInput').value);
+  if (!Number.isFinite(next) || next <= 0) { showToast('数量を数値で入れてください'); return; }
+  it.qty = Number(next.toFixed(2));
+  state.items[qtySheetIndex] = recalcItem(it);
+  $('#qtyBack').classList.remove('show');
+  renderItems();
+  persistDraft();
+}
+
+$('#qtySheetOk').addEventListener('click', applyQtySheet);
+$('#qtySheetInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyQtySheet(); });
+$('#saveUsualBtn').addEventListener('click', saveCurrentAsUsual);
 $('#unitSheetList').addEventListener('click', (e) => {
   const b = e.target.closest('[data-unit]');
   if (!b || unitSheetIndex < 0) return;
