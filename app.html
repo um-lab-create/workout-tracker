@@ -730,6 +730,70 @@ const TIMINGS = {
 };
 const TIMING_KEYS = ['morning', 'lunch', 'dinner', 'snack'];
 const DEFAULT_TARGETS = { energy: 2100, protein: 155, fat: 60, carb: 235 };
+const DEFAULT_PRESETS = {
+  morning: [
+    { id: 'preset-morning-fixed', name: '朝の固定セット', default: true, items: [
+      { foodId: 'bihidas', qty: 3, unit: '大スプーン' },
+      { foodId: 'banana', qty: 1, unit: '本' },
+      { foodId: 'soy-protein', qty: 1, unit: '食分' },
+      { foodId: 'mix-nuts', qty: 10, unit: '粒' },
+      { foodId: 'raisin', qty: 10, unit: '粒' }
+    ] },
+    { id: 'preset-morning-bread', name: '固定セット + パン', items: [
+      { foodId: 'bihidas', qty: 3, unit: '大スプーン' },
+      { foodId: 'banana', qty: 1, unit: '本' },
+      { foodId: 'soy-protein', qty: 1, unit: '食分' },
+      { foodId: 'bread', qty: 1, unit: '枚' },
+      { foodId: 'coffee', qty: 1, unit: '杯' }
+    ] },
+    { id: 'preset-morning-whey', name: '固定セット + ホエイ', items: [
+      { foodId: 'bihidas', qty: 3, unit: '大スプーン' },
+      { foodId: 'banana', qty: 1, unit: '本' },
+      { foodId: 'whey-protein', qty: 1, unit: '食分' },
+      { foodId: 'mix-nuts', qty: 10, unit: '粒' }
+    ] }
+  ],
+  lunch: [
+    { id: 'preset-lunch-oyakodon-bento', name: '自炊 親子丼弁当', default: true, items: [
+      { foodId: 'bento-oyakodon-20260610', qty: 1, unit: '食' }
+    ] },
+    { id: 'preset-lunch-chicken', name: '鶏むね + 白米', items: [
+      { foodId: 'chicken-breast', qty: 200, unit: 'g' },
+      { foodId: 'rice', qty: 1, unit: '膳' },
+      { foodId: 'broccoli', qty: 1, unit: '房' }
+    ] },
+    { id: 'preset-lunch-natto', name: '納豆卵ごはん', items: [
+      { foodId: 'rice', qty: 1, unit: '膳' },
+      { foodId: 'natto', qty: 1, unit: 'パック' },
+      { foodId: 'egg', qty: 1, unit: '個' },
+      { foodId: 'miso-soup', qty: 1, unit: '杯' }
+    ] }
+  ],
+  dinner: [
+    { id: 'preset-dinner-salmon', name: '鮭定食', items: [
+      { foodId: 'salmon', qty: 1, unit: '切れ' },
+      { foodId: 'rice', qty: 1, unit: '膳' },
+      { foodId: 'broccoli', qty: 1, unit: '房' },
+      { foodId: 'miso-soup', qty: 1, unit: '杯' }
+    ] },
+    { id: 'preset-dinner-tofu', name: '豆腐メイン', items: [
+      { foodId: 'tofu', qty: 1, unit: 'パック' },
+      { foodId: 'rice', qty: 0.8, unit: '膳' },
+      { foodId: 'kimchi', qty: 1, unit: '皿' },
+      { foodId: 'egg', qty: 1, unit: '個' }
+    ] }
+  ],
+  snack: [
+    { id: 'preset-snack-protein', name: 'プロテイン補食', items: [
+      { foodId: 'whey-protein', qty: 1, unit: '食分' },
+      { foodId: 'banana', qty: 1, unit: '本' }
+    ] },
+    { id: 'preset-snack-light', name: '軽い間食', items: [
+      { foodId: 'prod-kagome-yasai-ichinichi', qty: 1, unit: '本' },
+      { foodId: 'protein-bar', qty: 1, unit: '本' }
+    ] }
+  ]
+};
 
 const state = {
   view: 'home',
@@ -950,9 +1014,28 @@ function loadMealFor(dateStr, timingKey) {
 }
 
 // ---------------- プリセット / 頻出食材 ----------------
+function mergeDefaultPresets(stored) {
+  const merged = {};
+  TIMING_KEYS.forEach((tk) => {
+    const defaults = (DEFAULT_PRESETS[tk] || []).filter((p) => p && p.id);
+    const custom = (stored && Array.isArray(stored[tk])) ? stored[tk].filter((p) => p && p.id) : [];
+    const customById = new Map(custom.map((preset) => [preset.id, preset]));
+    const seen = new Set();
+    merged[tk] = defaults.map((preset) => {
+      seen.add(preset.id);
+      return customById.get(preset.id) || preset;
+    });
+    custom.forEach((preset) => {
+      if (seen.has(preset.id)) return;
+      seen.add(preset.id);
+      merged[tk].push(preset);
+    });
+  });
+  return merged;
+}
 function loadPresets() {
   const stored = lsGet(LS_KEYS.MEAL_PRESET, null);
-  return (stored && typeof stored === 'object') ? stored : {};
+  return mergeDefaultPresets(stored && typeof stored === 'object' ? stored : {});
 }
 function frequentFoods(timingKey, limit) {
   const counts = {};
