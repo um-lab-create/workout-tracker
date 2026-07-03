@@ -37,7 +37,7 @@
   --tabbar-h: 62px;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; width: 100%; overflow-x: hidden; }
 body {
   background: var(--bg);
   color: var(--ink);
@@ -46,7 +46,7 @@ body {
   line-height: 1.45;
   overscroll-behavior-y: none;
 }
-button { font-family: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button { font-family: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; min-width: 0; }
 input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 */ color: var(--ink); }
 
 /* ---------- ヘッダー ---------- */
@@ -57,7 +57,7 @@ input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 *
   background: rgba(255, 248, 239, .92);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.brand { font-size: 15px; font-weight: 700; letter-spacing: .04em; margin-right: auto; display: flex; align-items: center; gap: 7px; }
+.brand { font-size: 15px; font-weight: 700; letter-spacing: .04em; margin-right: auto; display: flex; align-items: center; gap: 7px; flex: 1 1 auto; min-width: 0; white-space: nowrap; }
 .brand .logo {
   width: 26px; height: 26px; border-radius: 8px;
   background: linear-gradient(135deg, var(--accent), #ffb25e);
@@ -71,7 +71,7 @@ input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 *
 }
 .date-nav .arrow:active { background: var(--accent-soft); }
 .date-label {
-  min-width: 96px; height: 36px; padding: 0 10px;
+  min-width: 82px; max-width: 104px; height: 36px; padding: 0 8px;
   border-radius: 12px; background: var(--card); box-shadow: var(--shadow);
   font-size: 13.5px; font-weight: 700; text-align: center;
 }
@@ -80,7 +80,7 @@ input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 *
 .gear-btn:active { background: var(--accent-soft); }
 
 /* ---------- レイアウト ---------- */
-main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); max-width: 560px; margin: 0 auto; }
+main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); max-width: 560px; margin: 0 auto; overflow-x: hidden; }
 .view { display: none; animation: fadeUp .18s ease; }
 .view.active { display: block; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -134,7 +134,7 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
 .train-chip.on .dot { background: var(--accent); }
 
 /* ---------- ホーム: 食事グリッド ---------- */
-.meal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.meal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .meal-cell {
   background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
   padding: 10px 4px 9px; text-align: center; min-height: 74px;
@@ -152,7 +152,7 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
 .meal-cell .lbl { font-size: 9.5px; color: var(--muted); }
 
 /* ---------- ホーム: 運動/からだ ---------- */
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .mini-card { text-align: left; display: flex; flex-direction: column; gap: 4px; min-height: 86px; transition: transform .08s ease; }
 .mini-card:active { transform: scale(.97); }
 .mini-card .head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -164,7 +164,7 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
 
 /* ---------- セグメント（食事タイミング） ---------- */
 .seg {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
   background: #f6ecdc; border-radius: 16px; padding: 4px; margin-top: 6px;
 }
 .seg button {
@@ -270,7 +270,7 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
 .primary-btn.full { width: 100%; margin-top: 12px; }
 
 /* ---------- 運動 ---------- */
-.exo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px; }
+.exo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
 .exo-chip {
   background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
   padding: 9px 2px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -301,7 +301,7 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
 .body-field .stepper button { width: 42px; height: 42px; }
 .body-field .fv { min-width: 88px; text-align: center; font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .body-field .fv small { font-size: 11px; color: var(--muted); font-weight: 700; }
-.cond-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 2px; }
+.cond-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 8px 0 2px; }
 .cond-btn {
   height: 46px; border-radius: 13px; background: var(--bg);
   font-size: 10.5px; font-weight: 700; color: var(--muted);
@@ -362,13 +362,62 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
   width: 120px; border: 0; background: var(--card); border-radius: 11px;
   padding: 9px 11px; outline: none; box-shadow: var(--shadow); text-align: center;
 }
-.link-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.link-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .link-grid a {
   display: block; background: var(--card); border-radius: 13px; box-shadow: var(--shadow);
   padding: 11px 12px; font-size: 12.5px; font-weight: 700; color: var(--ink); text-decoration: none;
 }
 .link-grid a span { display: block; font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 1px; }
 .sync-note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+.status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.status-card {
+  background: var(--card); border-radius: 16px; box-shadow: var(--shadow);
+  padding: 10px 12px; text-align: left; min-height: 66px;
+}
+.status-card .cap { display:block; font-size: 10.5px; color: var(--muted); font-weight: 800; letter-spacing: .06em; }
+.status-card .val { display:block; font-size: 18px; font-weight: 900; margin-top: 2px; }
+.status-card .sub { display:block; font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+.hydration-card, .dining-card {
+  margin-top: 8px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px;
+}
+.mini-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.mini-head b { font-size: 13.5px; }
+.mini-head span { font-size: 11px; color: var(--muted); font-weight: 700; }
+.water-track { height: 8px; border-radius: 6px; background:#f4ead9; overflow:hidden; margin: 8px 0 9px; }
+.water-track i { display:block; height:100%; width:0%; background:var(--blue); border-radius: 6px; transition: width .2s ease; }
+.chip-line { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding-bottom:1px; }
+.chip-line::-webkit-scrollbar { display:none; }
+.mini-chip {
+  flex:none; height:34px; padding:0 10px; border-radius:12px; background:var(--bg);
+  font-size:12px; font-weight:800; color:var(--ink);
+}
+.mini-chip.warn { background: var(--red-soft); color: var(--red); }
+.dining-card.active { outline: 2px solid var(--accent); background: linear-gradient(160deg, #fff 60%, var(--accent-soft)); }
+.dining-form { display:none; gap:7px; margin-top:9px; }
+.dining-card.active .dining-form { display:grid; }
+.text-input {
+  width:100%; border:0; background:var(--bg); border-radius:13px; padding:10px 12px; outline:none;
+}
+.review-chip {
+  height:28px; padding:0 8px; border-radius:10px; background:var(--bg);
+  font-size:10.5px; font-weight:800; color:var(--muted); flex:none;
+}
+.review-chip.on { background:var(--red-soft); color:var(--red); }
+.action-row { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; margin-top:10px; }
+.secondary-btn {
+  height:50px; border-radius:17px; background:var(--card); box-shadow:var(--shadow);
+  font-size:14px; font-weight:800; color:var(--accent-deep);
+}
+.draft-badge {
+  display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px;
+  border-radius:10px; padding:0 6px; background:var(--accent); color:white; font-size:11px; font-weight:900;
+}
+.deep-link-row { display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-top:8px; }
+.deep-link-row a {
+  display:block; text-align:center; text-decoration:none; background:var(--bg); border-radius:12px;
+  color:var(--accent-deep); font-size:11px; font-weight:800; padding:9px 4px;
+}
 
 /* 単位切替シート */
 .unit-sheet-list { display: grid; gap: 6px; }
@@ -421,6 +470,15 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
       <button class="train-chip" id="trainToggle"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
     </div>
 
+    <div class="status-grid">
+      <button class="status-card" id="homeWaterCard">
+        <span class="cap">水分</span><span class="val" id="homeWaterVal">0.0L</span><span class="sub" id="homeWaterSub">目標 1.2L</span>
+      </button>
+      <button class="status-card" id="homeSyncCard">
+        <span class="cap">送信</span><span class="val" id="homeSyncVal">0件</span><span class="sub" id="homeSyncSub">待機なし</span>
+      </button>
+    </div>
+
     <div class="section-label">食事をつける</div>
     <div class="meal-grid" id="homeMealGrid"></div>
 
@@ -443,6 +501,32 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
   <section class="view" id="view-meal">
     <div class="seg" id="timingSeg"></div>
     <div class="quick-row" id="quickRow"></div>
+
+    <section class="hydration-card" id="hydrationCard">
+      <div class="mini-head"><b>水分</b><span id="waterLabel">0.0 / 1.2L</span></div>
+      <div class="water-track"><i id="waterFill"></i></div>
+      <div class="chip-line">
+        <button class="mini-chip" data-water="200" data-water-label="コップ">コップ</button>
+        <button class="mini-chip" data-water="300" data-water-label="マグ">マグ</button>
+        <button class="mini-chip" data-water="500" data-water-label="ペット">500ml</button>
+        <button class="mini-chip" data-water="180" data-water-label="汁物">汁物</button>
+        <button class="mini-chip" data-water="300" data-water-label="プロテイン">プロテイン</button>
+        <button class="mini-chip" id="sendWaterBtn">水分送信</button>
+        <button class="mini-chip warn" id="undoWaterBtn">戻す</button>
+      </div>
+    </section>
+
+    <section class="dining-card" id="diningCard">
+      <div class="mini-head">
+        <b>外食</b>
+        <button class="mini-chip" id="diningToggleBtn">外食した</button>
+      </div>
+      <div class="dining-form">
+        <input class="text-input" id="diningRestaurant" placeholder="店名">
+        <input class="text-input" id="diningMapUrl" placeholder="GoogleマップURL（任意）">
+        <textarea class="memo-input" id="diningText" placeholder="食べたもの。後でCodexが未計算を推定"></textarea>
+      </div>
+    </section>
 
     <div class="card items-card">
       <div id="mealItems"></div>
@@ -478,7 +562,10 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
     <div class="card" style="margin-top:10px">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px" id="exoTitle"></div>
       <div id="exoFields"></div>
-      <button class="primary-btn full" id="saveWorkoutBtn">この内容で記録する</button>
+      <div class="action-row">
+        <button class="secondary-btn" id="saveWorkoutBtn">追加</button>
+        <button class="primary-btn" id="sendWorkoutBtn">送信 <span class="draft-badge" id="workoutDraftCount">0</span></button>
+      </div>
     </div>
     <div class="section-label">この日の記録</div>
     <div class="card" style="padding:6px 14px" id="workoutTodayCard">
@@ -552,10 +639,14 @@ main { padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16
     <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
     <div class="section-label" style="margin-top:16px">くわしい画面（従来ページ）</div>
     <div class="link-grid">
+      <a href="meal.html?panel=product">商品DB<span>市販品・バーコード登録</span></a>
+      <a href="meal.html?panel=custom">独自食材<span>未登録食材を追加</span></a>
+      <a href="meal.html?panel=recipe">自作メニュー<span>作り置き・弁当</span></a>
       <a href="day.html">栄養ダッシュボード<span>day.html — 詳細な栄養分析</span></a>
-      <a href="meal.html">食事の詳細入力<span>meal.html — 商品DB・自作メニュー</span></a>
-      <a href="index.html">コックピット<span>index.html — 従来ホーム</span></a>
+      <a href="index.html">コックピット<span>従来ホーム・管理</span></a>
       <a href="health-import.html">ヘルスケア取込<span>Apple Health XML</span></a>
+      <a href="body.html">体組成手入力<span>詳細な体組成記録</span></a>
+      <a href="index.html#actions">管理操作<span>体組成取込・集計更新</span></a>
     </div>
     <div class="sync-note" id="connCheckNote">送信は Apps Script に届くまで数秒かかります。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続成功！」と表示されればOK）。</div>
   </div>
@@ -648,7 +739,9 @@ const state = {
   editingRecordId: null,
   exoId: lsGet(LS_KEYS.WT_SELECTED, 'shoulder'),
   exoValues: {},
-  body: { weight: null, fat: null, cond: 3 }
+  body: { weight: null, fat: null, cond: 3 },
+  diningOut: { enabled: false, restaurantName: '', googleMapUrl: '', diningText: '' },
+  workoutDrafts: lsGet('wt:draftQueue:v1', [])
 };
 
 function autoTiming() {
@@ -662,18 +755,51 @@ function autoTiming() {
 
 // ---------------- 食材カタログ ----------------
 // BASE_FOODS + BASE_PRODUCTS + 独自食材 + 独自商品 を1つの lookup に統合。
-// （自作メニューは旧 meal.html の管理画面で編集。検索対象は次版で対応）
+// 自作メニューは旧 meal.html で編集し、app.html 側では検索対象として統合する。
 let foodLookup = {};
 let allFoods = [];
+function recipeToCatalogFood(recipe) {
+  if (!recipe || !recipe.id || !recipe.name || !Array.isArray(recipe.items)) return null;
+  const servings = Math.max(1, Number(recipe.servings) || 1);
+  const total = recipe.items.reduce((acc, item) => {
+    const food = foodLookup[item.foodId];
+    if (!food) return acc;
+    const p = calcFoodPortion(food, Number(item.qty) || 0, item.unit);
+    acc.kcal += p.kcal || 0; acc.p += p.p || 0; acc.f += p.f || 0; acc.c += p.c || 0;
+    return acc;
+  }, { kcal: 0, p: 0, f: 0, c: 0 });
+  return {
+    id: recipe.id,
+    name: recipe.name,
+    category: recipe.timingKey || '共通',
+    entryType: 'recipe',
+    mode: 'perUnit',
+    unitLabel: '食',
+    macrosPerUnit: {
+      kcal: total.kcal / servings,
+      p: total.p / servings,
+      f: total.f / servings,
+      c: total.c / servings
+    },
+    defaultQty: 1,
+    step: 0.5,
+    keywords: ['自作メニュー', 'メニュー', recipe.name]
+  };
+}
 function buildCatalog() {
   const customFoods = lsGet(LS_KEYS.MEAL_CUSTOM_FOODS, []) || [];
   const userProducts = lsGet(LS_KEYS.MEAL_PRODUCTS, []) || [];
-  allFoods = []
+  const baseFoods = []
     .concat(CATALOG.BASE_FOODS || [])
     .concat(CATALOG.BASE_PRODUCTS || [])
     .concat(Array.isArray(customFoods) ? customFoods : [])
     .concat(Array.isArray(userProducts) ? userProducts : [])
     .filter((f) => f && f.id && f.name);
+  foodLookup = {};
+  baseFoods.forEach((f) => { foodLookup[f.id] = f; });
+  const recipes = lsGet(LS_KEYS.MEAL_RECIPES, []) || [];
+  const recipeFoods = (Array.isArray(recipes) ? recipes : []).map(recipeToCatalogFood).filter(Boolean);
+  allFoods = baseFoods.concat(recipeFoods);
   foodLookup = {};
   allFoods.forEach((f) => { foodLookup[f.id] = f; });
 }
@@ -791,7 +917,7 @@ function persistDraft() {
     structuredItems: state.items.map(buildStructuredItem),
     nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
     note: $('#mealNote').value,
-    diningOut: blankDiningOut(),
+    diningOut: normalizeDiningOut(state.diningOut),
     source: 'manual',
     defaultPresetId: '',
     autoDefault: false
@@ -806,17 +932,21 @@ function loadMealFor(dateStr, timingKey) {
   const saved = findRecord(dateStr, timingKey);
   state.editingRecordId = saved ? saved.id : null;
   const draft = drafts[key];
-  if (draft && ((draft.items && draft.items.length) || draft.note)) {
+  if (draft && ((draft.items && draft.items.length) || draft.note || normalizeDiningOut(draft.diningOut).enabled)) {
     state.items = restoreMealItems(draft.items, draft.structuredItems);
     $('#mealNote').value = draft.note || '';
+    state.diningOut = normalizeDiningOut(draft.diningOut);
   } else if (saved) {
     state.items = restoreMealItems(saved.items, saved.structuredItems);
     $('#mealNote').value = saved.note || '';
+    state.diningOut = normalizeDiningOut(saved);
   } else {
     state.items = [];
     $('#mealNote').value = '';
+    state.diningOut = blankDiningOut();
   }
   $('#memoDetails').open = Boolean($('#mealNote').value);
+  renderDiningOut();
 }
 
 // ---------------- プリセット / 頻出食材 ----------------
@@ -883,6 +1013,7 @@ function renderItems() {
         <div class="item-name">${escapeHtml(it.name)}</div>
         <div class="item-kcal">${fmtNum(it.kcal)} kcal　P${it.p.toFixed(1)} F${it.f.toFixed(1)} C${it.c.toFixed(1)}</div>
       </div>
+      <button class="review-chip ${it.pendingReview ? 'on' : ''}" data-review="${i}">${it.pendingReview ? '要確認' : '確認'}</button>
       <div class="stepper">
         <button data-step="-1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>−</button>
         <span class="qty-box"><span class="q">${fmtQty(it.qty)}</span>${unitHtml}</span>
@@ -897,7 +1028,7 @@ function renderItems() {
 function renderTotals() {
   const t = mealTotalsFor(state.items);
   $('#totKcal').textContent = fmtNum(t.kcal);
-  $('#totPfc').textContent = `P${Math.round(t.p)} / F${Math.round(t.f)} / C${Math.round(t.c)}`;
+  $('#totPfc').textContent = `P${Math.round(t.p)} / F${Math.round(t.f)} / C${Math.round(t.c)}${t.review ? ` / 要確認${t.review}` : ''}`;
   $('#saveMealBtn').textContent = state.editingRecordId ? '更新する' : '記録する';
 }
 
@@ -929,7 +1060,12 @@ function renderSearch() {
       <span class="add">＋</span>
     </button>`;
   }).join('');
-  box.innerHTML = `<div class="hint-label">${label}</div>${rows}`;
+  const emptyLinks = !list.length ? `<div class="deep-link-row">
+    <a href="meal.html?panel=product">商品登録</a>
+    <a href="meal.html?panel=custom">食材登録</a>
+    <a href="meal.html?panel=recipe">メニュー</a>
+  </div>` : '';
+  box.innerHTML = `<div class="hint-label">${label}</div>${rows}${emptyLinks}`;
 }
 
 function addFoodById(id) {
@@ -986,7 +1122,7 @@ function summarizeItems(items) {
   return items.map((it) => `${it.name} ${fmtQty(it.qty)}${it.unit}`).join(' / ');
 }
 function buildMealDetailRows(record) {
-  return state.items.map((it) => ({
+  const rows = state.items.map((it) => ({
     date: record.date,
     timing: record.timing,
     timingKey: record.timingKey,
@@ -998,13 +1134,33 @@ function buildMealDetailRows(record) {
     grams: it.grams == null ? '' : Math.round((Number(it.grams) || 0) * 10) / 10,
     pendingReview: Boolean(it.pendingReview)
   }));
+  if (record.diningOut) {
+    rows.push({
+      date: record.date,
+      timing: record.timing,
+      timingKey: record.timingKey,
+      recordId: record.id,
+      foodId: 'dining-out-pending',
+      name: record.restaurantName ? `外食: ${record.restaurantName}` : '外食未計算',
+      qty: 1,
+      unit: '件',
+      grams: '',
+      pendingReview: true,
+      diningOut: true,
+      calcStatus: '未計算',
+      note: record.diningText || record.note || ''
+    });
+  }
+  return rows;
 }
 
 let isSavingMeal = false;
 async function saveMeal() {
   if (isSavingMeal) return;
+  syncDiningFromInputs();
   const note = $('#mealNote').value.trim();
-  if (!state.items.length && !note) { showToast('食事内容を入れてください'); return; }
+  const dining = normalizeDiningOut(state.diningOut);
+  if (!state.items.length && !note && !dining.enabled) { showToast('食事内容を入れてください'); return; }
   isSavingMeal = true;
   const btn = $('#saveMealBtn');
   btn.disabled = true;
@@ -1014,6 +1170,7 @@ async function saveMeal() {
   const saved = findRecord(state.date, state.timing);
   const memoParts = [];
   if (state.items.length) memoParts.push(summarizeItems(state.items));
+  if (dining.enabled) memoParts.push(`外食: ${[dining.restaurantName, dining.diningText].filter(Boolean).join(' / ') || '未計算'}`);
   if (note) memoParts.push(`メモ: ${note}`);
 
   const record = {
@@ -1027,17 +1184,17 @@ async function saveMeal() {
     items: toStoredMealItems(state.items),
     structuredItems: state.items.map(buildStructuredItem),
     nutritionSchemaVersion: NUTRITION_DB ? NUTRITION_DB.VERSION : 'legacy',
-    diningOut: false,
-    restaurantName: '',
-    googleMapUrl: '',
-    diningText: '',
-    calcStatus: '',
+    diningOut: dining.enabled,
+    restaurantName: dining.restaurantName,
+    googleMapUrl: dining.googleMapUrl,
+    diningText: dining.diningText,
+    calcStatus: dining.enabled ? '未計算' : '',
     calcMemo: '',
     kcal: Math.round(totals.kcal),
     protein: Math.round(totals.p),
     fat: Math.round(totals.f),
     carb: Math.round(totals.c),
-    reviewCount: totals.review,
+    reviewCount: totals.review + (dining.enabled ? 1 : 0),
     synced: false,
     createdAt: (saved && saved.createdAt) || new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -1062,13 +1219,129 @@ async function saveMeal() {
     if (err && err.code === 'AUTH_REQUIRED') showToast('PIN を設定してから送信してください（ローカル保存済み）');
     else showToast('オフライン保存しました（復帰後に自動送信）');
   }
-  if (sent) showToast(`${timing.title}を記録しました`);
+  if (sent) showToast(`${timing.title}の送信要求を出しました`);
   haptic([8, 24, 8]);
 
   isSavingMeal = false;
   btn.disabled = false;
   renderItems();
   renderHome();
+}
+
+// ---------------- 外食 / 水分 / 送信状態 ----------------
+function normalizeDiningOut(raw) {
+  if (!raw) return blankDiningOut();
+  const enabled = Boolean(raw.enabled || raw.diningOut || raw.restaurantName || raw.diningText);
+  return {
+    enabled,
+    restaurantName: String(raw.restaurantName || '').trim(),
+    googleMapUrl: String(raw.googleMapUrl || '').trim(),
+    diningText: String(raw.diningText || '').trim()
+  };
+}
+function syncDiningFromInputs() {
+  if (!$('#diningRestaurant')) return;
+  state.diningOut = normalizeDiningOut({
+    enabled: state.diningOut.enabled,
+    restaurantName: $('#diningRestaurant').value,
+    googleMapUrl: $('#diningMapUrl').value,
+    diningText: $('#diningText').value
+  });
+  renderDiningOut(false);
+  persistDraftSafe();
+}
+function renderDiningOut(writeInputs = true) {
+  const dining = normalizeDiningOut(state.diningOut);
+  state.diningOut = dining;
+  const card = $('#diningCard');
+  if (!card) return;
+  card.classList.toggle('active', dining.enabled);
+  $('#diningToggleBtn').textContent = dining.enabled ? '外食中' : '外食した';
+  if (writeInputs) {
+    $('#diningRestaurant').value = dining.restaurantName;
+    $('#diningMapUrl').value = dining.googleMapUrl;
+    $('#diningText').value = dining.diningText;
+  }
+}
+function hydrationForDate(dateStr = state.date) {
+  const all = lsGet(LS_KEYS.HYDRATION_RECORDS, {}) || {};
+  return all[dateStr] || { entries: [], synced: false };
+}
+function saveHydration(dateStr, rec) {
+  const all = lsGet(LS_KEYS.HYDRATION_RECORDS, {}) || {};
+  all[dateStr] = rec;
+  lsSet(LS_KEYS.HYDRATION_RECORDS, all);
+}
+function hydrationTarget(dateStr = state.date) {
+  let training = false;
+  try { training = isTrainingDay(dateStr); } catch (e) {}
+  return training ? 1700 : 1200;
+}
+function hydrationTotal(rec = hydrationForDate()) {
+  return (rec.entries || []).reduce((sum, e) => sum + (Number(e.ml) || 0), 0);
+}
+function renderHydration() {
+  const rec = hydrationForDate();
+  const total = hydrationTotal(rec);
+  const target = hydrationTarget();
+  const liters = (total / 1000).toFixed(1);
+  const targetL = (target / 1000).toFixed(1);
+  if ($('#waterLabel')) $('#waterLabel').textContent = `${liters} / ${targetL}L`;
+  if ($('#waterFill')) $('#waterFill').style.width = `${Math.min(100, total / target * 100)}%`;
+  if ($('#homeWaterVal')) $('#homeWaterVal').textContent = `${liters}L`;
+  if ($('#homeWaterSub')) $('#homeWaterSub').textContent = `目標 ${targetL}L${rec.synced ? ' / 送信要求済み' : ''}`;
+}
+function addHydration(ml, label) {
+  const rec = hydrationForDate();
+  rec.entries = rec.entries || [];
+  rec.entries.push({ ml: Number(ml) || 0, label: label || '水分', at: Date.now() });
+  rec.synced = false;
+  saveHydration(state.date, rec);
+  renderHydration();
+  renderHome();
+  showToast(`${label || '水分'} ${ml}ml を追加しました`);
+}
+function undoHydration() {
+  const rec = hydrationForDate();
+  if (!rec.entries || !rec.entries.length) { showToast('戻す水分記録がありません'); return; }
+  rec.entries.pop();
+  rec.synced = false;
+  saveHydration(state.date, rec);
+  renderHydration();
+  renderHome();
+  showToast('水分記録を戻しました');
+}
+async function sendHydration() {
+  const rec = hydrationForDate();
+  const total = hydrationTotal(rec);
+  if (!total) return;
+  await postToSheet({
+    sheet: '水分ログ',
+    date: state.date,
+    totalMl: total,
+    liters: Math.round(total / 100) / 10,
+    targetMl: hydrationTarget(),
+    entries: (rec.entries || []).map((e) => `${e.label}:${e.ml}ml`).join(' / '),
+    note: '飲み物・汁物・牛乳などの経口水分量。食事とは別管理。'
+  });
+  rec.synced = true;
+  saveHydration(state.date, rec);
+}
+function pendingSendCount() {
+  return (lsGet(LS_KEYS.PENDING_QUEUE, []) || []).length
+    + (lsGet(LS_KEYS.WT_QUEUE, []) || []).length
+    + (state.workoutDrafts || []).length;
+}
+function renderSyncStatus() {
+  const pending = pendingSendCount();
+  if (!$('#homeSyncVal')) return;
+  $('#homeSyncVal').textContent = `${pending}件`;
+  $('#homeSyncSub').textContent = pending ? '未送信/下書きあり' : '待機なし';
+}
+async function retryPending() {
+  try { await flushPendingQueue(); } catch (e) {}
+  renderSyncStatus();
+  showToast('再送を試しました');
 }
 
 // ---------------- 目標値・スコア（ホーム） ----------------
@@ -1171,6 +1444,9 @@ function renderHome() {
     ? `筋トレ日（炭水化物 +${(loadCarbCycle().carbDelta) || 0}g）`
     : '筋トレ日として記録する';
 
+  renderHydration();
+  renderSyncStatus();
+
   // 食事グリッド
   $('#homeMealGrid').innerHTML = TIMING_KEYS.map((tk) => {
     const info = perTiming[tk];
@@ -1187,10 +1463,11 @@ function renderHome() {
   // 運動サマリー
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
   const todayLogs = history.filter((h) => h['日付'] === state.date);
-  if (todayLogs.length) {
+  const draftCount = (state.workoutDrafts || []).filter((h) => h['日付'] === state.date).length;
+  if (todayLogs.length || draftCount) {
     const names = [...new Set(todayLogs.map((h) => h['種目']))];
     $('#homeWorkoutBig').textContent = `${todayLogs.length}件`;
-    $('#homeWorkoutSub').textContent = names.slice(0, 3).join('・');
+    $('#homeWorkoutSub').textContent = `${names.slice(0, 3).join('・') || '送信予定'}${draftCount ? ` / 送信予定${draftCount}` : ''}`;
   } else {
     $('#homeWorkoutBig').textContent = '未記録';
     $('#homeWorkoutSub').textContent = 'タップして記録';
@@ -1280,8 +1557,10 @@ function renderExoCard() {
 function renderWorkoutToday() {
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
   const logs = history.filter((h) => h['日付'] === state.date);
-  $('#workoutEmpty').style.display = logs.length ? 'none' : '';
-  $('#workoutTodayList').innerHTML = logs.map((h) => {
+  const drafts = (state.workoutDrafts || []).filter((h) => h['日付'] === state.date);
+  $('#workoutEmpty').style.display = (logs.length || drafts.length) ? 'none' : '';
+  $('#workoutDraftCount').textContent = String((state.workoutDrafts || []).length);
+  const renderRow = (h, draft = false) => {
     const exo = EXERCISES.find((e) => e.name === h['種目']) || { kanji: '運', color: '#b9ae97' };
     const parts = [];
     if (h['重量']) parts.push(`${h['重量']}kg`);
@@ -1292,16 +1571,17 @@ function renderWorkoutToday() {
     const time = h._ts ? new Date(h._ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
     return `<div class="log-row">
       <span class="kj2" style="background:${exo.color}">${exo.kanji}</span>
-      <span class="desc"><b>${escapeHtml(h['種目'] || '')}</b>　${parts.join(' ')}</span>
-      <span class="tm">${time}</span>
+      <span class="desc"><b>${escapeHtml(h['種目'] || '')}</b>　${parts.join(' ')}${draft ? ' / 送信予定' : ''}</span>
+      <span class="tm">${draft ? '未送信' : time}</span>
     </div>`;
-  }).join('');
+  };
+  $('#workoutTodayList').innerHTML = drafts.map((h) => renderRow(h, true)).concat(logs.map((h) => renderRow(h, false))).join('');
 }
 
-async function saveWorkout() {
+function buildWorkoutRecord() {
   const exo = exoById(state.exoId);
   const v = state.exoValues;
-  const record = {
+  return {
     sheet: '筋トレログ',
     日付: state.date,
     種目: exo.name,
@@ -1313,28 +1593,63 @@ async function saveWorkout() {
     速さ: exo.id === 'run' ? calculateSpeed(v) : '',
     強度: exo.id === 'run' ? (v.intensity ?? '') : exo.id === 'abs' ? (v.difficulty ?? '') : '',
     傾斜: exo.id === 'run' ? (v.incline ?? 0) : '',
-    負荷: exo.id === 'run' ? calculateRunLoad(v) : exo.id === 'abs' ? calculateAbsLoad(v) : ''
+    負荷: exo.id === 'run' ? calculateRunLoad(v) : exo.id === 'abs' ? calculateAbsLoad(v) : '',
+    _ts: Date.now(),
+    _exerciseId: exo.id,
+    _values: { ...v }
   };
-  const btn = $('#saveWorkoutBtn');
-  btn.disabled = true;
-  let sent = true;
-  try {
-    await postToSheet(record);
-  } catch (err) {
-    sent = false;
-    if (err && err.code === 'AUTH_REQUIRED') { showToast('PIN を設定してから送信してください'); btn.disabled = false; return; }
-  }
-  // lastValues / history 保存（旧 workout.html と同キー）
+}
+
+function rememberWorkout(record) {
   const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
-  last[exo.id] = { ...v };
+  last[record._exerciseId] = { ...(record._values || state.exoValues) };
   lsSet(LS_KEYS.WT_LAST, last);
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
-  history.unshift({ ...record, _ts: Date.now(), _exerciseId: exo.id, _queued: !sent });
+  history.unshift(record);
   lsSet(LS_KEYS.WT_HISTORY, history.slice(0, 80));
   lsSet(LS_KEYS.WT_SELECTED, state.exoId);
+}
 
-  showToast(sent ? `${exo.short}を記録しました` : 'オフライン保存しました（復帰後に自動送信）');
+async function saveWorkout() {
+  const exo = exoById(state.exoId);
+  const btn = $('#saveWorkoutBtn');
+  btn.disabled = true;
+  state.workoutDrafts.push({ ...buildWorkoutRecord(), _draft: true });
+  lsSet('wt:draftQueue:v1', state.workoutDrafts);
+  const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
+  last[exo.id] = { ...state.exoValues };
+  lsSet(LS_KEYS.WT_LAST, last);
+  showToast(`${exo.short}を送信予定に追加しました`);
   haptic([8, 24, 8]);
+  btn.disabled = false;
+  renderWorkoutToday();
+  renderHome();
+}
+
+async function sendWorkoutDrafts() {
+  if (!state.workoutDrafts.length) { showToast('送信予定がありません'); return; }
+  const btn = $('#sendWorkoutBtn');
+  btn.disabled = true;
+  const drafts = state.workoutDrafts.slice();
+  const sent = [];
+  const queued = [];
+  for (const item of drafts) {
+    try {
+      await postToSheet(item);
+      sent.push({ ...item, _draft: false, _queued: !navigator.onLine, _ts: Date.now() });
+    } catch (err) {
+      if (err && err.code === 'AUTH_REQUIRED') { showToast('PIN を設定してから送信してください'); btn.disabled = false; return; }
+      queued.push({ ...item, _queuedAt: Date.now() });
+    }
+  }
+  sent.forEach(rememberWorkout);
+  if (queued.length) {
+    const q = lsGet(LS_KEYS.WT_QUEUE, []) || [];
+    lsSet(LS_KEYS.WT_QUEUE, q.concat(queued));
+  }
+  state.workoutDrafts = [];
+  lsSet('wt:draftQueue:v1', state.workoutDrafts);
+  showToast(`${sent.length}件の送信要求を出しました`);
   btn.disabled = false;
   renderWorkoutToday();
   renderHome();
@@ -1419,7 +1734,7 @@ function showView(name) {
   if (name === 'meal') {
     // 他タブで日付が変わっていたら現在日の内容を読み直す
     if (state.mealLoadedFor !== `${state.date}:${state.timing}`) loadMealFor(state.date, state.timing);
-    renderTimingSeg(); renderQuickRow(); renderItems(); renderSearch();
+    renderTimingSeg(); renderQuickRow(); renderItems(); renderSearch(); renderHydration(); renderDiningOut();
   }
   if (name === 'workout') { state.exoValues = loadExoValues(exoById(state.exoId)); renderExoGrid(); renderExoCard(); renderWorkoutToday(); }
   if (name === 'body') renderBodyView();
@@ -1432,7 +1747,7 @@ function setDate(dateStr) {
   const lbl = $('#dateLabel');
   lbl.textContent = fmtDateLabel(dateStr);
   lbl.classList.toggle('is-today', dateStr === todayStr());
-  if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); }
+  if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderHydration(); }
   if (state.view === 'workout') renderWorkoutToday();
   if (state.view === 'body') renderBodyView();
   renderHome();
@@ -1504,6 +1819,8 @@ $('#homeMealGrid').addEventListener('click', (e) => {
 });
 $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
 $('#homeBodyCard').addEventListener('click', () => showView('body'));
+$('#homeWaterCard').addEventListener('click', () => showView('meal'));
+$('#homeSyncCard').addEventListener('click', retryPending);
 
 // 食事
 $('#timingSeg').addEventListener('click', (e) => {
@@ -1543,6 +1860,30 @@ $('#mealItems').addEventListener('click', (e) => {
     renderItems(); persistDraft(); haptic(8);
     return;
   }
+  const review = e.target.closest('[data-review]');
+  if (review) {
+    const i = Number(review.dataset.review);
+    if (state.items[i]) {
+      state.items[i].pendingReview = !state.items[i].pendingReview;
+      renderItems(); persistDraft(); haptic(6);
+    }
+    return;
+  }
+  const qty = e.target.closest('.qty-box');
+  if (qty) {
+    const row = qty.closest('.item-row');
+    const index = [...$('#mealItems').querySelectorAll('.item-row')].indexOf(row);
+    const it = state.items[index];
+    if (it && !it.frozen) {
+      const next = window.prompt(`${it.name} の量`, fmtQty(it.qty));
+      if (next != null && next !== '') {
+        it.qty = Math.max(0.01, Number(next) || it.qty);
+        state.items[index] = recalcItem(it);
+        renderItems(); persistDraft();
+      }
+    }
+    return;
+  }
   const un = e.target.closest('[data-unit-of]');
   if (un) openUnitSheet(Number(un.dataset.unitOf));
 });
@@ -1572,7 +1913,28 @@ $('#searchResults').addEventListener('click', (e) => {
   if (b) addFoodById(b.dataset.add);
 });
 $('#mealNote').addEventListener('input', () => persistDraft());
-$('#saveMealBtn').addEventListener('click', saveMeal);
+$('#diningToggleBtn').addEventListener('click', () => {
+  state.diningOut.enabled = !state.diningOut.enabled;
+  renderDiningOut();
+  persistDraft();
+});
+['#diningRestaurant', '#diningMapUrl', '#diningText'].forEach((sel) => {
+  $(sel).addEventListener('input', syncDiningFromInputs);
+});
+$('#hydrationCard').addEventListener('click', async (e) => {
+  const water = e.target.closest('[data-water]');
+  if (water) { addHydration(Number(water.dataset.water), water.dataset.waterLabel); return; }
+  if (e.target.closest('#sendWaterBtn')) {
+    try { await sendHydration(); showToast('水分の送信要求を出しました'); renderHydration(); renderHome(); }
+    catch (err) { showToast('水分送信はローカル保存しました'); }
+    return;
+  }
+  if (e.target.closest('#undoWaterBtn')) { undoHydration(); return; }
+});
+$('#saveMealBtn').addEventListener('click', async () => {
+  await saveMeal();
+  try { await sendHydration(); renderHydration(); } catch (e) {}
+});
 
 // 運動
 $('#exoGrid').addEventListener('click', (e) => {
@@ -1595,6 +1957,7 @@ $('#exoFields').addEventListener('click', (e) => {
   haptic(6);
 });
 $('#saveWorkoutBtn').addEventListener('click', saveWorkout);
+$('#sendWorkoutBtn').addEventListener('click', sendWorkoutDrafts);
 
 // からだ
 document.querySelectorAll('[data-body]').forEach((b) => {
