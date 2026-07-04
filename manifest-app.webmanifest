@@ -1,6 +1,6 @@
 {
-  "name": "健康参謀",
-  "short_name": "健康参謀",
+  "name": "Health Cockpit",
+  "short_name": "Cockpit",
   "id": "/workout-tracker/app.html",
   "start_url": "/workout-tracker/app.html",
   "scope": "/workout-tracker/",
