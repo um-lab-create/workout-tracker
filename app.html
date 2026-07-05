@@ -399,6 +399,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   transition: opacity .2s ease, transform .2s ease; z-index: 60; max-width: 86vw; text-align: center;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.undo {
+  display:flex; align-items:center; gap:10px; pointer-events:auto; text-align:left;
+}
+#toast .undo-action {
+  color:#fff; background:rgba(255,255,255,.18); border-radius:999px; padding:6px 9px;
+  font-size:12px; font-weight:900; white-space:nowrap;
+}
 .modal-back {
   position: fixed; inset: 0; z-index: 50; background: rgba(58, 53, 45, .4);
   display: none; align-items: flex-end; justify-content: center;
@@ -462,6 +469,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   font-size:10.5px; font-weight:800; color:var(--muted); flex:none;
 }
 .review-chip.on { background:var(--red-soft); color:var(--red); }
+.danger-text {
+  width:100%; min-height:36px; border-radius:12px; color:var(--red); background:var(--red-soft);
+  font-size:12px; font-weight:900;
+}
 .action-row { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; margin-top:10px; }
 .secondary-btn {
   height:50px; border-radius:17px; background:var(--card); box-shadow:var(--shadow);
@@ -483,6 +494,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 }
 .usage-chip .rn { font-size:13px; font-weight:900; color:var(--text); line-height:1.15; }
 .usage-chip .rk { font-size:10px; font-weight:800; color:var(--muted); margin-top:3px; }
+.log-del {
+  width:32px; height:32px; border-radius:11px; background:var(--red-soft); color:var(--red);
+  font-size:15px; font-weight:900; flex:none;
+}
 .sync-pill {
   display:none; align-items:center; gap:6px; height:30px; padding:0 10px;
   border-radius:999px; background:rgba(31,91,75,.08); color:var(--accent-deep);
@@ -619,6 +634,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <div class="empty-note" id="mealEmpty">下の検索か、上の「いつもの」から追加</div>
       <div class="items-foot" id="itemsFoot" style="display:none">
         <button class="usual-btn" id="saveUsualBtn">☆ 普段の食事に保存</button>
+        <button class="danger-text" id="deleteMealBtn" type="button" style="display:none">この記録を削除</button>
       </div>
     </div>
 
@@ -821,10 +837,31 @@ function fmtQty(v) { return Number((Math.round(v * 100) / 100).toFixed(2)).toStr
 let toastTimer = null;
 function showToast(msg) {
   const t = $('#toast');
+  t.classList.remove('undo');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function showUndoToast(message, undoLabel, undoFn, timeoutMs = 5000) {
+  const t = $('#toast');
+  t.classList.add('undo');
+  t.innerHTML = `<span>${escapeHtml(message)}</span><button class="undo-action" type="button">${escapeHtml(undoLabel)}</button>`;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  let done = false;
+  const close = () => {
+    t.classList.remove('show', 'undo');
+    t.innerHTML = '';
+  };
+  t.querySelector('.undo-action').addEventListener('click', async () => {
+    if (done) return;
+    done = true;
+    clearTimeout(toastTimer);
+    close();
+    await undoFn();
+  }, { once: true });
+  toastTimer = setTimeout(close, timeoutMs);
 }
 function haptic(pattern) { if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
 function escapeHtml(s) {
@@ -1302,7 +1339,8 @@ function renderQuickRow() {
 function renderItems() {
   const wrap = $('#mealItems');
   $('#mealEmpty').style.display = state.items.length ? 'none' : '';
-  if ($('#itemsFoot')) $('#itemsFoot').style.display = state.items.length ? '' : 'none';
+  if ($('#itemsFoot')) $('#itemsFoot').style.display = (state.items.length || state.editingRecordId) ? '' : 'none';
+  if ($('#deleteMealBtn')) $('#deleteMealBtn').style.display = state.editingRecordId ? '' : 'none';
   wrap.innerHTML = state.items.map((it, i) => {
     const unitsCount = getUnitsForFood(getFoodById(it.foodId)).length;
     const unitHtml = (it.frozen || unitsCount <= 1)
@@ -1339,6 +1377,73 @@ function mergeWriteStatuses(results) {
   if ((results || []).some((r) => r && r.status === 'queued')) return { status: 'queued' };
   if ((results || []).some((r) => r && r.status === 'requested')) return { status: 'requested' };
   return { status: 'confirmed', dedup: (results || []).some((r) => r && r.dedup) };
+}
+
+async function resendMealRecord(record) {
+  const results = [];
+  results.push(await writeToSheet({ sheet: '食事ログ', ...record }));
+  const rows = detailRowsFromRecord(record);
+  if (rows.length) results.push(await writeToSheet({ sheet: '食事明細', rows }));
+  const status = mergeWriteStatuses(results);
+  if (status.status !== 'queued') markMealSynced(record.id, true);
+  return status;
+}
+
+function restoreDeletedMeal(record, draftSnapshot) {
+  const restored = { ...record, synced: false, updatedAt: new Date().toISOString() };
+  const records = getRecords();
+  const idx = records.findIndex((r) => r.id === restored.id);
+  if (idx >= 0) records[idx] = restored; else records.push(restored);
+  saveRecords(records);
+  rebuildFoodUsage(records);
+  const drafts = loadDrafts();
+  const key = draftKey(restored.date, restored.timingKey);
+  if (draftSnapshot) drafts[key] = draftSnapshot; else delete drafts[key];
+  lsSet(LS_KEYS.MEAL_DRAFT, drafts);
+  if (restored.date === state.date && restored.timingKey === state.timing) loadMealFor(state.date, state.timing);
+  renderQuickRow();
+  renderItems();
+  renderHome();
+  resendMealRecord(restored)
+    .then((result) => showToast(`復元しました: ${writeStatusText(result)}`))
+    .catch((err) => showToast(err && err.code === 'AUTH_REQUIRED' ? 'PIN設定後に再送してください' : '復元はローカル保存しました'));
+}
+
+async function deleteCurrentMealRecord() {
+  const recordId = state.editingRecordId;
+  if (!recordId) { showToast('削除する記録がありません'); return; }
+  const records = getRecords();
+  const record = records.find((r) => r.id === recordId);
+  if (!record) { showToast('記録が見つかりません'); return; }
+  if (!window.confirm(`${record.title || record.timing || 'この食事'}の記録を削除しますか？\nスプレッドシート側も無効化します。`)) return;
+
+  const drafts = loadDrafts();
+  const key = draftKey(record.date, record.timingKey);
+  const draftSnapshot = drafts[key] || null;
+  const nextRecords = records.filter((r) => r.id !== recordId);
+  saveRecords(nextRecords);
+  rebuildFoodUsage(nextRecords);
+  delete drafts[key];
+  lsSet(LS_KEYS.MEAL_DRAFT, drafts);
+
+  if (record.date === state.date && record.timingKey === state.timing) {
+    state.editingRecordId = null;
+    state.items = [];
+    $('#mealNote').value = '';
+    state.diningOut = blankDiningOut();
+    renderDiningOut();
+  }
+  renderQuickRow();
+  renderItems();
+  renderHome();
+  haptic([8, 24, 8]);
+
+  try {
+    await writeToSheet({ sheet: '食事ログ', action: 'delete', recordId, date: record.date, timingKey: record.timingKey });
+  } catch (err) {
+    // 未送信のまま削除した場合など。ローカル削除は成立させる。
+  }
+  showUndoToast('削除しました', '元に戻す', () => restoreDeletedMeal(record, draftSnapshot));
 }
 
 function renderTotals() {
@@ -2511,8 +2616,28 @@ function renderBodyView() {
     `<div class="log-row">
       <span class="desc"><b>${r.weight || '–'} kg</b>　体脂肪 ${r.fat || '–'}%　${escapeHtml(condLabel(r.cond))}</span>
       <span class="tm">${fmtDateLabel(r.date)}</span>
+      <button class="log-del" data-body-del="${r.ts}" type="button">×</button>
     </div>`
   ).join('');
+}
+
+function restoreBodyRecord(record) {
+  const recs = lsGet('body_recs_v1', []) || [];
+  recs.push(record);
+  lsSet('body_recs_v1', recs);
+  renderBodyView();
+  renderHome();
+  showToast('からだ記録を復元しました');
+}
+function deleteBodyRecord(ts) {
+  const recs = lsGet('body_recs_v1', []) || [];
+  const target = recs.find((r) => String(r.ts) === String(ts));
+  if (!target) { showToast('削除する記録がありません'); return; }
+  if (!window.confirm('この体組成記録をローカルから削除しますか？\nスプレッドシート側の手動記録は、必要なら設定→ダッシュボードから手で消してください。')) return;
+  lsSet('body_recs_v1', recs.filter((r) => String(r.ts) !== String(ts)));
+  renderBodyView();
+  renderHome();
+  showUndoToast('からだ記録を削除しました', '元に戻す', () => restoreBodyRecord(target));
 }
 
 async function saveBody() {
@@ -2805,6 +2930,7 @@ function applyQtySheet() {
 $('#qtySheetOk').addEventListener('click', applyQtySheet);
 $('#qtySheetInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyQtySheet(); });
 $('#saveUsualBtn').addEventListener('click', saveCurrentAsUsual);
+$('#deleteMealBtn').addEventListener('click', deleteCurrentMealRecord);
 $('#unitSheetList').addEventListener('click', (e) => {
   const b = e.target.closest('[data-unit]');
   if (!b || unitSheetIndex < 0) return;
@@ -2885,6 +3011,10 @@ $('#condRow').addEventListener('click', (e) => {
   if (!b) return;
   state.body.cond = Number(b.dataset.cond);
   renderBodyView();
+});
+$('#bodyList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-body-del]');
+  if (b) deleteBodyRecord(b.dataset.bodyDel);
 });
 $('#saveBodyBtn').addEventListener('click', saveBody);
 bindContinuousPress($('#mealItems'), '[data-step]', (b) => stepItem(Number(b.dataset.i), Number(b.dataset.step)));
