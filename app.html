@@ -476,6 +476,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   display:block; text-align:center; text-decoration:none; background:var(--bg); border-radius:12px;
   color:var(--accent-deep); font-size:11px; font-weight:800; padding:9px 4px;
 }
+.usage-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.usage-chip {
+  min-height:46px; border-radius:15px; background:var(--card); box-shadow:var(--shadow);
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:8px 10px;
+}
+.usage-chip .rn { font-size:13px; font-weight:900; color:var(--text); line-height:1.15; }
+.usage-chip .rk { font-size:10px; font-weight:800; color:var(--muted); margin-top:3px; }
 .sync-pill {
   display:none; align-items:center; gap:6px; height:30px; padding:0 10px;
   border-radius:999px; background:rgba(31,91,75,.08); color:var(--accent-deep);
@@ -1124,6 +1131,99 @@ function loadMealFor(dateStr, timingKey) {
 }
 
 // ---------------- プリセット / 頻出食材 ----------------
+function emptyTimingCounts() {
+  return { morning: 0, lunch: 0, dinner: 0, snack: 0 };
+}
+function isValidFoodUsageStore(store) {
+  return store && typeof store === 'object' && !Array.isArray(store);
+}
+function normalizeFoodUsageEntry(entry) {
+  const counts = { ...emptyTimingCounts(), ...(entry && entry.timingCounts ? entry.timingCounts : {}) };
+  return {
+    count: Number(entry && entry.count) || 0,
+    lastQty: Number(entry && entry.lastQty) || 0,
+    lastUnit: String(entry && entry.lastUnit || ''),
+    lastUsedAt: Number(entry && entry.lastUsedAt) || 0,
+    timingCounts: counts
+  };
+}
+function recordTimestamp(record) {
+  const raw = record && (record.updatedAt || record.createdAt);
+  const parsed = raw ? Date.parse(raw) : NaN;
+  if (Number.isFinite(parsed)) return parsed;
+  const date = record && record.date ? Date.parse(`${record.date}T12:00:00`) : NaN;
+  return Number.isFinite(date) ? date : Date.now();
+}
+function rebuildFoodUsage(records = getRecords()) {
+  const usage = {};
+  (records || [])
+    .slice()
+    .sort((a, b) => recordTimestamp(a) - recordTimestamp(b))
+    .forEach((record) => {
+      const timingKey = TIMING_KEYS.includes(record && record.timingKey) ? record.timingKey : 'snack';
+      const at = recordTimestamp(record);
+      (record.items || []).forEach((item) => {
+        if (!item || !item.foodId) return;
+        const cur = normalizeFoodUsageEntry(usage[item.foodId]);
+        cur.count += 1;
+        cur.timingCounts[timingKey] = (cur.timingCounts[timingKey] || 0) + 1;
+        if (at >= (cur.lastUsedAt || 0)) {
+          cur.lastQty = Number(item.qty) || cur.lastQty || 1;
+          cur.lastUnit = String(item.unit || cur.lastUnit || '');
+          cur.lastUsedAt = at;
+        }
+        usage[item.foodId] = cur;
+      });
+    });
+  lsSet(LS_KEYS.FOOD_USAGE, usage);
+  return usage;
+}
+function loadFoodUsage() {
+  const raw = lsGet(LS_KEYS.FOOD_USAGE, null);
+  if (!isValidFoodUsageStore(raw)) return rebuildFoodUsage();
+  const normalized = {};
+  Object.keys(raw).forEach((foodId) => {
+    if (!foodId) return;
+    normalized[foodId] = normalizeFoodUsageEntry(raw[foodId]);
+  });
+  return normalized;
+}
+function saveFoodUsage(usage) {
+  lsSet(LS_KEYS.FOOD_USAGE, isValidFoodUsageStore(usage) ? usage : {});
+}
+function updateFoodUsageFromRecord(record) {
+  if (!record || !Array.isArray(record.items)) return;
+  const usage = loadFoodUsage();
+  const timingKey = TIMING_KEYS.includes(record.timingKey) ? record.timingKey : 'snack';
+  const at = recordTimestamp(record);
+  record.items.forEach((item) => {
+    if (!item || !item.foodId) return;
+    const cur = normalizeFoodUsageEntry(usage[item.foodId]);
+    cur.count += 1;
+    cur.timingCounts[timingKey] = (cur.timingCounts[timingKey] || 0) + 1;
+    cur.lastQty = Number(item.qty) || cur.lastQty || 1;
+    cur.lastUnit = String(item.unit || cur.lastUnit || '');
+    cur.lastUsedAt = at;
+    usage[item.foodId] = cur;
+  });
+  saveFoodUsage(usage);
+}
+function usageFor(foodId) {
+  return normalizeFoodUsageEntry(loadFoodUsage()[foodId]);
+}
+function usageDefaultForFood(food) {
+  const fallback = getDefaultUnit(food);
+  const usage = usageFor(food && food.id);
+  if (usage.lastQty > 0 && usage.lastUnit) {
+    const found = getUnitsForFood(food).find((unit) => unit.label === usage.lastUnit);
+    if (found) return { qty: usage.lastQty, unit: found.label };
+  }
+  return { qty: fallback.defaultQty || 1, unit: fallback.label };
+}
+function foodCatalogIndex(foodId) {
+  const idx = allFoods.findIndex((food) => food && food.id === foodId);
+  return idx < 0 ? 999999 : idx;
+}
 function mergeDefaultPresets(stored) {
   const merged = {};
   TIMING_KEYS.forEach((tk) => {
@@ -1148,16 +1248,18 @@ function loadPresets() {
   return mergeDefaultPresets(stored && typeof stored === 'object' ? stored : {});
 }
 function frequentFoods(timingKey, limit) {
-  const counts = {};
-  getRecords().forEach((r) => {
-    const weight = (r.timingKey === timingKey) ? 2 : 1; // 同タイミングを優先
-    (r.items || []).forEach((it) => {
-      if (!it.foodId || !getFoodById(it.foodId)) return;
-      counts[it.foodId] = (counts[it.foodId] || 0) + weight;
-    });
+  const usage = loadFoodUsage();
+  const ids = Object.keys(usage).filter((id) => getFoodById(id));
+  const ranked = ids.sort((a, b) => {
+    const ua = normalizeFoodUsageEntry(usage[a]);
+    const ub = normalizeFoodUsageEntry(usage[b]);
+    const ta = Number(ua.timingCounts[timingKey]) || 0;
+    const tb = Number(ub.timingCounts[timingKey]) || 0;
+    if (tb !== ta) return tb - ta;
+    if (ub.count !== ua.count) return ub.count - ua.count;
+    return foodCatalogIndex(a) - foodCatalogIndex(b);
   });
-  return Object.keys(counts)
-    .sort((a, b) => counts[b] - counts[a])
+  return ranked
     .slice(0, limit)
     .map((id) => getFoodById(id));
 }
@@ -1250,9 +1352,10 @@ function renderSearch() {
   const q = $('#foodSearch').value.trim();
   const box = $('#searchResults');
   let list, label;
+  const usage = loadFoodUsage();
   if (!q) {
-    list = frequentFoods(state.timing, 8);
-    if (!list.length) list = allFoods.slice(0, 8);
+    list = frequentFoods(state.timing, 12);
+    if (!list.length) list = allFoods.slice(0, 12);
     label = 'よくつかう';
   } else {
     const nq = normalizeForSearch(q);
@@ -1260,17 +1363,33 @@ function renderSearch() {
     list = allFoods.filter((f) => {
       const hay = normalizeForSearch([f.name, f.brand, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
       return tokens.every((t) => hay.includes(t));
+    }).sort((a, b) => {
+      const an = normalizeForSearch(a.name);
+      const bn = normalizeForSearch(b.name);
+      const aPrefix = an.startsWith(tokens[0] || '') ? 1 : 0;
+      const bPrefix = bn.startsWith(tokens[0] || '') ? 1 : 0;
+      if (bPrefix !== aPrefix) return bPrefix - aPrefix;
+      const ac = normalizeFoodUsageEntry(usage[a.id]).count;
+      const bc = normalizeFoodUsageEntry(usage[b.id]).count;
+      if (bc !== ac) return bc - ac;
+      return foodCatalogIndex(a.id) - foodCatalogIndex(b.id);
     }).slice(0, 10);
     label = list.length ? '検索結果' : '見つかりません（旧「食事の詳細入力」で独自食材を登録できます）';
   }
   const rows = list.map((f) => {
-    const unit = getDefaultUnit(f);
-    const kcal = calcFoodPortion(f, unit.defaultQty || 1, unit.label).kcal;
+    const preferred = usageDefaultForFood(f);
+    const kcal = calcFoodPortion(f, preferred.qty, preferred.unit).kcal;
     const isProduct = f.entryType === 'product' || String(f.id).startsWith('prod-');
+    if (!q) {
+      return `<button class="usage-chip" data-add="${escapeHtml(f.id)}">
+        <span class="rn">${escapeHtml(f.name)}</span>
+        <span class="rk">${fmtQty(preferred.qty)}${escapeHtml(preferred.unit)}・${fmtNum(kcal)}kcal</span>
+      </button>`;
+    }
     return `<button class="result-row" data-add="${escapeHtml(f.id)}">
       <span class="rn">${escapeHtml(f.name)}</span>
       ${isProduct ? '<span class="badge">商品</span>' : ''}
-      <span class="rk">${fmtQty(unit.defaultQty || 1)}${escapeHtml(unit.label)}・${fmtNum(kcal)}kcal</span>
+      <span class="rk">${fmtQty(preferred.qty)}${escapeHtml(preferred.unit)}・${fmtNum(kcal)}kcal</span>
       <span class="add">＋</span>
     </button>`;
   }).join('');
@@ -1279,19 +1398,19 @@ function renderSearch() {
     <a href="meal.html?panel=custom">食材登録</a>
     <a href="meal.html?panel=recipe">メニュー</a>
   </div>` : '';
-  box.innerHTML = `<div class="hint-label">${label}</div>${rows}${emptyLinks}`;
+  box.innerHTML = `<div class="hint-label">${label}</div>${!q && list.length ? `<div class="usage-grid">${rows}</div>` : rows}${emptyLinks}`;
 }
 
 function addFoodById(id) {
   const food = getFoodById(id);
   if (!food) return;
-  const unit = getDefaultUnit(food);
+  const preferred = usageDefaultForFood(food);
   // 同じ食材・単位が既にあれば数量を1単位ぶん増やす（重複行を作らない）
-  const existing = state.items.findIndex((it) => it.foodId === id && it.unit === unit.label && !it.frozen);
+  const existing = state.items.findIndex((it) => it.foodId === id && it.unit === preferred.unit && !it.frozen);
   if (existing >= 0) {
     stepItem(existing, 1);
   } else {
-    state.items.push(createMealItem(food, unit.defaultQty || 1, unit.label));
+    state.items.push(createMealItem(food, preferred.qty, preferred.unit));
     renderItems();
     persistDraft();
   }
@@ -1419,6 +1538,7 @@ async function saveMeal() {
   const idx = records.findIndex((r) => r.id === record.id);
   if (idx >= 0) records[idx] = record; else records.push(record);
   saveRecords(records);
+  updateFoodUsageFromRecord(record);
   state.editingRecordId = record.id;
   persistDraft();
 
@@ -1658,6 +1778,7 @@ function mergeServerMealRecords(serverRecords) {
   });
   merged.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.timingKey || '').localeCompare(String(b.timingKey || '')));
   saveRecords(merged);
+  rebuildFoodUsage(merged);
   return counts;
 }
 function settingsToTargets(settings) {
@@ -2499,6 +2620,68 @@ function saveSettings() {
   renderHome();
 }
 
+// ---------------- 長押しステッパー ----------------
+const longPressConsumed = new WeakSet();
+function consumeLongPressClick(el) {
+  if (!el || !longPressConsumed.has(el)) return false;
+  longPressConsumed.delete(el);
+  return true;
+}
+function bindContinuousPress(root, selector, action) {
+  let timer = null;
+  let interval = null;
+  let startedAt = 0;
+  let activeEl = null;
+  let fired = false;
+  const clear = () => {
+    clearTimeout(timer);
+    clearInterval(interval);
+    timer = null;
+    interval = null;
+    if (activeEl && fired) longPressConsumed.add(activeEl);
+    activeEl = null;
+    fired = false;
+  };
+  const repeat = () => {
+    if (!activeEl || activeEl.disabled) return;
+    action(activeEl);
+    fired = true;
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 1500 && interval) {
+      clearInterval(interval);
+      interval = setInterval(repeat, 80);
+    }
+  };
+  root.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest(selector);
+    if (!el || el.disabled) return;
+    activeEl = el;
+    startedAt = Date.now();
+    timer = setTimeout(() => {
+      repeat();
+      interval = setInterval(repeat, 150);
+    }, 400);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
+    root.addEventListener(eventName, clear);
+  });
+}
+function runWorkoutFieldButton(b) {
+  const f = b.dataset.wf, meta = FIELD[f];
+  let v = (Number(state.exoValues[f]) || 0) + Number(b.dataset.d) * meta.step;
+  v = Math.max(meta.min, Math.min(meta.max, v));
+  state.exoValues[f] = Number(v.toFixed(meta.decimals));
+  renderExoCard();
+  haptic(6);
+}
+function runBodyButton(b) {
+  const key = b.dataset.body;
+  const d = Number(b.dataset.d);
+  state.body[key] = Math.max(0, Number(((state.body[key] || 0) + d).toFixed(1)));
+  renderBodyView();
+  haptic(6);
+}
+
 // ---------------- イベント ----------------
 document.querySelectorAll('.tab-btn').forEach((b) => {
   b.addEventListener('click', () => { persistDraftSafe(); showView(b.dataset.view); });
@@ -2570,7 +2753,11 @@ $('#quickRow').addEventListener('click', (e) => {
 });
 $('#mealItems').addEventListener('click', (e) => {
   const step = e.target.closest('[data-step]');
-  if (step) { stepItem(Number(step.dataset.i), Number(step.dataset.step)); return; }
+  if (step) {
+    if (consumeLongPressClick(step)) return;
+    stepItem(Number(step.dataset.i), Number(step.dataset.step));
+    return;
+  }
   const del = e.target.closest('[data-del]');
   if (del) {
     state.items.splice(Number(del.dataset.del), 1);
@@ -2680,12 +2867,8 @@ $('#exoGrid').addEventListener('click', (e) => {
 $('#exoFields').addEventListener('click', (e) => {
   const b = e.target.closest('[data-wf]');
   if (!b) return;
-  const f = b.dataset.wf, meta = FIELD[f];
-  let v = (Number(state.exoValues[f]) || 0) + Number(b.dataset.d) * meta.step;
-  v = Math.max(meta.min, Math.min(meta.max, v));
-  state.exoValues[f] = Number(v.toFixed(meta.decimals));
-  renderExoCard();
-  haptic(6);
+  if (consumeLongPressClick(b)) return;
+  runWorkoutFieldButton(b);
 });
 $('#saveWorkoutBtn').addEventListener('click', saveWorkout);
 $('#sendWorkoutBtn').addEventListener('click', sendWorkoutDrafts);
@@ -2693,11 +2876,8 @@ $('#sendWorkoutBtn').addEventListener('click', sendWorkoutDrafts);
 // からだ
 document.querySelectorAll('[data-body]').forEach((b) => {
   b.addEventListener('click', () => {
-    const key = b.dataset.body;
-    const d = Number(b.dataset.d);
-    state.body[key] = Math.max(0, Number(((state.body[key] || 0) + d).toFixed(1)));
-    renderBodyView();
-    haptic(6);
+    if (consumeLongPressClick(b)) return;
+    runBodyButton(b);
   });
 });
 $('#condRow').addEventListener('click', (e) => {
@@ -2707,9 +2887,13 @@ $('#condRow').addEventListener('click', (e) => {
   renderBodyView();
 });
 $('#saveBodyBtn').addEventListener('click', saveBody);
+bindContinuousPress($('#mealItems'), '[data-step]', (b) => stepItem(Number(b.dataset.i), Number(b.dataset.step)));
+bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton);
+bindContinuousPress(document.body, '[data-body]', runBodyButton);
 
 // ---------------- 初期化 ----------------
 buildCatalog();
+loadFoodUsage();
 setDate(todayStr());
 loadMealFor(state.date, state.timing);
 showView('home');
