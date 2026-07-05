@@ -169,6 +169,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 }
 .coach-hint.good { color: var(--green); background: var(--green-soft); }
 .coach-hint.warn { color: #c98a00; background: #fff3d6; }
+.coach-hint.actionable { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.coach-hint .mini-add {
+  flex: none; border-radius: 999px; padding: 4px 8px; background: #fff; color: var(--accent-deep);
+  font-size: 10px; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(31,91,75,.12);
+}
 .week-card { margin-top: 8px; padding: 12px 14px; }
 .week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .wd {
@@ -316,6 +321,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .meal-footer .totals b { font-size: 19px; font-variant-numeric: tabular-nums; }
 .meal-footer .totals .u { font-size: 11px; color: var(--muted); font-weight: 700; }
 .meal-footer .totals .pfc { display: block; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dirty-chip {
+  display: none; align-self: center; flex: none; border-radius: 999px; padding: 5px 8px;
+  background: #fff3d6; color: #b06f00; font-size: 10px; font-weight: 900;
+}
+.dirty-chip.show { display: inline-flex; }
 .primary-btn {
   height: 50px; padding: 0 26px; border-radius: 17px;
   background: linear-gradient(135deg, var(--accent), #ff9d47);
@@ -374,7 +384,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 
 /* ---------- タブバー ---------- */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   padding: 6px 10px calc(env(safe-area-inset-bottom) + 4px);
   background: rgba(255, 255, 255, .88);
@@ -409,6 +419,8 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .modal-back {
   position: fixed; inset: 0; z-index: 50; background: rgba(58, 53, 45, .4);
   display: none; align-items: flex-end; justify-content: center;
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 .modal-back.show { display: flex; }
 .modal {
@@ -657,6 +669,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
         <b id="totKcal">0</b><span class="u"> kcal</span>
         <span class="pfc" id="totPfc">P0 / F0 / C0</span>
       </div>
+      <span class="dirty-chip" id="mealDirtyChip">未送信の変更</span>
       <button class="primary-btn" id="saveMealBtn">記録する</button>
     </footer>
   </section>
@@ -752,6 +765,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="set-row"><span class="sl">利用PIN（書込）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">READ_PIN（読取）</span><input id="setReadPin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
+    <div class="section-label" style="margin-top:12px">目標</div>
+    <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
+    <div class="set-row"><span class="sl">P たんぱく質 g</span><input id="setTargetProtein" type="number" inputmode="numeric" min="0" max="400" step="1"></div>
+    <div class="set-row"><span class="sl">F 脂質 g</span><input id="setTargetFat" type="number" inputmode="numeric" min="0" max="300" step="1"></div>
+    <div class="set-row"><span class="sl">C 炭水化物 g</span><input id="setTargetCarb" type="number" inputmode="numeric" min="0" max="800" step="1"></div>
     <div class="sync-action-row">
       <button class="secondary-btn" id="syncServerBtn" type="button">サーバーから同期</button>
       <div class="last-sync" id="lastSyncLabel">最終同期: 未実行</div>
@@ -959,7 +977,9 @@ const state = {
   exoValues: {},
   body: { weight: null, fat: null, cond: 3 },
   diningOut: { enabled: false, restaurantName: '', googleMapUrl: '', diningText: '' },
-  workoutDrafts: lsGet('wt:draftQueue:v1', [])
+  workoutDrafts: lsGet('wt:draftQueue:v1', []),
+  lastActiveToday: todayStr(),
+  mealDirtyWarned: {}
 };
 
 function autoTiming() {
@@ -1365,6 +1385,32 @@ function renderItems() {
     </div>`;
   }).join('');
   renderTotals();
+  renderMealDirtyState();
+}
+
+function currentStoredItemsSignature() {
+  return JSON.stringify(toStoredMealItems(state.items));
+}
+function savedStoredItemsSignature(record) {
+  return JSON.stringify((record && record.items) || []);
+}
+function hasUnsavedMealChanges() {
+  if (!state.editingRecordId) return false;
+  const saved = getRecords().find((r) => r.id === state.editingRecordId);
+  if (!saved) return false;
+  return currentStoredItemsSignature() !== savedStoredItemsSignature(saved);
+}
+function renderMealDirtyState() {
+  const chip = $('#mealDirtyChip');
+  if (!chip) return;
+  chip.classList.toggle('show', hasUnsavedMealChanges());
+}
+function warnMealDirtyOnce() {
+  if (!hasUnsavedMealChanges()) return;
+  const key = `${state.date}:${state.timing}:${state.editingRecordId}`;
+  if (state.mealDirtyWarned[key]) return;
+  state.mealDirtyWarned[key] = true;
+  showToast('変更が未送信です（食事タブで更新する）');
 }
 
 function writeStatusText(result) {
@@ -1508,7 +1554,7 @@ function renderSearch() {
 
 function addFoodById(id) {
   const food = getFoodById(id);
-  if (!food) return;
+  if (!food) return null;
   const preferred = usageDefaultForFood(food);
   // 同じ食材・単位が既にあれば数量を1単位ぶん増やす（重複行を作らない）
   const existing = state.items.findIndex((it) => it.foodId === id && it.unit === preferred.unit && !it.frozen);
@@ -1520,6 +1566,14 @@ function addFoodById(id) {
     persistDraft();
   }
   haptic(8);
+  return food;
+}
+function clearFoodSearch() {
+  const input = $('#foodSearch');
+  if (!input) return;
+  input.value = '';
+  input.blur();
+  renderSearch();
 }
 
 function stepItem(i, dir) {
@@ -1965,6 +2019,32 @@ function maybeAutoSyncFromServer() {
   syncFromServer({ manual: false }).catch(() => {});
 }
 
+function hasMeaningfulDraft(dateStr, timingKey) {
+  const draft = loadDrafts()[draftKey(dateStr, timingKey)];
+  const dining = normalizeDiningOut(draft && draft.diningOut);
+  return Boolean(draft && ((draft.items && draft.items.length) || draft.note || dining.enabled));
+}
+function maybeRefreshAfterResume() {
+  const previousToday = state.lastActiveToday || todayStr();
+  const currentToday = todayStr();
+  const wasShowingToday = state.date === previousToday;
+  if (currentToday !== previousToday && wasShowingToday) {
+    setDate(currentToday);
+    showToast('日付が変わったので今日に切り替えました');
+  } else {
+    renderHome();
+  }
+  state.lastActiveToday = currentToday;
+
+  if (state.view === 'meal') {
+    const auto = autoTiming();
+    if (!state.items.length && !hasMeaningfulDraft(state.date, state.timing) && state.timing !== auto) {
+      setTiming(auto);
+    }
+  }
+  maybeAutoSyncFromServer();
+}
+
 function saveCurrentAsUsual() {
   if (!state.items.length) { showToast('保存する食事内容がありません'); return; }
   const presets = loadPresets();
@@ -2234,7 +2314,7 @@ function renderWeekCard() {
     <div class="ws ${streak >= 7 ? 'achieved' : ''}"><b>${streak}<span class="g">日</span></b><span>連続記録</span></div>`;
 }
 
-function proteinSuggestion(deficit) {
+function bestProteinSuggestion(deficit) {
   let best = null;
   allFoods.forEach((f) => {
     const unit = getDefaultUnit(f);
@@ -2244,6 +2324,11 @@ function proteinSuggestion(deficit) {
       if (!best || score > best.score) best = { food: f, unit, p, score };
     }
   });
+  if (!best) return null;
+  return best;
+}
+function proteinSuggestion(deficit) {
+  const best = bestProteinSuggestion(deficit);
   if (!best) return '';
   return ` → ${best.food.name} ${fmtQty(best.unit.defaultQty || 1)}${best.unit.label}で +${Math.round(best.p.p)}g`;
 }
@@ -2255,12 +2340,14 @@ function renderCoachHint(totals, targets) {
   const fRatio = totals.fat / (targets.fat || 1);
   const cRemain = targets.carb - totals.carb;
   let text = '', cls = '';
+  let suggest = null;
   if (totals.energy <= 0) {
     text = 'まずは1食記録。前回と同じなら数秒で入ります';
   } else if (fRatio > 1.2) {
     text = `脂質が多め（${Math.round(totals.fat)}g / ${Math.round(targets.fat)}g）。残りは脂質ひかえめ`; cls = 'warn';
   } else if (pRemain >= 20 && remain > 100) {
-    text = `たんぱく質 あと${Math.round(pRemain)}g${proteinSuggestion(pRemain)}`;
+    suggest = bestProteinSuggestion(pRemain);
+    text = `たんぱく質 あと${Math.round(pRemain)}g${suggest ? ` → ${suggest.food.name} ${fmtQty(suggest.unit.defaultQty || 1)}${suggest.unit.label}で +${Math.round(suggest.p.p)}g` : ''}`;
   } else if (targets.dayType === 'training' && cRemain > 50 && remain > 100) {
     text = `筋トレ日。炭水化物をあと${Math.round(cRemain)}g補給`;
   } else if (remain < -150) {
@@ -2270,8 +2357,30 @@ function renderCoachHint(totals, targets) {
   } else {
     text = `あと${fmtNum(remain)}kcal。PFCを見て足すものを選ぶ`;
   }
-  el.textContent = text;
-  el.className = `coach-hint ${cls}`;
+  if (suggest) {
+    el.dataset.suggestFood = suggest.food.id;
+    el.innerHTML = `<span>${escapeHtml(text)}</span><span class="mini-add">＋追加</span>`;
+    el.className = `coach-hint actionable ${cls}`;
+  } else {
+    delete el.dataset.suggestFood;
+    el.textContent = text;
+    el.className = `coach-hint ${cls}`;
+  }
+}
+
+function addSuggestedFoodFromCoach(foodId) {
+  const food = getFoodById(foodId);
+  if (!food) return;
+  persistDraftSafe();
+  const targetDate = todayStr();
+  const targetTiming = autoTiming();
+  if (state.date !== targetDate) setDate(targetDate);
+  state.timing = targetTiming;
+  loadMealFor(state.date, state.timing);
+  showView('meal');
+  const added = addFoodById(foodId);
+  clearFoodSearch();
+  if (added) showToast(`${added.name}を追加しました。よければ記録してください`);
 }
 
 function renderHome() {
@@ -2678,7 +2787,16 @@ async function saveBody() {
 }
 
 // ---------------- ナビゲーション ----------------
+function closeAllSheets() {
+  ['unitBack', 'qtyBack', 'settingsBack'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+}
 function showView(name) {
+  const previous = state.view;
+  if (previous === 'meal' && name !== 'meal') warnMealDirtyOnce();
+  closeAllSheets();
   state.view = name;
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
   document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
@@ -2726,10 +2844,15 @@ function openSettings() {
   $('#setWritePin').value = loadWritePin();
   $('#setReadPin').value = loadReadPin();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
+  const targets = baseTargets();
+  $('#setTargetEnergy').value = Math.round(targets.energy);
+  $('#setTargetProtein').value = Math.round(targets.protein);
+  $('#setTargetFat').value = Math.round(targets.fat);
+  $('#setTargetCarb').value = Math.round(targets.carb);
   updateSyncUi();
   $('#settingsBack').classList.add('show');
 }
-function saveSettings() {
+async function saveSettings() {
   const wp = $('#setWritePin').value.trim();
   const rp = $('#setReadPin').value.trim();
   if (wp) saveWritePin(wp);
@@ -2739,10 +2862,22 @@ function saveSettings() {
     cfg.carbDelta = Number($('#setCarbDelta').value) || 50;
     saveCarbCycle(cfg);
   } catch (e) {}
+  const targets = {
+    energy: Number($('#setTargetEnergy').value) || DEFAULT_TARGETS.energy,
+    protein: Number($('#setTargetProtein').value) || DEFAULT_TARGETS.protein,
+    fat: Number($('#setTargetFat').value) || DEFAULT_TARGETS.fat,
+    carb: Number($('#setTargetCarb').value) || DEFAULT_TARGETS.carb
+  };
+  lsSet(LS_KEYS.NUTRITION_TARGETS, targets);
   $('#settingsBack').classList.remove('show');
-  showToast('設定を保存しました');
   updateSyncUi();
   renderHome();
+  try {
+    const result = await writeToSheet({ sheet: '設定', action: 'update_targets', ...targets });
+    showToast(result && result.status === 'queued' ? '設定を保存しました（サーバ反映は再送で行われます）' : `設定を保存しました: ${writeStatusText(result)}`);
+  } catch (err) {
+    showToast(err && err.code === 'AUTH_REQUIRED' ? 'PIN設定後にサーバ反映できます' : '設定を保存しました（サーバ反映は再送で行われます）');
+  }
 }
 
 // ---------------- 長押しステッパー ----------------
@@ -2811,6 +2946,10 @@ function runBodyButton(b) {
 document.querySelectorAll('.tab-btn').forEach((b) => {
   b.addEventListener('click', () => { persistDraftSafe(); showView(b.dataset.view); });
 });
+window.addEventListener('focus', maybeRefreshAfterResume);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') maybeRefreshAfterResume();
+});
 $('#datePrev').addEventListener('click', () => setDate(shiftDate(state.date, -1)));
 $('#dateNext').addEventListener('click', () => setDate(shiftDate(state.date, 1)));
 $('#dateLabel').addEventListener('click', () => setDate(todayStr()));
@@ -2846,6 +2985,10 @@ $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
 $('#homeBodyCard').addEventListener('click', () => showView('body'));
 $('#homeWaterCard').addEventListener('click', () => showView('meal'));
 $('#homeSyncCard').addEventListener('click', retryPending);
+$('#coachHint').addEventListener('click', (e) => {
+  const foodId = e.currentTarget.dataset.suggestFood;
+  if (foodId) addSuggestedFoodFromCoach(foodId);
+});
 
 // 食事
 $('#timingSeg').addEventListener('click', (e) => {
@@ -2954,7 +3097,13 @@ $('#foodSearch').addEventListener('input', () => {
 });
 $('#searchResults').addEventListener('click', (e) => {
   const b = e.target.closest('[data-add]');
-  if (b) addFoodById(b.dataset.add);
+  if (b) {
+    const added = addFoodById(b.dataset.add);
+    if (added) {
+      clearFoodSearch();
+      showToast(`${added.name}を追加しました`);
+    }
+  }
 });
 $('#mealNote').addEventListener('input', () => persistDraft());
 $('#diningToggleBtn').addEventListener('click', () => {
