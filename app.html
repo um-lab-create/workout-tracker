@@ -476,6 +476,20 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   display:block; text-align:center; text-decoration:none; background:var(--bg); border-radius:12px;
   color:var(--accent-deep); font-size:11px; font-weight:800; padding:9px 4px;
 }
+.sync-pill {
+  display:none; align-items:center; gap:6px; height:30px; padding:0 10px;
+  border-radius:999px; background:rgba(31,91,75,.08); color:var(--accent-deep);
+  font-size:11px; font-weight:900;
+}
+.sync-pill.show { display:inline-flex; }
+.sync-pill i {
+  width:10px; height:10px; border-radius:50%; border:2px solid rgba(31,91,75,.25);
+  border-top-color:var(--accent-deep); animation:spin .8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.sync-action-row { display:grid; grid-template-columns:1fr; gap:8px; margin:12px 0 4px; }
+.sync-action-row .secondary-btn { height:44px; }
+.last-sync { font-size:12px; font-weight:800; color:var(--muted); text-align:center; }
 
 /* 単位切替シート */
 .unit-sheet-list { display: grid; gap: 6px; }
@@ -490,6 +504,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 
 <header class="topbar">
   <div class="brand"><span class="logo">HC</span>Health Cockpit</div>
+  <div class="sync-pill" id="syncPill"><i></i>同期中</div>
   <div class="date-nav">
     <button class="arrow" id="datePrev" aria-label="前の日">‹</button>
     <button class="date-label" id="dateLabel">今日</button>
@@ -714,6 +729,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="set-row"><span class="sl">利用PIN（書込）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">READ_PIN（読取）</span><input id="setReadPin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
+    <div class="sync-action-row">
+      <button class="secondary-btn" id="syncServerBtn" type="button">サーバーから同期</button>
+      <div class="last-sync" id="lastSyncLabel">最終同期: 未実行</div>
+    </div>
     <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
     <div class="section-label" style="margin-top:16px">くわしい画面（従来ページ）</div>
     <div class="link-grid">
@@ -1462,6 +1481,264 @@ function detailRowsFromRecord(record) {
   return rows;
 }
 
+// ---------------- READ_PIN サーバー同期（SPEC-003） ----------------
+function normalizeServerDate(value) {
+  if (!value) return '';
+  const str = String(value);
+  const match = str.match(/\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : str.slice(0, 10);
+}
+function timingKeyFromLabel(label) {
+  const text = String(label || '');
+  if (text.includes('朝')) return 'morning';
+  if (text.includes('昼')) return 'lunch';
+  if (text.includes('夜')) return 'dinner';
+  if (text.includes('間')) return 'snack';
+  return '';
+}
+function rowValue(row, keys) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== '') return row[key];
+  }
+  return '';
+}
+function numFromRow(row, keys) {
+  const value = rowValue(row, keys);
+  if (value === '') return 0;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+function boolFromRow(row, keys) {
+  const value = rowValue(row, keys);
+  if (value === true) return true;
+  const text = String(value || '').toLowerCase();
+  return text === 'true' || text === '1' || text === 'yes';
+}
+function structuredFromSyncedItem(item) {
+  const food = getFoodById(item.foodId);
+  if (food && NUTRITION_DB && NUTRITION_DB.structureItem) {
+    try { return NUTRITION_DB.structureItem(item, food); } catch (e) { /* fallback */ }
+  }
+  return {
+    foodId: item.foodId,
+    foodName: item.name || item.foodId,
+    qty: Number(item.qty) || 0,
+    unit: item.unit || '',
+    grams: item.grams == null ? null : Number(item.grams) || 0,
+    pendingReview: Boolean(item.pendingReview),
+    nutrients: {
+      energy: Number(item.kcal) || 0,
+      protein: Number(item.p) || 0,
+      fat: Number(item.f) || 0,
+      carb: Number(item.c) || 0
+    }
+  };
+}
+function itemFromServerRow(row) {
+  const foodId = String(rowValue(row, ['foodId', 'foodId']) || '').trim();
+  const name = String(rowValue(row, ['名前', 'name']) || foodId || '未登録').trim();
+  const qty = Number(rowValue(row, ['量', 'qty'])) || 1;
+  const unit = String(rowValue(row, ['単位', 'unit']) || '個');
+  const gramsRaw = rowValue(row, ['グラム換算', 'grams']);
+  const grams = gramsRaw === '' ? null : Number(gramsRaw) || 0;
+  const pendingReview = boolFromRow(row, ['要確認フラグ', 'pendingReview']);
+  const estimated = {
+    kcal: numFromRow(row, ['推定kcal', 'estimatedKcal', 'kcal', 'カロリー']),
+    p: numFromRow(row, ['推定P_g', 'estimatedProtein', 'protein', 'たんぱく質']),
+    f: numFromRow(row, ['推定F_g', 'estimatedFat', 'fat', '脂質']),
+    c: numFromRow(row, ['推定C_g', 'estimatedCarb', 'carb', '炭水化物'])
+  };
+  const hasEstimate = estimated.kcal || estimated.p || estimated.f || estimated.c;
+  const food = getFoodById(foodId);
+  if (food && foodId !== 'dining-out-pending' && !hasEstimate) {
+    const item = createMealItem(food, qty, unit, { pendingReview });
+    if (grams != null) item.grams = grams;
+    return item;
+  }
+  return {
+    id: `meal-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    foodId,
+    name,
+    qty,
+    unit,
+    grams,
+    kcal: estimated.kcal,
+    p: estimated.p,
+    f: estimated.f,
+    c: estimated.c,
+    pendingReview,
+    sourceType: foodId === 'dining-out-pending' ? 'dining' : 'server',
+    brand: '',
+    frozen: true
+  };
+}
+function serverRowsToAppRecords(rows) {
+  const grouped = {};
+  (rows || []).forEach((row) => {
+    if (String(row['ステータス'] || '') === '無効') return;
+    const date = normalizeServerDate(rowValue(row, ['日付', 'date']));
+    const timingKey = String(rowValue(row, ['区分キー', 'timingKey']) || timingKeyFromLabel(rowValue(row, ['区分', 'timing'])));
+    const recordId = String(rowValue(row, ['recordId', 'recordId']) || `${date}-${timingKey}`);
+    if (!date || !timingKey || !recordId) return;
+    const timing = String(rowValue(row, ['区分', 'timing']) || (TIMINGS[timingKey] && TIMINGS[timingKey].label) || timingKey);
+    grouped[recordId] = grouped[recordId] || {
+      id: recordId,
+      date,
+      timing,
+      timingKey,
+      title: (TIMINGS[timingKey] && TIMINGS[timingKey].title) || timing,
+      note: '',
+      items: [],
+      structuredItems: [],
+      diningOut: false,
+      restaurantName: '',
+      googleMapUrl: '',
+      diningText: '',
+      calcStatus: '',
+      calcMemo: '',
+      synced: true,
+      source: 'server',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const item = itemFromServerRow(row);
+    grouped[recordId].items.push({
+      foodId: item.foodId,
+      qty: Number(item.qty) || 0,
+      unit: item.unit,
+      pendingReview: Boolean(item.pendingReview)
+    });
+    grouped[recordId].structuredItems.push(structuredFromSyncedItem(item));
+    if (item.foodId === 'dining-out-pending' || boolFromRow(row, ['外食フラグ', 'diningOut'])) {
+      grouped[recordId].diningOut = true;
+      grouped[recordId].restaurantName = String(rowValue(row, ['店名', 'restaurantName']) || '').trim();
+      grouped[recordId].googleMapUrl = String(rowValue(row, ['Googleマップ', 'googleMapUrl', 'mapUrl']) || '').trim();
+      grouped[recordId].diningText = String(rowValue(row, ['外食内容', 'diningText']) || '').trim();
+      grouped[recordId].calcStatus = String(rowValue(row, ['計算ステータス', 'calcStatus']) || '').trim();
+      grouped[recordId].calcMemo = String(rowValue(row, ['計算メモ', 'calcMemo']) || '').trim();
+    }
+  });
+  return Object.values(grouped).map((record) => {
+    const totals = (record.structuredItems || []).reduce((acc, item) => {
+      const n = item && item.nutrients ? item.nutrients : {};
+      acc.kcal += Number(n.energy) || 0;
+      acc.protein += Number(n.protein) || 0;
+      acc.fat += Number(n.fat) || 0;
+      acc.carb += Number(n.carb) || 0;
+      return acc;
+    }, { kcal: 0, protein: 0, fat: 0, carb: 0 });
+    return {
+      ...record,
+      memo: summarizeItems(restoreMealItems(record.items, record.structuredItems)),
+      kcal: Math.round(totals.kcal),
+      protein: Math.round(totals.protein),
+      fat: Math.round(totals.fat),
+      carb: Math.round(totals.carb),
+      reviewCount: (record.structuredItems || []).filter((item) => item && item.pendingReview).length
+    };
+  });
+}
+function mergeServerMealRecords(serverRecords) {
+  const local = getRecords();
+  const merged = local.slice();
+  const counts = { added: 0, updated: 0, protected: 0 };
+  (serverRecords || []).forEach((serverRecord) => {
+    const idx = merged.findIndex((record) => record && record.id === serverRecord.id);
+    if (idx < 0) {
+      merged.push(serverRecord);
+      counts.added += 1;
+      return;
+    }
+    if (merged[idx] && merged[idx].synced === false) {
+      counts.protected += 1;
+      return;
+    }
+    merged[idx] = { ...merged[idx], ...serverRecord, synced: true };
+    counts.updated += 1;
+  });
+  merged.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.timingKey || '').localeCompare(String(b.timingKey || '')));
+  saveRecords(merged);
+  return counts;
+}
+function settingsToTargets(settings) {
+  const get = (...keys) => {
+    for (const key of keys) {
+      if (settings && settings[key] !== undefined && settings[key] !== '') return settings[key];
+    }
+    return undefined;
+  };
+  const current = baseTargets();
+  return {
+    goal: String(get('目的') || ''),
+    energy: Number(get('目標kcal')) || current.energy,
+    protein: Number(get('目標P_g')) || current.protein,
+    fat: Number(get('目標F_g')) || current.fat,
+    carb: Number(get('目標C_g')) || current.carb,
+    profile: {
+      age: Number(get('年齢')) || '',
+      sex: 'male',
+      height: Number(get('身長cm')) || '',
+      weight: Number(get('現体重kg', '体重kg')) || '',
+      activity: get('身体活動レベル', '活動レベル') || '',
+      effort: get('がんばり方') || ''
+    }
+  };
+}
+function formatLastSync(ts) {
+  if (!ts) return '最終同期: 未実行';
+  const d = new Date(Number(ts));
+  if (Number.isNaN(d.getTime())) return '最終同期: 未実行';
+  return `最終同期: ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function updateSyncUi() {
+  const syncing = Boolean(state.serverSyncing);
+  if ($('#syncPill')) $('#syncPill').classList.toggle('show', syncing);
+  if ($('#syncServerBtn')) $('#syncServerBtn').disabled = syncing;
+  if ($('#lastSyncLabel')) $('#lastSyncLabel').textContent = formatLastSync(lsGet(LS_KEYS.LAST_SYNC, null));
+}
+async function syncFromServer(options = {}) {
+  const manual = Boolean(options.manual);
+  const forcePrompt = Boolean(options.forcePrompt);
+  if (!navigator.onLine) {
+    if (manual) showToast('オフラインのため同期できません');
+    return { skipped: true, reason: 'offline' };
+  }
+  if (!manual && !loadReadPin()) return { skipped: true, reason: 'no-read-pin' };
+  const last = Number(lsGet(LS_KEYS.LAST_SYNC, 0)) || 0;
+  if (!manual && last && Date.now() - last < 30 * 60 * 1000) return { skipped: true, reason: 'fresh' };
+  state.serverSyncing = true;
+  updateSyncUi();
+  try {
+    const from = shiftDate(todayStr(), -13);
+    const to = todayStr();
+    const settingsData = await readFromSheet('settings', {}, forcePrompt);
+    if (settingsData && settingsData.settings) {
+      lsSet(LS_KEYS.NUTRITION_TARGETS, settingsToTargets(settingsData.settings));
+    }
+    const detailsData = await readFromSheet('meal_details', { from, to }, false);
+    const serverRecords = serverRowsToAppRecords(detailsData.rows || []);
+    lsSet(LS_KEYS.DAY_SERVER_RECORDS, serverRecords);
+    const counts = mergeServerMealRecords(serverRecords);
+    lsSet(LS_KEYS.LAST_SYNC, Date.now());
+    if (state.view === 'meal') loadMealFor(state.date, state.timing);
+    renderQuickRow();
+    renderItems();
+    renderHydration();
+    renderHome();
+    if (manual) showToast(`同期しました（追加${counts.added} / 更新${counts.updated}）`);
+    return { status: 'ok', ...counts };
+  } catch (err) {
+    if (manual || (err && String(err.message || err).includes('PIN'))) showToast('READ_PINを確認してください');
+    return { status: 'error', message: String(err && err.message ? err.message : err) };
+  } finally {
+    state.serverSyncing = false;
+    updateSyncUi();
+  }
+}
+function maybeAutoSyncFromServer() {
+  syncFromServer({ manual: false }).catch(() => {});
+}
+
 function saveCurrentAsUsual() {
   if (!state.items.length) { showToast('保存する食事内容がありません'); return; }
   const presets = loadPresets();
@@ -2203,6 +2480,7 @@ function openSettings() {
   $('#setWritePin').value = loadWritePin();
   $('#setReadPin').value = loadReadPin();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
+  updateSyncUi();
   $('#settingsBack').classList.add('show');
 }
 function saveSettings() {
@@ -2217,6 +2495,7 @@ function saveSettings() {
   } catch (e) {}
   $('#settingsBack').classList.remove('show');
   showToast('設定を保存しました');
+  updateSyncUi();
   renderHome();
 }
 
@@ -2229,6 +2508,11 @@ $('#dateNext').addEventListener('click', () => setDate(shiftDate(state.date, 1))
 $('#dateLabel').addEventListener('click', () => setDate(todayStr()));
 $('#gearBtn').addEventListener('click', openSettings);
 $('#saveSettingsBtn').addEventListener('click', saveSettings);
+$('#syncServerBtn').addEventListener('click', async () => {
+  const rp = $('#setReadPin').value.trim();
+  if (rp) saveReadPin(rp);
+  await syncFromServer({ manual: true, forcePrompt: !loadReadPin() });
+});
 $('#settingsBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#settingsBack').classList.remove('show'); });
 $('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#unitBack').classList.remove('show'); });
 $('#qtyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#qtyBack').classList.remove('show'); });
@@ -2430,6 +2714,8 @@ setDate(todayStr());
 loadMealFor(state.date, state.timing);
 showView('home');
 try { flushPendingQueue(); } catch (e) {}
+updateSyncUi();
+maybeAutoSyncFromServer();
 </script>
 </body>
 </html>

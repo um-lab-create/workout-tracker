@@ -36,6 +36,7 @@ const LS_KEYS = {
   WRITE_AUTH:    'hs:write-auth:v1',   // { pin, savedAt }
   READ_AUTH:     'hs:read-auth:v1',    // { pin, savedAt }
   PENDING_QUEUE: 'hs:pending-queue',   // オフライン送信キュー
+  LAST_SYNC:     'hs:last-sync:v1',     // app.html の最終サーバー同期時刻
 };
 
 // ----------------------------------------------------------------
