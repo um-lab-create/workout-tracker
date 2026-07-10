@@ -769,7 +769,6 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <button class="secondary-btn" id="acctLoginBtn" type="button">ログイン</button>
       <button class="secondary-btn" id="acctLogoutBtn" type="button" style="display:none">ログアウト</button>
     </div>
-    <div class="set-row"><span class="sl">利用PIN（GASミラー用・観察期間のみ）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
     <div class="section-label" style="margin-top:12px">目標</div>
     <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
@@ -797,7 +796,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <a href="index.html">ハブ<span>旧シート閲覧リンクなど</span></a>
     </div>
     <div class="sync-note">旧ページ（workout/meal/day/body）は退役しました。栄養分析（35栄養素）と商品DB・独自食材・自作メニューの編集画面は SPEC-013 でこのアプリに移植予定です（登録済みデータは検索から従来どおり使えます）。</div>
-    <div class="sync-note" id="connCheckNote">記録は Supabase に保存されます（観察期間中はシートにもミラー）。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続OK ✓」と表示されればOK）。</div>
+    <div class="sync-note" id="connCheckNote">記録は Supabase に保存されます。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続OK ✓」と表示されればOK）。</div>
   </div>
 </div>
 
@@ -872,7 +871,6 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 
 <script src="nutrition-db.js"></script>
 <script src="js/storage.js"></script>
-<script src="js/api-client.js"></script>
 <script src="js/nutrition-calc.js"></script>
 <script src="js/food-catalog.js"></script>
 <script src="js/supabase-client.js"></script>
@@ -880,17 +878,15 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 'use strict';
 /* ================================================================
    app.js 部（inline）
-   互換契約:
-     - meal_recs_v3 / meal_draft_v4 / meal_presets_v3 / meal_custom_foods_v1 /
-       meal_products_v1 / body_recs_v1 / wt:lastValues:v2 / wt:history:v2 /
-       nutrition_targets_v1 / hs:carb-cycle:v1 は旧ページと同一形式で読み書き。
-     - 書込（SPEC-012 Step2）: Supabase 本線（例外＝確実に検知）→ 成功後に
-       DUAL_WRITE_GAS の間だけ従来 GAS POST を投げ捨て式で併走（ミラー失敗は無視）。
-       テーブル対応は docs/cutover_plan_2026-07-10.md 付録A が正。
+   契約（SPEC-012。2026-07-10 GAS 退役済み＝バックエンドは Supabase のみ）:
+     - localStorage 一次ストア: meal_recs_v3 / meal_draft_v4 / meal_presets_v3 /
+       meal_custom_foods_v1 / meal_products_v1 / body_recs_v1 / wt:lastValues:v2 /
+       wt:history:v2 / nutrition_targets_v1 / hs:carb-cycle:v1
+     - 書込: Supabase 本線（例外＝確実に検知）。テーブル対応は
+       docs/cutover_plan_2026-07-10.md 付録A が正。
      - 読取: settings / meal_details / v_weekly_review を supabase-js select で取得。
-       READ_PIN 読取は廃止（コード削除は GAS 退役時）。
-     - オフラインキュー: hs:sb-queue:v1（操作ベース）。旧 hs:pending-queue は
-       GAS ミラー稼働中に flushPendingQueue で流し切るのみ（新規には積まない）。
+     - オフラインキュー: hs:sb-queue:v1（操作ベース）。再送時は localStorage の
+       最新状態から同期し直す。
    ================================================================ */
 
 // ---------------- ユーティリティ ----------------
@@ -1681,8 +1677,6 @@ function openUnitSheet(i) {
 function summarizeItems(items) {
   return items.map((it) => `${it.name} ${fmtQty(it.qty)}${it.unit}`).join(' / ');
 }
-// 食事明細の GAS ミラー行は detailRowsFromRecord(record) を共用する（Step2 で一本化）
-
 let isSavingMeal = false;
 async function saveMeal() {
   if (isSavingMeal) return;
@@ -1766,41 +1760,12 @@ function markMealSynced(recordId, synced) {
   if (idx >= 0) { records[idx].synced = Boolean(synced); saveRecords(records); }
 }
 
-function detailRowsFromRecord(record) {
-  const rows = (record.structuredItems || []).map((s) => ({
-    date: record.date,
-    timing: record.timing,
-    timingKey: record.timingKey,
-    recordId: record.id,
-    foodId: s.foodId,
-    name: s.foodName || s.foodId,
-    qty: Number(s.qty) || 0,
-    unit: s.unit,
-    grams: s.grams == null ? '' : Math.round((Number(s.grams) || 0) * 10) / 10,
-    pendingReview: Boolean(s.pendingReview)
-  }));
-  if (record.diningOut) {
-    rows.push({
-      date: record.date, timing: record.timing, timingKey: record.timingKey, recordId: record.id,
-      foodId: 'dining-out-pending',
-      name: record.restaurantName ? `外食: ${record.restaurantName}` : '外食未計算',
-      qty: 1, unit: '件', grams: '', pendingReview: true,
-      diningOut: true, restaurantName: record.restaurantName,
-      googleMapUrl: record.googleMapUrl, diningText: record.diningText,
-      calcStatus: '未計算', calcMemo: ''
-    });
-  }
-  return rows;
-}
-
 // ================================================================
-// Supabase 同期層（SPEC-012 Step2: 書込・読取の supabase-js 化）
-// 保存フロー: まず Supabase で書く（失敗は例外）→ 成功後 DUAL_WRITE_GAS の間は
-// 従来 writeToSheet() を投げ捨て式で併走（ミラーはロールバック保険。GAS 退役時に
-// フラグごと削除する）。失敗時は hs:sb-queue:v1 に「操作」を積み、再送時は
-// localStorage の最新状態から同期し直す。
+// Supabase 同期層（SPEC-012: 書込・読取の supabase-js 化）
+// 保存フロー: Supabase で書く（失敗は例外＝確実に検知）。失敗時は hs:sb-queue:v1 に
+// 「操作」を積み、再送時は localStorage の最新状態から同期し直す。
+// GAS ミラー（DUAL_WRITE_GAS）は 2026-07-10 の GAS 退役（計画書 §8）で削除済み。
 // ================================================================
-const DUAL_WRITE_GAS = true; // GASミラー併走フラグ（観察期間終了＝GAS退役時にコードごと削除）
 const FOODS_MAP_KEY = 'hs:foods-map:v1';
 let foodsKeyMap = (lsGet(FOODS_MAP_KEY, null) || {}).map || {};
 
@@ -1821,19 +1786,6 @@ function makeClientUuid() {
   buf[8] = (buf[8] & 0x3f) | 0x80;
   buf.forEach((b) => hex.push(b.toString(16).padStart(2, '0')));
   return `${hex.slice(0,4).join('')}-${hex.slice(4,6).join('')}-${hex.slice(6,8).join('')}-${hex.slice(8,10).join('')}-${hex.slice(10,16).join('')}`;
-}
-
-/**
- * GAS ミラー（投げ捨て式）。失敗しても無視・UIに出さない。
- * プロンプトは出さない: WRITE_PIN が端末に保存済みの時だけ送る。
- */
-function mirrorToGas(payloads) {
-  if (!DUAL_WRITE_GAS) return;
-  if (!navigator.onLine) return;         // オフライン時は旧キューに積まない（Supabase側のキューが正）
-  if (!loadWritePin()) return;           // PIN未保存ならミラーは黙ってスキップ
-  (payloads || []).forEach((p) => {
-    try { writeToSheet(p).catch(() => {}); } catch (e) { /* ミラーはベストエフォート */ }
-  });
 }
 
 /** foods の legacy_key → uuid 対応表を取得してキャッシュする（24時間TTL・失敗は無視）。 */
@@ -1900,29 +1852,19 @@ function sbMealPayload(record) {
   };
 }
 
-/** 従来 GAS 向けの食事ミラー payload（キー・形式は旧ページと同一）。 */
-function mealGasPayloads(record) {
-  const payloads = [{ sheet: '食事ログ', ...record }];
-  const rows = detailRowsFromRecord(record);
-  if (rows.length) payloads.push({ sheet: '食事明細', rows });
-  return payloads;
-}
-
-/** 食事1件を Supabase に保存し、成功後に GAS へミラーする。失敗は例外。 */
+/** 食事1件を Supabase に保存する。失敗は例外。 */
 async function pushMealToServer(record) {
   const sb = await window.HSSupabaseReady;
   await sb.saveMealRecord(sbMealPayload(record));
   window.HSSbQueue.discard(`meal_delete:${record.date}:${record.timingKey}`);
-  mirrorToGas(mealGasPayloads(record));
 }
 
-/** 食事1件を Supabase から削除し、GAS へ削除ミラーする。失敗は例外。 */
+/** 食事1件を Supabase から削除する。失敗は例外。 */
 async function pushMealDeleteToServer({ date, timingKey, recordId }) {
   const sb = await window.HSSupabaseReady;
   const timingLabel = (TIMINGS[timingKey] && TIMINGS[timingKey].label) || timingKey;
   await sb.deleteMealRecord(date, timingLabel);
   window.HSSbQueue.discard(`meal_save:${date}:${timingKey}`);
-  mirrorToGas([{ sheet: '食事ログ', action: 'delete', recordId, date, timingKey }]);
 }
 
 /** 送信失敗の共通ハンドリング: 操作をキューに積み、状況に応じたトーストを出す。 */
@@ -1951,24 +1893,12 @@ function sbWorkoutRow(gasRecord) {
     load_note: gasRecord['負荷'] === '' || gasRecord['負荷'] == null ? null : String(gasRecord['負荷'])
   };
 }
-async function pushWorkoutToServer(row, gasPayload) {
+async function pushWorkoutToServer(row) {
   const sb = await window.HSSupabaseReady;
   await sb.insertWorkout(row);
-  mirrorToGas([gasPayload]);
 }
 
 // ---- 水分（日次累積スナップショット。同日 upsert で1行に収束） ----
-function hydrationGasPayload(date, rec, total) {
-  return {
-    sheet: '水分ログ',
-    date,
-    totalMl: total,
-    liters: Math.round(total / 100) / 10,
-    targetMl: hydrationTarget(date),
-    entries: (rec.entries || []).map((e) => `${e.label}:${e.ml}ml`).join(' / '),
-    note: '飲み物・汁物・牛乳などの経口水分量。食事とは別管理。'
-  };
-}
 async function pushHydrationToServer(date, rec, total) {
   const sb = await window.HSSupabaseReady;
   await sb.upsertHydration({
@@ -1977,7 +1907,6 @@ async function pushHydrationToServer(date, rec, total) {
     target_ml: hydrationTarget(date),
     breakdown: (rec.entries || []).map((e) => ({ label: e.label || '水分', ml: Number(e.ml) || 0 }))
   });
-  mirrorToGas([hydrationGasPayload(date, rec, total)]);
 }
 
 // ---- 体組成（手動） ----
@@ -1992,20 +1921,9 @@ function sbBodyRow(record) {
     note: record.memo || null
   };
 }
-function bodyGasPayload(record) {
-  return {
-    sheet: '体組成ログ手動',
-    '日付': record.date,
-    '体重kg': record.weight || '',
-    '体脂肪率%': record.fat || '',
-    '調子': condLabel(record.cond),
-    'メモ': record.memo
-  };
-}
-async function pushBodyToServer(row, gasPayload) {
+async function pushBodyToServer(row) {
   const sb = await window.HSSupabaseReady;
   await sb.insertBodyComposition(row);
-  mirrorToGas([gasPayload]);
 }
 
 // ---- 目標（設定） ----
@@ -2019,7 +1937,6 @@ async function pushSettingsToServer() {
     target_c_g: targets.carb,
     updated_at: new Date().toISOString()
   });
-  mirrorToGas([{ sheet: '設定', action: 'update_targets', ...targets }]);
 }
 
 // ---- キュー操作ハンドラ登録（再送時は localStorage の最新状態から同期し直す） ----
@@ -2034,8 +1951,8 @@ function registerSbOpHandlers() {
   q.registerHandler('meal_delete', async (data) => {
     await pushMealDeleteToServer(data);
   });
-  q.registerHandler('workout_save', async ({ row, gas }) => {
-    await pushWorkoutToServer(row, gas);
+  q.registerHandler('workout_save', async ({ row }) => {
+    await pushWorkoutToServer(row);
   });
   q.registerHandler('hydration_save', async ({ date }) => {
     const all = lsGet(LS_KEYS.HYDRATION_RECORDS, {}) || {};
@@ -2048,8 +1965,8 @@ function registerSbOpHandlers() {
     all[date] = rec;
     lsSet(LS_KEYS.HYDRATION_RECORDS, all);
   });
-  q.registerHandler('body_save', async ({ row, gas }) => {
-    await pushBodyToServer(row, gas);
+  q.registerHandler('body_save', async ({ row }) => {
+    await pushBodyToServer(row);
   });
   q.registerHandler('settings_save', async () => {
     await pushSettingsToServer();
@@ -2546,9 +2463,7 @@ async function sendHydration() {
 }
 function pendingSendCount() {
   const unsyncedMeals = getRecords().filter((r) => r && r.synced === false).length;
-  return (window.HSSbQueue ? window.HSSbQueue.count() : 0)   // 新キュー（Supabase 操作）
-    + (lsGet(LS_KEYS.PENDING_QUEUE, []) || []).length         // 旧GASキュー（移行措置・流し切りのみ）
-    + (lsGet(LS_KEYS.WT_QUEUE, []) || []).length
+  return (window.HSSbQueue ? window.HSSbQueue.count() : 0)   // キュー（Supabase 操作）
     + (state.workoutDrafts || []).length
     + unsyncedMeals;
 }
@@ -2559,9 +2474,6 @@ function renderSyncStatus() {
   $('#homeSyncSub').textContent = pending ? '未送信/下書きあり' : '待機なし';
 }
 async function retryPending() {
-  // 旧GASキュー（移行措置: 残件があればGASミラー稼働中に流し切る。PIN保存済みの時だけ）
-  if (loadWritePin()) { try { await flushPendingQueue(); } catch (e) {} }
-  // 新キュー（Supabase 操作）
   await flushSbQueueAndRender();
   // キューに乗っていない未同期食事（旧バージョンからの引き継ぎ分など）
   const unsynced = getRecords().filter((r) => r && r.synced === false);
@@ -3015,10 +2927,10 @@ async function sendWorkoutDrafts() {
     // Supabase 本線（クライアント生成 uuid で再送冪等）→ 成功後 GAS ミラー
     const row = sbWorkoutRow(item);
     try {
-      await pushWorkoutToServer(row, item);
+      await pushWorkoutToServer(row);
       sent.push({ ...item, _draft: false, _queued: false, _writeStatus: 'confirmed', _ts: Date.now() });
     } catch (err) {
-      window.HSSbQueue.enqueue('workout_save', null, { row, gas: item });
+      window.HSSbQueue.enqueue('workout_save', null, { row });
       sent.push({ ...item, _draft: false, _queued: true, _writeStatus: 'queued', _ts: Date.now() });
       queuedCount += 1;
     }
@@ -3141,13 +3053,12 @@ async function saveBody() {
   const btn = $('#saveBodyBtn');
   btn.disabled = true;
   const row = sbBodyRow(record);       // uuid は1回だけ生成（再送冪等キー）
-  const gas = bodyGasPayload(record);
   try {
-    await pushBodyToServer(row, gas);
+    await pushBodyToServer(row);
     flashSuccess(btn, '✓ 記録しました');
     showToast(`からだ: ${writeStatusText({ status: 'confirmed' })}`);
   } catch (err) {
-    queueWithToast('body_save', null, { row, gas }, 'からだ', err);
+    queueWithToast('body_save', null, { row }, 'からだ', err);
   }
   haptic([8, 24, 8]);
   btn.disabled = false;
@@ -3211,7 +3122,6 @@ function setTiming(tk) {
 
 // ---------------- 設定モーダル ----------------
 function openSettings() {
-  $('#setWritePin').value = loadWritePin();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
   const targets = baseTargets();
   $('#setTargetEnergy').value = Math.round(targets.energy);
@@ -3223,8 +3133,6 @@ function openSettings() {
   $('#settingsBack').classList.add('show');
 }
 async function saveSettings() {
-  const wp = $('#setWritePin').value.trim();
-  if (wp) saveWritePin(wp);
   try {
     const cfg = loadCarbCycle();
     cfg.carbDelta = Number($('#setCarbDelta').value) || 50;
@@ -3895,10 +3803,15 @@ registerSbOpHandlers();
 setDate(todayStr());
 loadMealFor(state.date, state.timing);
 showView('home');
-// 旧GASキューの移行措置: 残件はGASミラー稼働中に従来経路で流し切る（新規には積まない。
-// 残件ゼロがGAS退役の前提条件＝計画書 §8-④。PIN未保存なら何もしない）
-if (loadWritePin()) { try { flushPendingQueue(); } catch (e) {} }
-// 新キュー（hs:sb-queue:v1）の再送トリガ: オンライン復帰時（起動時・ログイン完了時は initSupabaseAuth 側）
+// GAS 退役の後片付け（計画書 §8-2）: 旧認証・旧GASキューの localStorage を掃除する。
+// 旧 wt:queue:v2 に未送信の筋トレが残っていた場合は新キューへ変換してから消す（データ保全）。
+try {
+  (lsGet('wt:queue:v2', []) || []).forEach((item) => {
+    if (item && item['種目']) window.HSSbQueue.enqueue('workout_save', null, { row: sbWorkoutRow(item) });
+  });
+} catch (e) {}
+['hs:write-auth:v1', 'hs:read-auth:v1', 'hs:pending-queue', 'wt:queue:v2'].forEach((k) => { try { lsRemove(k); } catch (e) {} });
+// キュー（hs:sb-queue:v1）の再送トリガ: オンライン復帰時（起動時・ログイン完了時は initSupabaseAuth 側）
 window.addEventListener('online', () => { flushSbQueueAndRender(); });
 updateSyncUi();
 maybeAutoSyncFromServer();

@@ -26,18 +26,16 @@ const LS_KEYS = {
   DAY_DRAFT:          'meal_draft_v4',            // day.html も同じドラフトを参照
   DAY_RECORD_CACHE:   'meal_recs_v3',             // day.html も同じレコードを参照
 
-  // workout.html 関連（wt: プレフィクス）
+  // 筋トレ関連（wt: プレフィクス）
   WT_LAST:          'wt:lastValues:v2',
-  WT_QUEUE:         'wt:queue:v2',
   WT_HISTORY:       'wt:history:v2',
   WT_SELECTED:      'wt:selectedExercise:v2',
   WT_SELECTED_DATE: 'wt:selectedDate:v1',
 
-  // 認証（全ページ共通）
-  WRITE_AUTH:    'hs:write-auth:v1',   // { pin, savedAt }
-  READ_AUTH:     'hs:read-auth:v1',    // { pin, savedAt }
-  PENDING_QUEUE: 'hs:pending-queue',   // オフライン送信キュー
+  // 同期
   LAST_SYNC:     'hs:last-sync:v1',     // app.html の最終サーバー同期時刻
+  // 旧GAS時代のキー（hs:write-auth:v1 / hs:read-auth:v1 / hs:pending-queue / wt:queue:v2）は
+  // 2026-07-10 のGAS退役で廃止。app.html が起動時に localStorage から掃除する。
 };
 
 // ----------------------------------------------------------------
