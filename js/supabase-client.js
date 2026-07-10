@@ -347,6 +347,103 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     return true;
   }
 
+  // ---------------- 取込2導線（SPEC-012 §6・GAS退役のブロッカー） ----------------
+
+  /**
+   * ヘルスケア日次データを health_metrics へ一括 upsert する（500行 chunk）。
+   * 旧 `sheet:'ヘルスケアログ_batch'` no-cors POST の置換。
+   * @param {Array<{measured_on:string, metric:string, value:number, unit:string}>} rows
+   * @returns {Promise<{total:number, chunks:number}>}
+   */
+  async function upsertHealthMetrics(rows) {
+    const uid = await requireUserId();
+    const CHUNK = 500;
+    let chunks = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const batch = rows.slice(i, i + CHUNK).map((r) => ({ ...r, user_id: uid }));
+      must(await client.from('health_metrics')
+        .upsert(batch, { onConflict: 'user_id,measured_on,metric' }));
+      chunks += 1;
+    }
+    return { total: rows.length, chunks };
+  }
+
+  /**
+   * eufy 体組成CSVの行を body_composition へ一括 insert する（重複は黙ってスキップ）。
+   * on conflict (user_id, measured_at, source) do nothing = 旧「日時比較の差分取込」の代わり。
+   * RETURNING は実際に insert された行だけを返すため、追加/スキップ件数が分かる。
+   * @param {Array<object>} rows  measured_at(ISO+09:00)・source='eufy' 込みの行
+   * @returns {Promise<{total:number, inserted:number, skipped:number}>}
+   */
+  async function insertEufyBodyComposition(rows) {
+    const uid = await requireUserId();
+    const CHUNK = 500;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const batch = rows.slice(i, i + CHUNK).map((r) => ({ ...r, user_id: uid }));
+      const returned = must(await client.from('body_composition')
+        .upsert(batch, { onConflict: 'user_id,measured_at,source', ignoreDuplicates: true })
+        .select('id'));
+      inserted += (returned || []).length;
+    }
+    return { total: rows.length, inserted, skipped: rows.length - inserted };
+  }
+
+  // ---------------- バックアップ（SPEC-012 §7・課金なし1クリック） ----------------
+
+  // 書き出し対象の全テーブルと、ページネーションを安定させる order 列。
+  // ビュー2本は再計算できるため含めない。foods はマスタだが復元が1ファイルで済むよう含める。
+  const BACKUP_TABLES = [
+    { name: 'body_composition', order: ['measured_at', 'id'] },
+    { name: 'health_metrics', order: ['measured_on', 'metric'] },  // 複合PK・id列なし
+    { name: 'meals', order: ['eaten_on', 'id'] },
+    { name: 'meal_items', order: ['meal_id', 'sort_order', 'id'] },
+    { name: 'meal_dining_context', order: ['meal_id'] },
+    { name: 'workouts', order: ['performed_on', 'id'] },
+    { name: 'hydration', order: ['logged_on'] },
+    { name: 'weekly_notes', order: ['week_start'] },
+    { name: 'user_settings', order: ['user_id'] },
+    { name: 'foods', order: ['id'] }
+  ];
+
+  /** PostgREST の1000行制限を超えても全件取れるよう range() でページングする。 */
+  async function fetchAllRows(table, orderCols) {
+    const PAGE = 1000;
+    const all = [];
+    for (let from = 0; ; from += PAGE) {
+      let query = client.from(table).select('*');
+      orderCols.forEach((col) => { query = query.order(col, { ascending: true }); });
+      const rows = must(await query.range(from, from + PAGE - 1));
+      all.push(...rows);
+      if (!rows || rows.length < PAGE) break;
+    }
+    return all;
+  }
+
+  /**
+   * 全テーブルを select して1つのバックアップオブジェクトにまとめる。
+   * RLS によりログイン本人の行しか返らない = 自分のデータの完全な写し。
+   * 件数メタ情報を含め、取りこぼしを検知可能にする（SPEC-012 §7）。
+   */
+  async function exportAllTables(onProgress) {
+    await requireUserId();
+    const tables = {};
+    let totalRows = 0;
+    for (const t of BACKUP_TABLES) {
+      if (onProgress) { try { onProgress(t.name); } catch (e) {} }
+      const rows = await fetchAllRows(t.name, t.order);
+      tables[t.name] = { count: rows.length, rows };
+      totalRows += rows.length;
+    }
+    return {
+      exportedAt: new Date().toISOString(),
+      format: 'health-sambo-backup-v1',
+      tableCount: BACKUP_TABLES.length,
+      totalRows,
+      tables
+    };
+  }
+
   // ---------------- キューの再送（flush） ----------------
 
   let queueFlushing = false;
@@ -411,6 +508,9 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     fetchWeeklyReview,
     fetchFoodsKeyMap,
     pingRead,
+    upsertHealthMetrics,
+    insertEufyBodyComposition,
+    exportAllTables,
     flushQueue
   };
 

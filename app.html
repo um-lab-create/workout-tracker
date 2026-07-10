@@ -783,6 +783,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="action-row">
       <button class="secondary-btn" id="weeklyReviewBtn" type="button">週次レビューを見る</button>
     </div>
+    <div class="section-label" style="margin-top:12px">データ管理（月1回の習慣: eufy取込 → バックアップ）</div>
+    <div class="action-row">
+      <button class="secondary-btn" id="eufyImportBtn" type="button">eufy CSV 取込</button>
+      <button class="secondary-btn" id="backupBtn" type="button">バックアップを保存</button>
+    </div>
+    <input type="file" id="eufyCsvInput" accept=".csv,text/csv" style="display:none">
+    <div class="sync-note" id="dataAdminNote">eufyLife アプリの CSV を選ぶと体組成を取り込みます（重複は自動スキップ）。バックアップ JSON は自分の全記録の写しです — 人に送ったり公開の場所に置いたりしないでください。</div>
     <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
     <div class="section-label" style="margin-top:16px">くわしい画面（従来ページ）</div>
     <div class="link-grid">
@@ -3454,6 +3461,115 @@ async function openWeeklyReview() {
   }
 }
 
+// ---------------- eufy CSV 取込（SPEC-012 Step3・旧シートボタン importEufyCSV の置換） ----------------
+// 変換規則の正: apps-script/コード.js importEufyCSV_core_（生CSVの列番号）と
+// scripts/migrate_body_composition.py（日時のISO+09:00化・数値パース・列名）。
+// 昇順ソートの旧鉄則は不要（読取時 order by。設計書 §8）。重複は
+// on conflict (user_id, measured_at, source) do nothing で黙ってスキップされる。
+
+/** 引用符対応の簡易CSVパーサ（eufy CSV は値にカンマを含む列がある可能性に備える）。 */
+function parseCsvText(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  const src = String(text || '').replace(/\r\n?/g, '\n');
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ',') { row.push(field); field = ''; }
+    else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else field += ch;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.length > 1 || (r[0] || '').trim() !== '');
+}
+
+/** '2026/5/12 7:03:21' 等 → '2026-05-12T07:03:21+09:00'（migrate_body_composition.py parse_timestamp と同一規則）。 */
+function eufyTimestampToIso(value) {
+  const text = String(value || '').trim().replace(/\//g, '-');
+  const m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${m[1]}-${pad(m[2])}-${pad(m[3])}T${pad(m[4] || 0)}:${pad(m[5] || 0)}:${pad(m[6] || 0)}+09:00`;
+}
+
+/** 生 eufy CSV → body_composition 行。列番号は GAS importEufyCSV_core_ L594-601 と同一。 */
+function eufyCsvToRows(text) {
+  const parsed = parseCsvText(text);
+  return parsed.slice(1)                                        // ヘッダー行を除外
+    .filter((r) => r[3] && parseFloat(r[3]) !== 0)              // GASと同じ有効判定
+    .map((r) => ({
+      measured_at: eufyTimestampToIso(r[0]),
+      source: 'eufy',
+      weight_kg: toNumOrNull(r[2]),
+      bmi: toNumOrNull(r[3]),
+      body_fat_pct: toNumOrNull(r[4]),
+      muscle_mass_kg: toNumOrNull(r[6]),
+      bmr: r[8] == null || r[8] === '' ? null : Math.round(Number(r[8])) || null,
+      water_pct: toNumOrNull(r[9]),
+      fat_mass_kg: toNumOrNull(r[10]),
+      lean_mass_kg: toNumOrNull(r[11]),
+      bone_kg: toNumOrNull(r[12]),
+      skeletal_kg: toNumOrNull(r[16]),
+      subcut_pct: toNumOrNull(r[17]),
+      protein_pct: toNumOrNull(r[15])
+    }))
+    .filter((r) => r.measured_at);
+}
+
+async function importEufyCsvFile(file) {
+  const note = $('#dataAdminNote');
+  try {
+    const sb = await window.HSSupabaseReady;
+    const session = await sb.getSession();
+    if (!session) { showToast('未ログインです。ログインしてから取り込んでください'); openLoginSheet('login'); return; }
+    const text = await file.text();
+    const rows = eufyCsvToRows(text);
+    if (!rows.length) { showToast('取り込める行がありません（CSVの形式を確認してください）'); return; }
+    note.textContent = `取込中… ${rows.length}行`;
+    const result = await sb.insertEufyBodyComposition(rows);
+    note.textContent = `eufy取込 完了 ✓ 追加${result.inserted}件 / 重複スキップ${result.skipped}件（${file.name}）`;
+    showToast(`eufy CSV: 追加${result.inserted}件・スキップ${result.skipped}件`);
+  } catch (err) {
+    note.textContent = `eufy取込 エラー: ${String(err && err.message ? err.message : err)}`;
+    showToast('eufy CSV の取込に失敗しました');
+  }
+}
+
+// ---------------- バックアップ（SPEC-012 Step3・§7 課金なし1クリック） ----------------
+async function downloadBackup() {
+  const btn = $('#backupBtn');
+  const note = $('#dataAdminNote');
+  btn.disabled = true;
+  try {
+    const sb = await window.HSSupabaseReady;
+    const session = await sb.getSession();
+    if (!session) { showToast('未ログインです。ログインしてから保存してください'); openLoginSheet('login'); return; }
+    note.textContent = 'バックアップ書き出し中…';
+    const data = await sb.exportAllTables((table) => { note.textContent = `書き出し中… ${table}`; });
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `health-backup-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    note.textContent = `バックアップ完了 ✓ ${data.tableCount}テーブル・計${data.totalRows}行。このファイルは人に送らない/公開の場所に置かないでください。`;
+    showToast('バックアップJSONを書き出しました（iPhoneでは共有シートから「ファイルに保存」）');
+  } catch (err) {
+    note.textContent = `バックアップ エラー: ${String(err && err.message ? err.message : err)}`;
+    showToast('バックアップに失敗しました');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ---------------- 長押しステッパー ----------------
 const longPressConsumed = new WeakSet();
 function consumeLongPressClick(el) {
@@ -3537,6 +3653,13 @@ $('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarg
 $('#qtyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#qtyBack').classList.remove('show'); });
 $('#weeklyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#weeklyBack').classList.remove('show'); });
 $('#weeklyReviewBtn').addEventListener('click', openWeeklyReview);
+$('#eufyImportBtn').addEventListener('click', () => $('#eufyCsvInput').click());
+$('#eufyCsvInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';                       // 同じファイルを選び直せるように
+  if (file) await importEufyCsvFile(file);
+});
+$('#backupBtn').addEventListener('click', downloadBackup);
 // 疎通確認: 旧 doGet の代わりに、ログイン状態＋user_settings への軽い select で判定（SPEC-012 §5）
 $('#connCheckLink').addEventListener('click', async (e) => {
   e.preventDefault();
