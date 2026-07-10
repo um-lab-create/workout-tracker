@@ -347,6 +347,118 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     return true;
   }
 
+  // ---------------- 食品ドメイン（SPEC-014・007 が前提） ----------------
+
+  /** foods 全件（archived 除く）をページネーション取得する。カタログキャッシュの元データ。 */
+  async function fetchFoodsCatalog() {
+    await requireUserId();
+    const PAGE = 1000;
+    const all = [];
+    for (let from = 0; ; from += PAGE) {
+      const rows = must(await client.from('foods')
+        .select('*')
+        .eq('archived', false)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1));
+      all.push(...rows);
+      if (!rows || rows.length < PAGE) break;
+    }
+    return all;
+  }
+
+  /**
+   * 自分の食品（食材/商品/レシピの親行）を upsert する。冪等キーは legacy_key。
+   * owner は必ず自分（RLS の with check とも一致）。
+   */
+  async function upsertUserFood(row) {
+    const uid = await requireUserId();
+    return must(await client.from('foods')
+      .upsert({ ...row, owner: uid, updated_at: new Date().toISOString() }, { onConflict: 'legacy_key' })
+      .select('id, legacy_key')
+      .single());
+  }
+
+  /**
+   * レシピを保存する: 親 foods 行 upsert → recipe_items を全 delete → 全 insert（置換・冪等）。
+   * 親行には呼び出し側で計算済みの 1食分栄養（per_unit / micros / typed列）を渡すこと。
+   * @returns {Promise<string>} 親 foods の id
+   */
+  async function saveRecipe(foodRow, items) {
+    const uid = await requireUserId();
+    const food = await upsertUserFood({ ...foodRow, kind: 'recipe' });
+    must(await client.from('recipe_items').delete().eq('recipe_food_id', food.id));
+    const rows = (items || []).map((it, i) => ({
+      recipe_food_id: food.id,
+      user_id: uid,
+      ingredient_food_id: it.ingredientFoodId || null,
+      name: it.name,
+      qty: it.qty ?? null,
+      unit: it.unit || null,
+      grams: it.grams ?? null,
+      est_kcal: it.estKcal ?? null,
+      est_protein_g: it.estProteinG ?? null,
+      est_fat_g: it.estFatG ?? null,
+      est_carb_g: it.estCarbG ?? null,
+      pending_review: Boolean(it.pendingReview),
+      sort_order: i
+    }));
+    if (rows.length) must(await client.from('recipe_items').insert(rows));
+    return food.id;
+  }
+
+  /** レシピの材料内訳を取得する（編集用）。 */
+  async function fetchRecipeItems(recipeFoodId) {
+    await requireUserId();
+    return must(await client.from('recipe_items')
+      .select('*')
+      .eq('recipe_food_id', recipeFoodId)
+      .order('sort_order', { ascending: true, nullsFirst: false }));
+  }
+
+  /** 自分の食品をアーカイブ/復帰する（論理削除。過去記録の参照を壊さない）。 */
+  async function setFoodArchived(legacyKey, archived) {
+    const uid = await requireUserId();
+    must(await client.from('foods')
+      .update({ archived: Boolean(archived), updated_at: new Date().toISOString() })
+      .eq('legacy_key', legacyKey)
+      .eq('owner', uid));
+  }
+
+  /** 普段の食事セット（テンプレート）を upsert する。冪等キーは (user_id, legacy_key)。 */
+  async function upsertMealTemplate(row) {
+    const uid = await requireUserId();
+    must(await client.from('meal_templates')
+      .upsert({ ...row, user_id: uid, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,legacy_key' }));
+  }
+
+  /** 自分のテンプレート一覧。 */
+  async function fetchMealTemplates() {
+    await requireUserId();
+    return must(await client.from('meal_templates')
+      .select('*')
+      .order('sort_order', { ascending: true, nullsFirst: false }));
+  }
+
+  /**
+   * food_id 未解決の過去明細を legacy_key → foods.id 対応で自動接続する（昇格後の後始末）。
+   * RLS により自分の行しか更新されない。
+   * @param {Object<string,string>} keyToId
+   */
+  async function relinkMealItems(keyToId) {
+    await requireUserId();
+    let relinked = 0;
+    for (const [key, id] of Object.entries(keyToId || {})) {
+      const rows = must(await client.from('meal_items')
+        .update({ food_id: id })
+        .eq('food_key', key)
+        .is('food_id', null)
+        .select('id'));
+      relinked += (rows || []).length;
+    }
+    return relinked;
+  }
+
   // ---------------- 取込2導線（SPEC-012 §6・GAS退役のブロッカー） ----------------
 
   /**
@@ -508,6 +620,14 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     fetchWeeklyReview,
     fetchFoodsKeyMap,
     pingRead,
+    fetchFoodsCatalog,
+    upsertUserFood,
+    saveRecipe,
+    fetchRecipeItems,
+    setFoodArchived,
+    upsertMealTemplate,
+    fetchMealTemplates,
+    relinkMealItems,
     upsertHealthMetrics,
     insertEufyBodyComposition,
     exportAllTables,

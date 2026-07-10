@@ -770,6 +770,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <button class="secondary-btn" id="acctLogoutBtn" type="button" style="display:none">ログアウト</button>
     </div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
+    <div class="set-row"><span class="sl">水分記録を表示（既定OFF）</span><input id="setShowHydration" type="checkbox" style="width:22px;height:22px"></div>
     <div class="section-label" style="margin-top:12px">目標</div>
     <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
     <div class="set-row"><span class="sl">P たんぱく質 g</span><input id="setTargetProtein" type="number" inputmode="numeric" min="0" max="400" step="1"></div>
@@ -781,6 +782,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     </div>
     <div class="action-row">
       <button class="secondary-btn" id="weeklyReviewBtn" type="button">週次レビューを見る</button>
+      <button class="secondary-btn" id="myFoodsBtn" type="button">自分の食品</button>
     </div>
     <div class="section-label" style="margin-top:12px">データ管理（月1回の習慣: eufy取込 → バックアップ）</div>
     <div class="action-row">
@@ -859,7 +861,106 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .wk-grid { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:13px; }
   .wk-grid span { color:var(--sub, #888); }
   .wk-grid b { text-align:right; font-variant-numeric:tabular-nums; }
+  /* 食品ドメイン（SPEC-014） */
+  .add-food-cta { display:block; width:100%; margin-top:8px; padding:11px; border:1.5px dashed var(--accent,#ff8a2a); border-radius:14px; background:transparent; color:var(--accent,#ff8a2a); font-weight:800; font-size:13.5px; }
+  .kind-btn { display:block; width:100%; text-align:left; padding:13px 14px; margin-bottom:8px; border:1px solid var(--line,rgba(0,0,0,.1)); border-radius:14px; background:var(--panel,#fff); font-size:14px; font-weight:800; }
+  .kind-btn small { display:block; font-weight:500; font-size:11.5px; color:var(--muted,#888); margin-top:2px; }
+  .rc-item { display:flex; align-items:center; gap:6px; padding:7px 0; border-bottom:1px solid var(--line,rgba(0,0,0,.06)); font-size:13px; }
+  .rc-item .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rc-item input { width:52px; text-align:right; padding:4px; border:1px solid var(--line,rgba(0,0,0,.12)); border-radius:8px; }
+  .rc-item .un { color:var(--muted,#888); min-width:2em; }
+  .rc-est { padding:3px 8px; border-radius:10px; border:1px solid var(--line,rgba(0,0,0,.12)); background:transparent; font-size:11px; color:var(--muted,#888); }
+  .rc-est.on { background:rgba(228,162,58,.15); border-color:#e4a23a; color:#a06a10; font-weight:700; }
+  .rc-del { border:none; background:transparent; color:var(--muted,#999); font-size:15px; padding:4px; }
+  .mini-results button { display:block; width:100%; text-align:left; padding:8px 10px; border:none; background:transparent; border-bottom:1px solid var(--line,rgba(0,0,0,.05)); font-size:13px; }
+  .myfood-row { display:flex; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--line,rgba(0,0,0,.06)); font-size:13.5px; }
+  .myfood-row .nm { flex:1; min-width:0; }
+  .myfood-row .tag { font-size:10.5px; padding:2px 7px; border-radius:9px; background:var(--glass,rgba(0,0,0,.05)); color:var(--muted,#777); }
+  .myfood-row .tag.est { background:rgba(228,162,58,.15); color:#a06a10; font-weight:700; }
+  .filter-chips { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+  .filter-chips button { padding:6px 11px; border-radius:12px; border:1px solid var(--line,rgba(0,0,0,.12)); background:transparent; font-size:12px; }
+  .filter-chips button.on { background:var(--accent,#ff8a2a); color:#fff; border-color:transparent; font-weight:800; }
 </style>
+
+<!-- 食品を追加（統合入口・SPEC-014 §3-2） -->
+<div class="modal-back" id="addFoodBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>食品を追加</h3>
+    <div class="sync-note">1つ選ぶだけ。保存すると検索にすぐ出て、あとから「設定 → 自分の食品」で直せます。</div>
+    <button class="kind-btn" data-add-kind="product">市販品<small>お菓子・飲料・冷食・コンビニ品など（栄養成分表示から転記）</small></button>
+    <button class="kind-btn" data-add-kind="ingredient">食材<small>肉・野菜・生鮮など（100gあたりで登録）</small></button>
+    <button class="kind-btn" data-add-kind="recipe">レシピ（自作・作り置き・弁当）<small>材料を入れると1食分の栄養を自動計算</small></button>
+  </div>
+</div>
+
+<!-- 市販品/食材フォーム（SPEC-014 §3-2 最小フォーム） -->
+<div class="modal-back" id="foodFormBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3 id="foodFormTitle">市販品を追加</h3>
+    <div class="set-row"><span class="sl">名前</span><input id="ffName" placeholder="例: ランチパック たまご"></div>
+    <div class="set-row"><span class="sl">ブランド（任意）</span><input id="ffBrand"></div>
+    <div class="set-row" id="ffBasisRow"><span class="sl">栄養表示の基準</span>
+      <select id="ffBasis"><option value="perUnit">1個/1袋あたり</option><option value="per100g">100gあたり</option></select>
+    </div>
+    <div class="set-row" id="ffUnitLabelRow"><span class="sl">単位の呼び名</span><input id="ffUnitLabel" placeholder="個 / 袋 / 本 / 枚"></div>
+    <div class="set-row"><span class="sl">エネルギー kcal</span><input id="ffKcal" type="number" inputmode="decimal" min="0"></div>
+    <div class="set-row"><span class="sl">たんぱく質 g</span><input id="ffP" type="number" inputmode="decimal" min="0" step="0.1"></div>
+    <div class="set-row"><span class="sl">脂質 g</span><input id="ffF" type="number" inputmode="decimal" min="0" step="0.1"></div>
+    <div class="set-row"><span class="sl">炭水化物 g</span><input id="ffC" type="number" inputmode="decimal" min="0" step="0.1"></div>
+    <div class="set-row"><span class="sl">食塩相当量 g（任意）</span><input id="ffSalt" type="number" inputmode="decimal" min="0" step="0.1"></div>
+    <div class="set-row"><span class="sl">概算（あとで確定する）</span><input id="ffEstimate" type="checkbox" style="width:22px;height:22px"></div>
+    <button class="primary-btn full" id="ffSaveBtn">保存する</button>
+    <div class="sync-note">ミクロ栄養素は空でOK。ラベル撮影・バーコードでの自動入力は次の更新（SPEC-016）で入ります。</div>
+  </div>
+</div>
+
+<!-- レシピビルダー（SPEC-014 §3-3。作り置き・弁当・1食メニューは全部これ） -->
+<div class="modal-back" id="recipeBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3 id="recipeTitle">レシピを作る</h3>
+    <div class="set-row"><span class="sl">名前</span><input id="rcName" placeholder="例: 親子丼弁当"></div>
+    <div class="set-row"><span class="sl">出来上がり（食数）</span><input id="rcServings" type="number" inputmode="numeric" min="1" step="1" value="1"></div>
+    <div class="section-label">材料（タップで概算マーク）</div>
+    <div id="rcItems"><div class="empty-note" id="rcEmpty">下の検索から材料を追加</div></div>
+    <div class="set-row"><span class="sl">材料を検索</span><input id="rcSearch" placeholder="例: 鶏もも / 米"></div>
+    <div class="mini-results" id="rcSearchResults"></div>
+    <div class="sync-note"><a href="#" id="rcFreeLink">検索に無い材料を概算で追加</a></div>
+    <div id="rcFreeArea" style="display:none">
+      <div class="set-row"><span class="sl">材料名</span><input id="rcFreeName" placeholder="例: 焼肉のたれ"></div>
+      <div class="set-row"><span class="sl">概算 kcal / P / F / C</span>
+        <span style="display:flex;gap:4px">
+          <input id="rcFreeKcal" type="number" placeholder="kcal" style="width:60px">
+          <input id="rcFreeP" type="number" placeholder="P" style="width:44px">
+          <input id="rcFreeF" type="number" placeholder="F" style="width:44px">
+          <input id="rcFreeC" type="number" placeholder="C" style="width:44px">
+        </span>
+      </div>
+      <button class="secondary-btn full" id="rcFreeAddBtn" type="button">概算材料を追加</button>
+    </div>
+    <div class="sync-note" id="rcPreview" style="font-weight:800">1食分: −</div>
+    <button class="primary-btn full" id="rcSaveBtn">保存する（1食分として検索に出ます）</button>
+  </div>
+</div>
+
+<!-- 自分の食品（管理面 + 概算一覧・SPEC-014 §3-4/3-5） -->
+<div class="modal-back" id="myFoodsBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>自分の食品</h3>
+    <div class="filter-chips" id="myFoodsFilters">
+      <button data-mf="all" class="on">すべて</button>
+      <button data-mf="ingredient">食材</button>
+      <button data-mf="product">市販品</button>
+      <button data-mf="recipe">レシピ</button>
+      <button data-mf="pending">概算のみ</button>
+    </div>
+    <div id="myFoodsList"></div>
+    <div class="sync-note">「隠す」は検索から消すだけで、過去の記録はそのまま残ります。</div>
+  </div>
+</div>
 <div class="modal-back" id="weeklyBack">
   <div class="modal">
     <div class="close-row"><div class="grip"></div></div>
@@ -1086,21 +1187,35 @@ function recipeToCatalogFood(recipe) {
   };
 }
 function buildCatalog() {
-  const customFoods = lsGet(LS_KEYS.MEAL_CUSTOM_FOODS, []) || [];
-  const userProducts = lsGet(LS_KEYS.MEAL_PRODUCTS, []) || [];
-  const baseFoods = []
+  // 1) 埋め込み（公式278件。単位step等の表示品質はこちらが正）
+  const embedded = []
     .concat(CATALOG.BASE_FOODS || [])
     .concat(CATALOG.BASE_PRODUCTS || [])
-    .concat(Array.isArray(customFoods) ? customFoods : [])
-    .concat(Array.isArray(userProducts) ? userProducts : [])
     .filter((f) => f && f.id && f.name);
   foodLookup = {};
-  baseFoods.forEach((f) => { foodLookup[f.id] = f; });
+  embedded.forEach((f) => { foodLookup[f.id] = f; });
+  // 2) 旧localStorage（昇格前のフォールバック。昇格後はサーバーキャッシュが上書きする）
+  const customFoods = lsGet(LS_KEYS.MEAL_CUSTOM_FOODS, []) || [];
+  const userProducts = lsGet(LS_KEYS.MEAL_PRODUCTS, []) || [];
+  [].concat(customFoods, userProducts).forEach((f) => {
+    if (f && f.id && f.name && !foodLookup[f.id]) foodLookup[f.id] = f;
+  });
   const recipes = lsGet(LS_KEYS.MEAL_RECIPES, []) || [];
-  const recipeFoods = (Array.isArray(recipes) ? recipes : []).map(recipeToCatalogFood).filter(Boolean);
-  allFoods = baseFoods.concat(recipeFoods);
-  foodLookup = {};
-  allFoods.forEach((f) => { foodLookup[f.id] = f; });
+  (Array.isArray(recipes) ? recipes : []).map(recipeToCatalogFood).filter(Boolean).forEach((f) => {
+    if (!foodLookup[f.id]) foodLookup[f.id] = f;
+  });
+  // 3) サーバーカタログ（foods。SPEC-014 以降の正）。埋め込み公式行は表示品質優先で温存し、
+  //    serverId だけ引き継ぐ。それ以外（個人の食品・レシピ・将来の八訂）はサーバー側が上書き
+  const cache = lsGet('hs:foods-cache:v1', null);
+  ((cache && cache.foods) || []).forEach((f) => {
+    if (!f || !f.id || !f.name) return;
+    if (foodLookup[f.id] && !f.owner) {
+      foodLookup[f.id].serverId = f.serverId;
+      return;
+    }
+    foodLookup[f.id] = f;
+  });
+  allFoods = Object.values(foodLookup);
 }
 function getFoodById(id) { return foodLookup[id] || null; }
 
@@ -1589,7 +1704,7 @@ function renderSearch() {
       if (bc !== ac) return bc - ac;
       return foodCatalogIndex(a.id) - foodCatalogIndex(b.id);
     }).slice(0, 10);
-    label = list.length ? '検索結果' : '見つかりません（旧「食事の詳細入力」で独自食材を登録できます）';
+    label = list.length ? '検索結果' : '見つかりません — そのまま下のボタンから追加できます';
   }
   const rows = list.map((f) => {
     const preferred = usageDefaultForFood(f);
@@ -1608,12 +1723,9 @@ function renderSearch() {
       <span class="add">＋</span>
     </button>`;
   }).join('');
-  const emptyLinks = !list.length ? `<div class="deep-link-row">
-    <a href="meal.html?panel=product">商品登録</a>
-    <a href="meal.html?panel=custom">食材登録</a>
-    <a href="meal.html?panel=recipe">メニュー</a>
-  </div>` : '';
-  box.innerHTML = `<div class="hint-label">${label}</div>${!q && list.length ? `<div class="usage-grid">${rows}</div>` : rows}${emptyLinks}`;
+  // 統合追加入口（SPEC-014）: 「検索→無い→そのまま追加」の摩擦をゼロにする常設ボタン
+  const addCta = `<button class="add-food-cta" id="addFoodCta" type="button">＋ 食品を追加（市販品 / 食材 / レシピ）</button>`;
+  box.innerHTML = `<div class="hint-label">${label}</div>${!q && list.length ? `<div class="usage-grid">${rows}</div>` : rows}${addCta}`;
 }
 
 function addFoodById(id) {
@@ -1803,7 +1915,9 @@ async function refreshFoodsMap(force = false) {
   } catch (e) { /* 未ログイン・オフライン時はスキップ（food_id 無しでも food_key で保存できる） */ }
 }
 function foodIdForKey(foodKey) {
-  return (foodKey && foodsKeyMap[foodKey]) || null;
+  if (!foodKey) return null;
+  const food = typeof getFoodById === 'function' ? getFoodById(foodKey) : null;
+  return (food && food.serverId) || foodsKeyMap[foodKey] || null;
 }
 
 /** app レコード → Supabase 食事保存 payload（meals + meal_items + dining）。 */
@@ -1935,6 +2049,7 @@ async function pushSettingsToServer() {
     target_p_g: targets.protein,
     target_f_g: targets.fat,
     target_c_g: targets.carb,
+    show_hydration: showHydration(),
     updated_at: new Date().toISOString()
   });
 }
@@ -1971,6 +2086,539 @@ function registerSbOpHandlers() {
   q.registerHandler('settings_save', async () => {
     await pushSettingsToServer();
   });
+  // 食品ドメイン（SPEC-014）: legacy_key upsert で冪等なため payload 運搬型でよい
+  q.registerHandler('food_save', async ({ food }) => {
+    if (food) await pushUserFoodToServer(food);
+  });
+  q.registerHandler('recipe_save', async ({ recipe }) => {
+    if (recipe) await pushRecipeToServer(recipe);
+  });
+  q.registerHandler('template_save', async ({ tpl }) => {
+    if (tpl) await pushTemplateToServer(tpl);
+  });
+}
+
+// ================================================================
+// 食品ドメイン層（SPEC-014: foods統合カタログ・localStorage資産の昇格・レシピ）
+// 設計の正: docs/meal_domain_redesign_2026-07-11.md §2
+// - foods（Supabase）がカタログの唯一の正。埋め込み（nutrition-db/food-catalog）は
+//   公式278件の表示品質（単位のstep等）とオフライン初回のフォールバックに使う。
+// - 追加・編集は owner=自分 の foods 行。冪等キーは legacy_key（フロントの文字列id）。
+// ================================================================
+const FOODS_CACHE_KEY = 'hs:foods-cache:v1';
+const FOOD_MIGRATED_KEY = 'hs:food-migrated:v1';
+
+function makeUserFoodId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** foods 行 → フロントのカタログ食品オブジェクト。 */
+function serverFoodToCatalog(row) {
+  if (!row || !row.name) return null;
+  const meta = row.meta || {};
+  const id = row.legacy_key || row.id;
+  const base = {
+    id,
+    serverId: row.id,
+    owner: row.owner || null,
+    kind: row.kind || 'ingredient',
+    name: row.name,
+    brand: row.brand || '',
+    kana: row.kana || '',
+    category: meta.category || '共通',
+    entryType: meta.entryType || (row.kind === 'product' ? 'product' : row.kind === 'recipe' ? 'recipe' : 'food'),
+    keywords: meta.keywords || (row.kana ? [row.kana] : []),
+    pendingReview: Boolean(row.pending_review),
+    source: row.source || '',
+    verified: Boolean(row.verified),
+    recipeServings: row.recipe_servings || null
+  };
+  if (row.mode === 'perUnit') {
+    const pu = row.per_unit || {};
+    return {
+      ...base,
+      mode: 'perUnit',
+      unitLabel: row.unit_label || meta.unitLabel || '個',
+      macrosPerUnit: {
+        kcal: Number(pu.kcal ?? pu.energy) || 0,
+        p: Number(pu.p ?? pu.protein) || 0,
+        f: Number(pu.f ?? pu.fat) || 0,
+        c: Number(pu.c ?? pu.carb) || 0
+      },
+      perUnitNutrients: pu,
+      micros: row.micros || {},
+      defaultQty: Number(meta.defaultQty) || 1,
+      step: Number(meta.step) || 1
+    };
+  }
+  // per100g。units は 新形式=配列 / 旧seed形式={label: grams} の両対応
+  let units = null;
+  if (Array.isArray(row.units)) units = row.units;
+  else if (row.units && typeof row.units === 'object') {
+    units = Object.entries(row.units).map(([label, grams]) => ({
+      label, grams: Number(grams) || 1, step: label === 'g' ? 10 : 1, defaultQty: label === 'g' ? 100 : 1
+    }));
+    // 'g' 以外を先頭に（人間向け単位優先）
+    units.sort((a, b) => (a.label === 'g' ? 1 : 0) - (b.label === 'g' ? 1 : 0));
+  }
+  return {
+    ...base,
+    mode: 'per100g',
+    macros: {
+      kcal: Number(row.kcal_per_100g) || 0,
+      p: Number(row.protein_g) || 0,
+      f: Number(row.fat_g) || 0,
+      c: Number(row.carb_g) || 0
+    },
+    saltPer100g: row.salt_g == null ? null : Number(row.salt_g),
+    fiberPer100g: row.fiber_g == null ? null : Number(row.fiber_g),
+    micros: row.micros || {},
+    units: units || [{ label: 'g', grams: 1, step: 10, defaultQty: 100 }]
+  };
+}
+
+/** フロントのカタログ食品オブジェクト → foods 行（upsert 用）。 */
+function catalogFoodToRow(food) {
+  const perUnit = food.mode === 'perUnit';
+  const m = perUnit ? (food.macrosPerUnit || {}) : (food.macros || {});
+  return {
+    legacy_key: food.id,
+    kind: food.kind || (food.entryType === 'product' ? 'product' : food.entryType === 'recipe' ? 'recipe' : 'ingredient'),
+    name: food.name,
+    brand: food.brand || null,
+    kana: food.kana || null,
+    mode: perUnit ? 'perUnit' : 'per100g',
+    unit_label: perUnit ? (food.unitLabel || '個') : null,
+    units: perUnit ? null : (food.units || null),
+    per_unit: perUnit ? { kcal: m.kcal || 0, p: m.p || 0, f: m.f || 0, c: m.c || 0, ...(food.perUnitNutrients || {}) } : null,
+    kcal_per_100g: perUnit ? null : (m.kcal ?? null),
+    protein_g: perUnit ? null : (m.p ?? null),
+    fat_g: perUnit ? null : (m.f ?? null),
+    carb_g: perUnit ? null : (m.c ?? null),
+    salt_g: perUnit ? null : (food.saltPer100g ?? null),
+    fiber_g: perUnit ? null : (food.fiberPer100g ?? null),
+    micros: food.micros || {},
+    source: food.source || 'manual',
+    verified: Boolean(food.verified),
+    pending_review: Boolean(food.pendingReview),
+    coverage: food.coverage || 'partial',
+    recipe_servings: food.recipeServings ?? null,
+    recipe_total_g: food.recipeTotalG ?? null,
+    archived: false,
+    meta: {
+      category: food.category || '共通',
+      keywords: food.keywords || [],
+      entryType: food.entryType || null,
+      defaultQty: food.defaultQty ?? null,
+      step: food.step ?? null,
+      unitLabel: food.unitLabel ?? null
+    }
+  };
+}
+
+function loadFoodsCache() {
+  const cached = lsGet(FOODS_CACHE_KEY, null);
+  return (cached && Array.isArray(cached.foods)) ? cached : { fetchedAt: 0, foods: [] };
+}
+function saveFoodsCache(cache) { lsSet(FOODS_CACHE_KEY, cache); }
+
+/** カタログキャッシュへ1件マージ（オフライン追加でも即・検索/記録に出すため）。 */
+function mergeFoodIntoCache(food) {
+  const cache = loadFoodsCache();
+  const idx = cache.foods.findIndex((f) => f && f.id === food.id);
+  if (idx >= 0) cache.foods[idx] = food; else cache.foods.push(food);
+  saveFoodsCache(cache);
+  buildCatalog();
+}
+function removeFoodFromCache(foodId) {
+  const cache = loadFoodsCache();
+  cache.foods = cache.foods.filter((f) => f && f.id !== foodId);
+  saveFoodsCache(cache);
+  buildCatalog();
+}
+
+/** サーバーからカタログ全量を取得してキャッシュを更新する（TTL 24h・失敗は無視）。 */
+async function refreshFoodsCatalog(force = false) {
+  try {
+    const cache = loadFoodsCache();
+    if (!force && cache.fetchedAt && Date.now() - cache.fetchedAt < 24 * 60 * 60 * 1000) return;
+    const sb = await window.HSSupabaseReady;
+    const rows = await sb.fetchFoodsCatalog();
+    const foods = rows.map(serverFoodToCatalog).filter(Boolean);
+    saveFoodsCache({ fetchedAt: Date.now(), foods });
+    // legacy_key → uuid の対応もここから更新（food_id 併記用）
+    foodsKeyMap = {};
+    foods.forEach((f) => { if (f.serverId) foodsKeyMap[f.id] = f.serverId; });
+    lsSet(FOODS_MAP_KEY, { fetchedAt: Date.now(), map: foodsKeyMap });
+    buildCatalog();
+    if (state.view === 'meal') renderSearch();
+  } catch (e) { /* 未ログイン・オフライン時は既存キャッシュ/埋め込みで動く */ }
+}
+
+/** 材料リスト（{foodId, name, qty, unit, pendingReview, est}）から合計栄養を計算する。 */
+function computeRecipeNutrition(items, servings) {
+  const n = Math.max(1, Number(servings) || 1);
+  const totals = {};   // 全栄養素キー → 合計
+  const macro = { kcal: 0, p: 0, f: 0, c: 0 };
+  let grams = 0;
+  (items || []).forEach((it) => {
+    if (it.free) {
+      macro.kcal += Number(it.estKcal) || 0;
+      macro.p += Number(it.estProteinG) || 0;
+      macro.f += Number(it.estFatG) || 0;
+      macro.c += Number(it.estCarbG) || 0;
+      totals.energy = (totals.energy || 0) + (Number(it.estKcal) || 0);
+      totals.protein = (totals.protein || 0) + (Number(it.estProteinG) || 0);
+      totals.fat = (totals.fat || 0) + (Number(it.estFatG) || 0);
+      totals.carb = (totals.carb || 0) + (Number(it.estCarbG) || 0);
+      return;
+    }
+    const food = getFoodById(it.foodId);
+    if (!food) return;
+    const mealItem = createMealItem(food, it.qty, it.unit);
+    grams += Number(mealItem.grams) || 0;
+    const structured = buildStructuredItem(mealItem);
+    const nutrients = (structured && structured.nutrients) || {};
+    Object.entries(nutrients).forEach(([k, v]) => {
+      if (Number.isFinite(Number(v))) totals[k] = (totals[k] || 0) + Number(v);
+    });
+    macro.kcal += mealItem.kcal || 0; macro.p += mealItem.p || 0;
+    macro.f += mealItem.f || 0; macro.c += mealItem.c || 0;
+  });
+  const perServing = {};
+  Object.entries(totals).forEach(([k, v]) => { perServing[k] = Math.round((v / n) * 100) / 100; });
+  return {
+    perServing,
+    macrosPerServing: {
+      kcal: Math.round(macro.kcal / n),
+      p: Math.round(macro.p / n * 10) / 10,
+      f: Math.round(macro.f / n * 10) / 10,
+      c: Math.round(macro.c / n * 10) / 10
+    },
+    totalGrams: grams || null
+  };
+}
+
+// ---- 保存（Supabase 本線 + 失敗時キュー。payload運搬型: legacy_key upsert で冪等） ----
+async function pushUserFoodToServer(food) {
+  const sb = await window.HSSupabaseReady;
+  const saved = await sb.upsertUserFood(catalogFoodToRow(food));
+  if (saved && saved.id) { food.serverId = saved.id; foodsKeyMap[food.id] = saved.id; }
+  mergeFoodIntoCache(food);
+}
+function saveUserFood(food, label) {
+  mergeFoodIntoCache(food);  // 先にローカル反映（即・検索/記録に出る）
+  return pushUserFoodToServer(food)
+    .then(() => { showToast(`${label}: 保存しました ✓`); renderSyncStatus(); })
+    .catch((err) => queueWithToast('food_save', `food_save:${food.id}`, { food }, label, err));
+}
+async function pushRecipeToServer(recipe) {
+  const sb = await window.HSSupabaseReady;
+  const foodId = await sb.saveRecipe(catalogFoodToRow(recipe.food), recipe.items.map((it) => ({
+    ingredientFoodId: it.free ? null : (foodIdForKey(it.foodId) || (getFoodById(it.foodId) || {}).serverId || null),
+    name: it.name,
+    qty: toNumOrNull(it.qty),
+    unit: it.unit || null,
+    grams: it.free ? null : toNumOrNull(it.grams),
+    estKcal: it.free ? toNumOrNull(it.estKcal) : null,
+    estProteinG: it.free ? toNumOrNull(it.estProteinG) : null,
+    estFatG: it.free ? toNumOrNull(it.estFatG) : null,
+    estCarbG: it.free ? toNumOrNull(it.estCarbG) : null,
+    pendingReview: Boolean(it.pendingReview || it.free)
+  })));
+  recipe.food.serverId = foodId;
+  foodsKeyMap[recipe.food.id] = foodId;
+  mergeFoodIntoCache(recipe.food);
+}
+function saveRecipeLocal(recipe) {
+  mergeFoodIntoCache(recipe.food);
+  return pushRecipeToServer(recipe)
+    .then(() => { showToast('レシピを保存しました ✓'); renderSyncStatus(); })
+    .catch((err) => queueWithToast('recipe_save', `recipe_save:${recipe.food.id}`, { recipe }, 'レシピ', err));
+}
+async function pushTemplateToServer(tpl) {
+  const sb = await window.HSSupabaseReady;
+  await sb.upsertMealTemplate({
+    legacy_key: tpl.id, name: tpl.name, timing: tpl.timing || null,
+    items: tpl.items || [], sort_order: tpl.sortOrder ?? null
+  });
+}
+
+// ---- localStorage 資産の昇格（初回1回・冪等。元データは消さない） ----
+async function promoteLocalFoodStores() {
+  if (lsGet(FOOD_MIGRATED_KEY, false)) return;
+  const sb = await window.HSSupabaseReady;
+  if (!(await sb.getSession())) return;   // ログイン後に再試行される
+  let promoted = 0;
+  const enqueue = (op, key, data) => { window.HSSbQueue.enqueue(op, key, data); };
+
+  const customFoods = lsGet(LS_KEYS.MEAL_CUSTOM_FOODS, []) || [];
+  const products = lsGet(LS_KEYS.MEAL_PRODUCTS, []) || [];
+  for (const f of [...customFoods, ...products]) {
+    if (!f || !f.id || !f.name) continue;
+    const food = { ...f, kind: f.entryType === 'product' || String(f.id).startsWith('prod-') ? 'product' : 'ingredient',
+      source: f.source || 'manual', owner: 'me' };
+    try { await pushUserFoodToServer(food); promoted++; }
+    catch (e) { enqueue('food_save', `food_save:${food.id}`, { food }); }
+  }
+  const recipes = lsGet(LS_KEYS.MEAL_RECIPES, []) || [];
+  for (const r of recipes) {
+    const catalogFood = recipeToCatalogFood(r);
+    if (!catalogFood) continue;
+    const items = (r.items || []).map((it) => ({
+      foodId: it.foodId, name: (getFoodById(it.foodId) || {}).name || it.foodId,
+      qty: it.qty, unit: it.unit, grams: (createMealItem(getFoodById(it.foodId) || { id: it.foodId, name: '', mode: 'perUnit', macrosPerUnit: {} }, it.qty, it.unit) || {}).grams,
+      pendingReview: false
+    })).filter((it) => it.name);
+    const recipe = { food: { ...catalogFood, kind: 'recipe', recipeServings: Math.max(1, Number(r.servings) || 1), source: 'recipe', owner: 'me' }, items };
+    try { await pushRecipeToServer(recipe); promoted++; }
+    catch (e) { enqueue('recipe_save', `recipe_save:${recipe.food.id}`, { recipe }); }
+  }
+  const presets = loadPresets();
+  let order = 0;
+  for (const timing of Object.keys(presets || {})) {
+    for (const p of presets[timing] || []) {
+      if (!p || !p.id || !p.items) continue;
+      const tpl = { id: p.id, name: p.name || 'セット', timing, items: p.items, sortOrder: order++ };
+      try { await pushTemplateToServer(tpl); promoted++; }
+      catch (e) { enqueue('template_save', `template_save:${tpl.id}`, { tpl }); }
+    }
+  }
+  lsSet(FOOD_MIGRATED_KEY, { at: Date.now(), promoted });
+  // 昇格した食品で food_id 未解決の過去明細を自動接続
+  try {
+    const own = {};
+    loadFoodsCache().foods.forEach((f) => { if (f.owner && f.serverId) own[f.id] = f.serverId; });
+    if (Object.keys(own).length) {
+      const relinked = await sb.relinkMealItems(own);
+      if (relinked) console.info(`[food-domain] 過去明細の food_id を ${relinked} 行接続しました`);
+    }
+  } catch (e) { /* 次回同期時にリトライ可能（非致命） */ }
+  if (promoted) showToast(`独自食材・商品・レシピ・セット ${promoted}件をサーバーへ引き継ぎました`);
+}
+
+// ---------------- 食品追加UI（統合入口・SPEC-014 §3-2〜3-5） ----------------
+let foodFormState = { kind: 'product', editingId: null };
+let recipeState = { editingId: null, items: [] };
+let myFoodsFilter = 'all';
+
+function openAddFoodSheet(prefillName) {
+  state.pendingFoodName = String(prefillName || '').trim();
+  $('#addFoodBack').classList.add('show');
+}
+
+function openFoodForm(kind, food = null) {
+  foodFormState = { kind, editingId: food ? food.id : null };
+  $('#foodFormTitle').textContent = food
+    ? `${kind === 'product' ? '市販品' : '食材'}を編集`
+    : (kind === 'product' ? '市販品を追加' : '食材を追加（100gあたり）');
+  $('#ffBasisRow').style.display = kind === 'product' ? '' : 'none';
+  $('#ffName').value = food ? food.name : (state.pendingFoodName || '');
+  $('#ffBrand').value = food ? (food.brand || '') : '';
+  $('#ffBasis').value = food ? (food.mode === 'perUnit' ? 'perUnit' : 'per100g') : (kind === 'product' ? 'perUnit' : 'per100g');
+  $('#ffUnitLabel').value = food ? (food.unitLabel || '') : '';
+  const m = food ? (food.mode === 'perUnit' ? food.macrosPerUnit : food.macros) || {} : {};
+  $('#ffKcal').value = m.kcal ?? '';
+  $('#ffP').value = m.p ?? '';
+  $('#ffF').value = m.f ?? '';
+  $('#ffC').value = m.c ?? '';
+  $('#ffSalt').value = food && food.saltPer100g != null ? food.saltPer100g : '';
+  $('#ffEstimate').checked = food ? Boolean(food.pendingReview) : false;
+  syncFfUnitRow();
+  $('#foodFormBack').classList.add('show');
+}
+function syncFfUnitRow() {
+  const perUnit = foodFormState.kind === 'product' && $('#ffBasis').value === 'perUnit';
+  $('#ffUnitLabelRow').style.display = perUnit ? '' : 'none';
+}
+
+function submitFoodForm() {
+  const name = $('#ffName').value.trim();
+  const kcal = Number($('#ffKcal').value);
+  if (!name) { showToast('名前を入れてください'); return; }
+  if (!Number.isFinite(kcal)) { showToast('エネルギー(kcal)を入れてください'); return; }
+  const kind = foodFormState.kind;
+  const perUnit = kind === 'product' && $('#ffBasis').value === 'perUnit';
+  const existing = foodFormState.editingId ? getFoodById(foodFormState.editingId) : null;
+  const macros = {
+    kcal, p: Number($('#ffP').value) || 0,
+    f: Number($('#ffF').value) || 0, c: Number($('#ffC').value) || 0
+  };
+  const pendingReview = $('#ffEstimate').checked;
+  const food = {
+    ...(existing || {}),
+    id: foodFormState.editingId || makeUserFoodId(kind === 'product' ? 'prod' : 'uf'),
+    kind, owner: (existing && existing.owner) || 'me',
+    name, brand: $('#ffBrand').value.trim(),
+    category: '共通', entryType: kind === 'product' ? 'product' : 'food',
+    pendingReview,
+    source: pendingReview ? 'estimate' : (kind === 'product' ? 'label' : 'manual'),
+    verified: !pendingReview && kind === 'product',
+    keywords: (existing && existing.keywords) || []
+  };
+  if (perUnit) {
+    food.mode = 'perUnit';
+    food.unitLabel = $('#ffUnitLabel').value.trim() || '個';
+    food.macrosPerUnit = macros;
+    food.defaultQty = 1; food.step = 1;
+    delete food.macros; delete food.units;
+  } else {
+    food.mode = 'per100g';
+    food.macros = macros;
+    food.saltPer100g = toNumOrNull($('#ffSalt').value);
+    food.units = (existing && existing.units) || [{ label: 'g', grams: 1, step: 10, defaultQty: 100 }];
+    delete food.macrosPerUnit; delete food.unitLabel;
+  }
+  $('#foodFormBack').classList.remove('show');
+  saveUserFood(food, kind === 'product' ? '市販品' : '食材');
+  state.pendingFoodName = '';
+  if (state.view === 'meal') renderSearch();
+}
+
+// ---- レシピビルダー ----
+function openRecipeBuilder(food = null) {
+  recipeState = { editingId: food ? food.id : null, items: [] };
+  $('#recipeTitle').textContent = food ? 'レシピを編集' : 'レシピを作る';
+  $('#rcName').value = food ? food.name : (state.pendingFoodName || '');
+  $('#rcServings').value = food && food.recipeServings ? food.recipeServings : 1;
+  $('#rcSearch').value = '';
+  $('#rcSearchResults').innerHTML = '';
+  $('#rcFreeArea').style.display = 'none';
+  renderRecipeItems();
+  $('#recipeBack').classList.add('show');
+  if (food && food.serverId) {
+    // 既存レシピの材料をサーバーから復元
+    window.HSSupabaseReady.then((sb) => sb.fetchRecipeItems(food.serverId)).then((rows) => {
+      recipeState.items = (rows || []).map((r) => {
+        const free = !r.ingredient_food_id && r.est_kcal != null;
+        const localFood = allFoods.find((f) => f.serverId === r.ingredient_food_id);
+        return {
+          free,
+          foodId: localFood ? localFood.id : null,
+          name: r.name, qty: Number(r.qty) || 1, unit: r.unit || (localFood ? getDefaultUnit(localFood).label : ''),
+          pendingReview: Boolean(r.pending_review),
+          estKcal: r.est_kcal, estProteinG: r.est_protein_g, estFatG: r.est_fat_g, estCarbG: r.est_carb_g
+        };
+      });
+      renderRecipeItems();
+    }).catch(() => showToast('材料の読み込みに失敗しました（オフライン?）'));
+  }
+}
+
+function renderRecipeItems() {
+  const wrap = $('#rcItems');
+  $('#rcEmpty') && ($('#rcEmpty').style.display = recipeState.items.length ? 'none' : '');
+  wrap.innerHTML = recipeState.items.map((it, i) => `
+    <div class="rc-item">
+      <span class="nm">${escapeHtml(it.name)}${it.free ? '（概算）' : ''}</span>
+      ${it.free
+        ? `<span class="un">${fmtNum(it.estKcal || 0)}kcal</span>`
+        : `<input type="number" inputmode="decimal" min="0" step="0.1" value="${fmtQty(it.qty)}" data-rc-qty="${i}"><span class="un">${escapeHtml(it.unit || '')}</span>`}
+      <button class="rc-est ${it.pendingReview || it.free ? 'on' : ''}" data-rc-est="${i}" type="button">概算</button>
+      <button class="rc-del" data-rc-del="${i}" type="button">✕</button>
+    </div>`).join('') + (recipeState.items.length ? '' : '');
+  renderRecipePreview();
+}
+
+function renderRecipePreview() {
+  const servings = Math.max(1, Number($('#rcServings').value) || 1);
+  const r = computeRecipeNutrition(recipeState.items, servings);
+  const m = r.macrosPerServing;
+  $('#rcPreview').textContent = recipeState.items.length
+    ? `1食分: ${fmtNum(m.kcal)} kcal　P${m.p} / F${m.f} / C${m.c}${recipeState.items.some((i) => i.pendingReview || i.free) ? '（概算含む）' : ''}`
+    : '1食分: −';
+}
+
+function renderRcSearch() {
+  const q = $('#rcSearch').value.trim();
+  const box = $('#rcSearchResults');
+  if (!q) { box.innerHTML = ''; return; }
+  const nq = normalizeForSearch(q);
+  const hits = allFoods.filter((f) => f.entryType !== 'recipe' &&
+    normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' ')).includes(nq)
+  ).slice(0, 6);
+  box.innerHTML = hits.map((f) => `<button type="button" data-rc-add="${escapeHtml(f.id)}">${escapeHtml(f.name)}<span style="color:var(--muted,#999)">　${f.mode === 'perUnit' ? (f.unitLabel || '個') : '100g'}あたり ${fmtNum(f.mode === 'perUnit' ? (f.macrosPerUnit || {}).kcal || 0 : (f.macros || {}).kcal || 0)}kcal</span></button>`).join('')
+    || '<div class="empty-note">見つかりません（下の「概算で追加」へ）</div>';
+}
+
+function submitRecipe() {
+  const name = $('#rcName').value.trim();
+  if (!name) { showToast('レシピの名前を入れてください'); return; }
+  if (!recipeState.items.length) { showToast('材料を1つ以上入れてください'); return; }
+  const servings = Math.max(1, Number($('#rcServings').value) || 1);
+  const calc = computeRecipeNutrition(recipeState.items, servings);
+  const pendingReview = recipeState.items.some((it) => it.pendingReview || it.free);
+  const existing = recipeState.editingId ? getFoodById(recipeState.editingId) : null;
+  const food = {
+    id: recipeState.editingId || makeUserFoodId('recipe'),
+    serverId: existing ? existing.serverId : undefined,
+    kind: 'recipe', owner: 'me', entryType: 'recipe',
+    name, category: '共通',
+    mode: 'perUnit', unitLabel: '食',
+    macrosPerUnit: calc.macrosPerServing,
+    perUnitNutrients: calc.perServing,
+    recipeServings: servings,
+    recipeTotalG: calc.totalGrams,
+    pendingReview, source: 'recipe', verified: false,
+    defaultQty: 1, step: 0.5,
+    keywords: ['レシピ', '自作', name]
+  };
+  const items = recipeState.items.map((it) => {
+    if (it.free) return { ...it, grams: null };
+    const f = getFoodById(it.foodId);
+    const grams = f ? createMealItem(f, it.qty, it.unit).grams : null;
+    return { ...it, grams };
+  });
+  $('#recipeBack').classList.remove('show');
+  saveRecipeLocal({ food, items });
+  state.pendingFoodName = '';
+  if (state.view === 'meal') renderSearch();
+}
+
+// ---- 自分の食品（管理 + 概算一覧） ----
+function myFoods() {
+  return allFoods.filter((f) => f && f.owner);
+}
+function pendingFoodCount() {
+  return myFoods().filter((f) => f.pendingReview).length;
+}
+function renderMyFoods() {
+  const list = $('#myFoodsList');
+  let rows = myFoods();
+  if (myFoodsFilter === 'pending') rows = rows.filter((f) => f.pendingReview);
+  else if (myFoodsFilter !== 'all') rows = rows.filter((f) => (f.kind || 'ingredient') === myFoodsFilter);
+  rows.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ja'));
+  list.innerHTML = rows.map((f) => {
+    const kindLabel = f.kind === 'recipe' ? 'レシピ' : f.kind === 'product' ? '市販品' : '食材';
+    return `<div class="myfood-row">
+      <span class="nm">${escapeHtml(f.name)}</span>
+      <span class="tag">${kindLabel}</span>
+      ${f.pendingReview ? '<span class="tag est">概算</span>' : ''}
+      <button class="secondary-btn" data-mf-edit="${escapeHtml(f.id)}" type="button" style="padding:6px 10px">編集</button>
+      <button class="secondary-btn" data-mf-arch="${escapeHtml(f.id)}" type="button" style="padding:6px 10px">隠す</button>
+    </div>`;
+  }).join('') || '<div class="empty-note">まだありません（食事タブの「＋食品を追加」から）</div>';
+}
+function openMyFoods() {
+  renderMyFoods();
+  $('#myFoodsBack').classList.add('show');
+}
+function archiveMyFood(foodId) {
+  const food = getFoodById(foodId);
+  if (!food) return;
+  removeFoodFromCache(foodId);
+  renderMyFoods();
+  if (state.view === 'meal') renderSearch();
+  window.HSSupabaseReady.then((sb) => sb.setFoodArchived(foodId, true))
+    .then(() => showToast(`「${food.name}」を検索から隠しました`))
+    .catch(() => showToast('オフラインのため、次回同期時に反映されます'));
+}
+function editMyFood(foodId) {
+  const food = getFoodById(foodId) || loadFoodsCache().foods.find((f) => f.id === foodId);
+  if (!food) return;
+  $('#myFoodsBack').classList.remove('show');
+  if (food.kind === 'recipe') openRecipeBuilder(food);
+  else openFoodForm(food.kind === 'product' ? 'product' : 'ingredient', food);
 }
 
 /** キューを流し、動きがあれば画面を更新する（online復帰・起動時・ログイン完了時に呼ぶ）。 */
@@ -2291,11 +2939,31 @@ async function syncFromServer(options = {}) {
     const settingsRow = await sb.fetchUserSettings();
     if (settingsRow) {
       lsSet(LS_KEYS.NUTRITION_TARGETS, userSettingsToTargets(settingsRow));
+      if (settingsRow.show_hydration != null) {
+        lsSet(SHOW_HYDRATION_KEY, Boolean(settingsRow.show_hydration));
+        applyHydrationVisibility();
+      }
     }
     const details = await sb.fetchMealDetails(from, to);
     const serverRecords = serverRowsToAppRecords(sbRowsFromMealDetails(details));
     lsSet(LS_KEYS.DAY_SERVER_RECORDS, serverRecords);
     const counts = mergeServerMealRecords(serverRecords);
+    // テンプレート（普段の食事セット）: サーバー → localStorage へ反映（SPEC-014）
+    try {
+      const templates = await sb.fetchMealTemplates();
+      if (templates && templates.length) {
+        const presets = loadPresets();
+        templates.forEach((t) => {
+          const timing = t.timing || 'morning';
+          const list = Array.isArray(presets[timing]) ? presets[timing] : [];
+          const preset = { id: t.legacy_key || t.id, name: t.name, items: t.items || [] };
+          const idx = list.findIndex((p) => p && p.id === preset.id);
+          if (idx >= 0) list[idx] = { ...list[idx], ...preset }; else list.push(preset);
+          presets[timing] = list;
+        });
+        lsSet(LS_KEYS.MEAL_PRESET, presets);
+      }
+    } catch (e) { /* テンプレ同期は非致命 */ }
     lsSet(LS_KEYS.LAST_SYNC, Date.now());
     if (state.view === 'meal') loadMealFor(state.date, state.timing);
     renderQuickRow();
@@ -2358,6 +3026,12 @@ function saveCurrentAsUsual() {
   lsSet(LS_KEYS.MEAL_PRESET, presets);
   renderQuickRow();
   showToast(`「${usual.name}」に保存しました`);
+  // サーバーへも write-through（失敗はキューへ。SPEC-014）
+  const tpl = { id: usual.id, name: usual.name, timing: state.timing, items: usual.items };
+  pushTemplateToServer(tpl).catch(() => {
+    window.HSSbQueue.enqueue('template_save', `template_save:${tpl.id}`, { tpl });
+    renderSyncStatus();
+  });
 }
 
 // ---------------- 外食 / 水分 / 送信状態 ----------------
@@ -2394,6 +3068,14 @@ function renderDiningOut(writeInputs = true) {
     $('#diningMapUrl').value = dining.googleMapUrl;
     $('#diningText').value = dining.diningText;
   }
+}
+// 水分記録はオプション（既定OFF・SPEC-014 / 設計書 §5）。データ・同期コードは温存。
+const SHOW_HYDRATION_KEY = 'hs:show-hydration:v1';
+function showHydration() { return Boolean(lsGet(SHOW_HYDRATION_KEY, false)); }
+function applyHydrationVisibility() {
+  const on = showHydration();
+  if ($('#hydrationCard')) $('#hydrationCard').style.display = on ? '' : 'none';
+  if ($('#homeWaterCard')) $('#homeWaterCard').style.display = on ? '' : 'none';
 }
 function hydrationForDate(dateStr = state.date) {
   const all = lsGet(LS_KEYS.HYDRATION_RECORDS, {}) || {};
@@ -3069,7 +3751,7 @@ async function saveBody() {
 
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack'].forEach((id) => {
+  ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('show');
   });
@@ -3122,6 +3804,7 @@ function setTiming(tk) {
 
 // ---------------- 設定モーダル ----------------
 function openSettings() {
+  $('#setShowHydration').checked = showHydration();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
   const targets = baseTargets();
   $('#setTargetEnergy').value = Math.round(targets.energy);
@@ -3133,6 +3816,8 @@ function openSettings() {
   $('#settingsBack').classList.add('show');
 }
 async function saveSettings() {
+  lsSet(SHOW_HYDRATION_KEY, $('#setShowHydration').checked);
+  applyHydrationVisibility();
   try {
     const cfg = loadCarbCycle();
     cfg.carbDelta = Number($('#setCarbDelta').value) || 50;
@@ -3280,9 +3965,10 @@ function initSupabaseAuth() {
       if (event === 'PASSWORD_RECOVERY') openLoginSheet('recovery');
       else if (event === 'SIGNED_IN') {
         closeLoginSheet();
-        // ログイン完了時の再送トリガ（SPEC-012 実装方針4）＋ foods対応表・設定の同期
+        // ログイン完了時の再送トリガ（SPEC-012 実装方針4）＋ カタログ・設定の同期
         flushSbQueueAndRender();
-        refreshFoodsMap();
+        refreshFoodsCatalog();
+        promoteLocalFoodStores().catch(() => {});
         maybeAutoSyncFromServer();
       }
       else if (event === 'SIGNED_OUT') openLoginSheet('login');
@@ -3293,9 +3979,10 @@ function initSupabaseAuth() {
     updateAccountUi();
     if (!hsAuthSession) openLoginSheet('login');
     else {
-      // 起動時の再送トリガ（SPEC-012 実装方針4）
+      // 起動時の再送トリガ（SPEC-012 実装方針4）＋ カタログ同期・昇格（初回のみ）
       flushSbQueueAndRender();
-      refreshFoodsMap();
+      refreshFoodsCatalog();
+      promoteLocalFoodStores().catch(() => {});
     }
   }).catch(() => {
     showToast('ログイン機能の初期化に失敗しました（記録はこれまで通り可能です）');
@@ -3722,6 +4409,10 @@ $('#foodSearch').addEventListener('input', () => {
   searchTimer = setTimeout(renderSearch, 120);
 });
 $('#searchResults').addEventListener('click', (e) => {
+  if (e.target.closest('#addFoodCta')) {
+    openAddFoodSheet($('#foodSearch').value);
+    return;
+  }
   const b = e.target.closest('[data-add]');
   if (b) {
     const added = addFoodById(b.dataset.add);
@@ -3730,6 +4421,78 @@ $('#searchResults').addEventListener('click', (e) => {
       showToast(`${added.name}を追加しました`);
     }
   }
+});
+
+// 食品ドメインUI（SPEC-014）
+$('#addFoodBack').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) { $('#addFoodBack').classList.remove('show'); return; }
+  const b = e.target.closest('[data-add-kind]');
+  if (!b) return;
+  $('#addFoodBack').classList.remove('show');
+  if (b.dataset.addKind === 'recipe') openRecipeBuilder();
+  else openFoodForm(b.dataset.addKind);
+});
+$('#foodFormBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#foodFormBack').classList.remove('show'); });
+$('#ffBasis').addEventListener('change', syncFfUnitRow);
+$('#ffSaveBtn').addEventListener('click', submitFoodForm);
+$('#recipeBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#recipeBack').classList.remove('show'); });
+let rcSearchTimer = null;
+$('#rcSearch').addEventListener('input', () => { clearTimeout(rcSearchTimer); rcSearchTimer = setTimeout(renderRcSearch, 120); });
+$('#rcServings').addEventListener('input', renderRecipePreview);
+$('#rcSearchResults').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-rc-add]');
+  if (!b) return;
+  const food = getFoodById(b.dataset.rcAdd);
+  if (!food) return;
+  const unit = getDefaultUnit(food);
+  recipeState.items.push({ foodId: food.id, name: food.name, qty: unit.defaultQty || 1, unit: unit.label, pendingReview: false, free: false });
+  $('#rcSearch').value = '';
+  $('#rcSearchResults').innerHTML = '';
+  renderRecipeItems();
+});
+$('#rcItems').addEventListener('click', (e) => {
+  const est = e.target.closest('[data-rc-est]');
+  if (est) {
+    const it = recipeState.items[Number(est.dataset.rcEst)];
+    if (it && !it.free) { it.pendingReview = !it.pendingReview; renderRecipeItems(); }
+    return;
+  }
+  const del = e.target.closest('[data-rc-del]');
+  if (del) { recipeState.items.splice(Number(del.dataset.rcDel), 1); renderRecipeItems(); }
+});
+$('#rcItems').addEventListener('input', (e) => {
+  const qty = e.target.closest('[data-rc-qty]');
+  if (!qty) return;
+  const it = recipeState.items[Number(qty.dataset.rcQty)];
+  if (it) { it.qty = Number(qty.value) || 0; renderRecipePreview(); }
+});
+$('#rcFreeLink').addEventListener('click', (e) => { e.preventDefault(); $('#rcFreeArea').style.display = ''; });
+$('#rcFreeAddBtn').addEventListener('click', () => {
+  const name = $('#rcFreeName').value.trim();
+  if (!name) { showToast('材料名を入れてください'); return; }
+  recipeState.items.push({
+    free: true, pendingReview: true, foodId: null, name, qty: 1, unit: '',
+    estKcal: Number($('#rcFreeKcal').value) || 0, estProteinG: Number($('#rcFreeP').value) || 0,
+    estFatG: Number($('#rcFreeF').value) || 0, estCarbG: Number($('#rcFreeC').value) || 0
+  });
+  ['#rcFreeName', '#rcFreeKcal', '#rcFreeP', '#rcFreeF', '#rcFreeC'].forEach((s) => { $(s).value = ''; });
+  renderRecipeItems();
+});
+$('#rcSaveBtn').addEventListener('click', submitRecipe);
+$('#myFoodsBtn').addEventListener('click', () => { $('#settingsBack').classList.remove('show'); openMyFoods(); });
+$('#myFoodsBack').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) { $('#myFoodsBack').classList.remove('show'); return; }
+  const filter = e.target.closest('[data-mf]');
+  if (filter) {
+    myFoodsFilter = filter.dataset.mf;
+    document.querySelectorAll('#myFoodsFilters button').forEach((b) => b.classList.toggle('on', b === filter));
+    renderMyFoods();
+    return;
+  }
+  const edit = e.target.closest('[data-mf-edit]');
+  if (edit) { editMyFood(edit.dataset.mfEdit); return; }
+  const arch = e.target.closest('[data-mf-arch]');
+  if (arch) archiveMyFood(arch.dataset.mfArch);
 });
 $('#mealNote').addEventListener('input', () => persistDraft());
 $('#diningToggleBtn').addEventListener('click', () => {
@@ -3752,7 +4515,7 @@ $('#hydrationCard').addEventListener('click', async (e) => {
 });
 $('#saveMealBtn').addEventListener('click', async () => {
   await saveMeal();
-  try { await sendHydration(); renderHydration(); } catch (e) {}
+  if (showHydration()) { try { await sendHydration(); renderHydration(); } catch (e) {} }
 });
 
 // 運動
@@ -3813,6 +4576,7 @@ try {
 ['hs:write-auth:v1', 'hs:read-auth:v1', 'hs:pending-queue', 'wt:queue:v2'].forEach((k) => { try { lsRemove(k); } catch (e) {} });
 // キュー（hs:sb-queue:v1）の再送トリガ: オンライン復帰時（起動時・ログイン完了時は initSupabaseAuth 側）
 window.addEventListener('online', () => { flushSbQueueAndRender(); });
+applyHydrationVisibility();   // 水分は既定OFF（SPEC-014 / 設計書 §5）
 updateSyncUi();
 maybeAutoSyncFromServer();
 initSupabaseAuth();

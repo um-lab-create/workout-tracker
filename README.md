@@ -22,7 +22,7 @@
 ```
 python3 -m http.server 8931       # ローカル確認（SWの旧キャッシュに注意）
 node scripts/check_build.js       # push 前の結合構文チェック
-git grep -iE 'service_role|sb_secret'   # 空であること
+# push 前に secret 系トークンの混入 grep（CLAUDE.md 絶対ルール2 参照）が空であることを確認
 ```
 
 ルール・仕様の正は司令塔リポジトリ `health-sambo`（`CLAUDE.md` / `specs/`）。
