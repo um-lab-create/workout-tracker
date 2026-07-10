@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v22';
+const CACHE = 'cockpit-cache-v23';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 // 旧4ページ（workout/meal/day/body.html）は SPEC-012 Step6.5 で退役・削除済み

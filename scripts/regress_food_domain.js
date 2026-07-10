@@ -145,5 +145,17 @@ ok('エイリアス: 「豚肉」が八訂名にヒット', vt.some((t) => t.eve
 const vd = g.buildQueryVariants('大根').map((s) => s.split(/\s+/).map(g.normalizeForSearch).filter(Boolean));
 ok('エイリアス: 「大根」→だいこんヒット', vd.some((t) => t.every((tok) => g.normalizeForSearch('だいこん 根 皮つき 生 だいこん類').includes(tok))));
 
+// 10) AIコピペ取り込みパーサ（SPEC-016）
+const clean = g.parseAiFoodResult('{"name":"テスト菓子","brand":"A社","basis":"perUnit","unit_label":"袋","kcal":250,"protein_g":3,"fat_g":12,"carb_g":32,"salt_g":0.4,"estimate":false,"source":"a-sha.co.jp"}');
+ok('AIパーサ: 素のJSON', clean.kcal === 250 && clean.unitLabel === '袋' && clean.source === 'a-sha.co.jp');
+const fenced = g.parseAiFoodResult('以下が結果です:\n```json\n{"name":"X","basis":"per100g","kcal":100,"protein_g":5,"fat_g":2,"carb_g":12,"estimate":true,"source":"類似品"}\n```\n以上です。');
+ok('AIパーサ: フェンス+前後文章', fenced.kcal === 100 && fenced.basis === 'per100g' && fenced.estimate === true);
+const quotes = g.parseAiFoodResult('{“name”: “Y”, “kcal”: 88, “protein_g”: 1, “fat_g”: 2, “carb_g”: 3,}');
+ok('AIパーサ: 全角引用符+末尾カンマ', quotes.kcal === 88);
+const bad = g.parseAiFoodResult('すみません、見つかりませんでした。');
+ok('AIパーサ: 不正入力はエラー', Boolean(bad.error));
+const noKcal = g.parseAiFoodResult('{"name":"Z","kcal":"不明"}');
+ok('AIパーサ: kcal非数値はエラー', Boolean(noKcal.error));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

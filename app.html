@@ -904,6 +904,14 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="close-row"><div class="grip"></div></div>
     <h3 id="foodFormTitle">市販品を追加</h3>
     <div class="set-row"><span class="sl">名前</span><input id="ffName" placeholder="例: ランチパック たまご"></div>
+    <!-- AIで調べる（コピペ方式・SPEC-016。API不使用） -->
+    <div class="sync-note" style="margin:4px 0"><a href="#" id="aiHelpToggle">🤖 AIで調べる（無料・コピペ方式）</a></div>
+    <div id="aiHelpArea" style="display:none">
+      <button class="secondary-btn full" id="aiCopyPromptBtn" type="button">① 調査プロンプトをコピー</button>
+      <div class="sync-note">ChatGPT や Claude アプリに貼り付けてください。商品が手元にあれば<b>栄養成分表示の写真を一緒に添付</b>すると正確です。返ってきた答えを下に貼り付け:</div>
+      <textarea id="aiResultPaste" rows="4" style="width:100%;border:1px solid var(--line,rgba(0,0,0,.15));border-radius:10px;padding:8px;font-size:12px" placeholder='{"name":"...", "kcal": ...} をここに貼り付け'></textarea>
+      <button class="secondary-btn full" id="aiImportBtn" type="button">② 取り込む（フォームに反映）</button>
+    </div>
     <div class="set-row"><span class="sl">ブランド（任意）</span><input id="ffBrand"></div>
     <div class="set-row" id="ffBasisRow"><span class="sl">栄養表示の基準</span>
       <select id="ffBasis"><option value="perUnit">1個/1袋あたり</option><option value="per100g">100gあたり</option></select>
@@ -2432,7 +2440,9 @@ function openAddFoodSheet(prefillName) {
 }
 
 function openFoodForm(kind, food = null) {
-  foodFormState = { kind, editingId: food ? food.id : null };
+  foodFormState = { kind, editingId: food ? food.id : null, aiSource: null };
+  $('#aiHelpArea').style.display = 'none';
+  $('#aiResultPaste').value = '';
   $('#foodFormTitle').textContent = food
     ? `${kind === 'product' ? '市販品' : '食材'}を編集`
     : (kind === 'product' ? '市販品を追加' : '食材を追加（100gあたり）');
@@ -2456,6 +2466,92 @@ function syncFfUnitRow() {
   $('#ffUnitLabelRow').style.display = perUnit ? '' : 'none';
 }
 
+// ---- AIで調べる（コピペ方式・SPEC-016。API不使用） ----
+/** 無料の生成AIに貼り付ける調査プロンプトを作る（出力JSONを厳密指定）。 */
+function buildAiResearchPrompt(name) {
+  return [
+    'あなたは食品栄養成分の調査係です。次の食品の栄養成分を調べて、指定のJSON形式「だけ」で答えてください。',
+    `食品名: ${name}`,
+    '（この文章に栄養成分表示の写真が添付されている場合は、写真の表示値をそのまま転記してください）',
+    '',
+    'ルール:',
+    '- メーカー公式サイト・公的情報の値を最優先。見つからない場合は類似品からの概算とし "estimate": true にする',
+    '- 表示の基準を "basis" に: 1個/1袋あたりなら "perUnit"、100gあたりなら "per100g"',
+    '- 不明な項目は null。数値は単位なしの数字のみ',
+    '- JSON以外の文章・説明・コードフェンスを出力しない',
+    '',
+    '{"name": "正式な商品名/食品名", "brand": "メーカー名 or null", "basis": "perUnit",',
+    ' "unit_label": "個/袋/本/枚 など（per100gならnull）",',
+    ' "kcal": 0, "protein_g": 0, "fat_g": 0, "carb_g": 0, "salt_g": null,',
+    ' "estimate": false, "source": "参照した情報源の名称やURL"}'
+  ].join('\n');
+}
+
+/** 貼り付けテキストから最初の {...} を波括弧対応で抽出して食品情報にパースする。 */
+function parseAiFoodResult(text) {
+  const raw = String(text || '');
+  const start = raw.indexOf('{');
+  if (start < 0) return { error: 'JSONが見つかりません（{ } を含む答えを貼り付けてください）' };
+  let depth = 0, end = -1;
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '{') depth++;
+    else if (raw[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (end < 0) return { error: 'JSONが閉じていません' };
+  let body = raw.slice(start, end + 1)
+    .replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+    .replace(/,\s*}/g, '}');
+  let data;
+  try { data = JSON.parse(body); } catch (e) { return { error: `JSONを読めませんでした: ${e.message}` }; }
+  const num = (v) => (v == null || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+  const kcal = num(data.kcal);
+  if (kcal == null) return { error: 'kcal が数値ではありません' };
+  return {
+    name: typeof data.name === 'string' ? data.name.trim() : '',
+    brand: typeof data.brand === 'string' ? data.brand.trim() : '',
+    basis: data.basis === 'per100g' ? 'per100g' : 'perUnit',
+    unitLabel: typeof data.unit_label === 'string' ? data.unit_label.trim() : '',
+    kcal, p: num(data.protein_g) ?? 0, f: num(data.fat_g) ?? 0, c: num(data.carb_g) ?? 0,
+    salt: num(data.salt_g),
+    estimate: Boolean(data.estimate),
+    source: typeof data.source === 'string' ? data.source.trim().slice(0, 120) : ''
+  };
+}
+
+async function copyAiPrompt() {
+  const name = $('#ffName').value.trim();
+  if (!name) { showToast('先に食品の名前を入れてください'); return; }
+  const prompt = buildAiResearchPrompt(name);
+  try {
+    await navigator.clipboard.writeText(prompt);
+    showToast('プロンプトをコピーしました。AIアプリに貼り付けてください');
+  } catch (e) {
+    // クリップボード不許可時のフォールバック: 貼り付け欄に表示して手動コピー
+    $('#aiResultPaste').value = prompt;
+    $('#aiResultPaste').select();
+    showToast('コピーできなかったため下の欄に表示しました。全選択してコピーしてください');
+  }
+}
+
+function importAiResult() {
+  const parsed = parseAiFoodResult($('#aiResultPaste').value);
+  if (parsed.error) { showToast(parsed.error); return; }
+  if (parsed.name) $('#ffName').value = parsed.name;
+  $('#ffBrand').value = parsed.brand || $('#ffBrand').value;
+  if (foodFormState.kind === 'product') $('#ffBasis').value = parsed.basis;
+  $('#ffUnitLabel').value = parsed.unitLabel || $('#ffUnitLabel').value;
+  $('#ffKcal').value = parsed.kcal;
+  $('#ffP').value = parsed.p;
+  $('#ffF').value = parsed.f;
+  $('#ffC').value = parsed.c;
+  $('#ffSalt').value = parsed.salt ?? '';
+  $('#ffEstimate').checked = parsed.estimate;
+  foodFormState.aiSource = parsed.source || 'AI調査（情報源記載なし）';
+  syncFfUnitRow();
+  $('#aiResultPaste').value = '';
+  showToast(parsed.estimate ? '取り込みました（概算）。値を確認して保存してください' : '取り込みました。値を確認して保存してください');
+}
+
 function submitFoodForm() {
   const name = $('#ffName').value.trim();
   const kcal = Number($('#ffKcal').value);
@@ -2476,8 +2572,11 @@ function submitFoodForm() {
     name, brand: $('#ffBrand').value.trim(),
     category: '共通', entryType: kind === 'product' ? 'product' : 'food',
     pendingReview,
-    source: pendingReview ? 'estimate' : (kind === 'product' ? 'label' : 'manual'),
-    verified: !pendingReview && kind === 'product',
+    // AI調査コピペ経由なら情報源を記録（SPEC-016）。verified は「概算でなく人間が確認して保存」の時のみ
+    source: foodFormState.aiSource
+      ? `AI調査コピペ(${foodFormState.aiSource})`
+      : (pendingReview ? 'estimate' : (kind === 'product' ? 'label' : 'manual')),
+    verified: !pendingReview && (kind === 'product' || Boolean(foodFormState.aiSource)),
     keywords: (existing && existing.keywords) || []
   };
   if (perUnit) {
@@ -4462,6 +4561,13 @@ $('#addFoodBack').addEventListener('click', (e) => {
 $('#foodFormBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#foodFormBack').classList.remove('show'); });
 $('#ffBasis').addEventListener('change', syncFfUnitRow);
 $('#ffSaveBtn').addEventListener('click', submitFoodForm);
+$('#aiHelpToggle').addEventListener('click', (e) => {
+  e.preventDefault();
+  const area = $('#aiHelpArea');
+  area.style.display = area.style.display === 'none' ? '' : 'none';
+});
+$('#aiCopyPromptBtn').addEventListener('click', copyAiPrompt);
+$('#aiImportBtn').addEventListener('click', importAiResult);
 $('#recipeBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#recipeBack').classList.remove('show'); });
 let rcSearchTimer = null;
 $('#rcSearch').addEventListener('input', () => { clearTimeout(rcSearchTimer); rcSearchTimer = setTimeout(renderRcSearch, 120); });
