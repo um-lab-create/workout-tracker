@@ -490,6 +490,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   height:50px; border-radius:17px; background:var(--card); box-shadow:var(--shadow);
   font-size:14px; font-weight:800; color:var(--accent-deep);
 }
+.secondary-btn.full { width:100%; margin-top:12px; }
 .draft-badge {
   display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px;
   border-radius:10px; padding:0 6px; background:var(--accent); color:white; font-size:11px; font-weight:900;
@@ -762,6 +763,12 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   <div class="modal">
     <div class="close-row"><div class="grip"></div></div>
     <h3>設定</h3>
+    <div class="section-label" style="margin-top:0">アカウント（Supabase ログイン）</div>
+    <div class="set-row"><span class="sl">状態</span><span id="acctStatusLabel" style="font-weight:800;font-size:13px">未ログイン</span></div>
+    <div class="action-row">
+      <button class="secondary-btn" id="acctLoginBtn" type="button">ログイン</button>
+      <button class="secondary-btn" id="acctLogoutBtn" type="button" style="display:none">ログアウト</button>
+    </div>
     <div class="set-row"><span class="sl">利用PIN（書込）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">READ_PIN（読取）</span><input id="setReadPin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
@@ -812,11 +819,44 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   </div>
 </div>
 
+<!-- ログインシート（Supabase Auth・SPEC-012 Step1: 認証基盤のみ。書込/読取切替はStep2/3） -->
+<div class="modal-back" id="loginBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>ログイン</h3>
+    <div class="sync-note" id="loginStatusNote"></div>
+
+    <!-- 通常ログイン -->
+    <div id="loginFormArea">
+      <div class="set-row"><span class="sl">メールアドレス</span><input id="loginEmail" type="email" inputmode="email" autocomplete="username" value="tumabsk@gmail.com"></div>
+      <div class="set-row"><span class="sl">パスワード</span><input id="loginPassword" type="password" autocomplete="current-password"></div>
+      <button class="primary-btn full" id="loginSubmitBtn" type="button">ログイン</button>
+      <div class="sync-note"><a href="#" id="loginResetLink">パスワードを設定/再設定する</a> ・ 未ログインのままローカルに記録を続けるにはこのシート外をタップ</div>
+    </div>
+
+    <!-- パスワード設定/再設定（初回・忘れた時 共通） -->
+    <div id="resetFormArea" style="display:none">
+      <div class="sync-note">登録済みのメールアドレスにパスワード設定用のリンクを送ります。届いたメールのリンクは Safari で開いてください（初回のみの手順です）。</div>
+      <div class="set-row"><span class="sl">メールアドレス</span><input id="resetEmail" type="email" inputmode="email" autocomplete="username" value="tumabsk@gmail.com"></div>
+      <button class="secondary-btn full" id="resetSubmitBtn" type="button">設定メールを送る</button>
+      <div class="sync-note"><a href="#" id="resetBackLink">ログイン画面に戻る</a></div>
+    </div>
+
+    <!-- リセットリンクで戻ってきた時のパスワード設定（PASSWORD_RECOVERY） -->
+    <div id="recoveryFormArea" style="display:none">
+      <div class="sync-note">新しいパスワードを設定してください。</div>
+      <div class="set-row"><span class="sl">新しいパスワード</span><input id="recoveryPassword" type="password" autocomplete="new-password"></div>
+      <button class="primary-btn full" id="recoverySubmitBtn" type="button">パスワードを設定する</button>
+    </div>
+  </div>
+</div>
+
 <script src="nutrition-db.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/api-client.js"></script>
 <script src="js/nutrition-calc.js"></script>
 <script src="js/food-catalog.js"></script>
+<script src="js/supabase-client.js"></script>
 <script>
 'use strict';
 /* ================================================================
@@ -2850,6 +2890,7 @@ function openSettings() {
   $('#setTargetFat').value = Math.round(targets.fat);
   $('#setTargetCarb').value = Math.round(targets.carb);
   updateSyncUi();
+  updateAccountUi();
   $('#settingsBack').classList.add('show');
 }
 async function saveSettings() {
@@ -2878,6 +2919,139 @@ async function saveSettings() {
   } catch (err) {
     showToast(err && err.code === 'AUTH_REQUIRED' ? 'PIN設定後にサーバ反映できます' : '設定を保存しました（サーバ反映は再送で行われます）');
   }
+}
+
+// ---------------- 認証（Supabase, SPEC-012 Step1: 認証基盤のみ） ----------------
+// 注意: このセクションは「ログインできるようになる」だけを扱う。
+// 書込・読取のSupabase化（GASミラー併走）はStep2/3で別途実装する。
+// 既存の記録機能（GAS POST・オフラインキュー・localStorage）はここでは一切変更しない。
+let hsAuthSession = null;
+
+function updateAccountUi() {
+  const label = $('#acctStatusLabel');
+  const loginBtn = $('#acctLoginBtn');
+  const logoutBtn = $('#acctLogoutBtn');
+  if (!label || !loginBtn || !logoutBtn) return;
+  const email = hsAuthSession && hsAuthSession.user ? hsAuthSession.user.email : '';
+  label.textContent = hsAuthSession ? `ログイン中: ${email}` : '未ログイン';
+  loginBtn.style.display = hsAuthSession ? 'none' : '';
+  logoutBtn.style.display = hsAuthSession ? '' : 'none';
+}
+
+function showLoginForm() {
+  $('#loginFormArea').style.display = '';
+  $('#resetFormArea').style.display = 'none';
+  $('#recoveryFormArea').style.display = 'none';
+  $('#loginStatusNote').textContent = '';
+}
+function showResetForm() {
+  $('#loginFormArea').style.display = 'none';
+  $('#resetFormArea').style.display = '';
+  $('#recoveryFormArea').style.display = 'none';
+  $('#loginStatusNote').textContent = '';
+}
+function showRecoveryForm() {
+  $('#loginFormArea').style.display = 'none';
+  $('#resetFormArea').style.display = 'none';
+  $('#recoveryFormArea').style.display = '';
+  $('#loginStatusNote').textContent = 'メールのリンクから開きました。新しいパスワードを設定してください。';
+}
+
+/**
+ * ログインシートを開く。
+ * @param {'login'|'reset'|'recovery'} [mode='login']
+ */
+function openLoginSheet(mode = 'login') {
+  if (mode === 'reset') showResetForm();
+  else if (mode === 'recovery') showRecoveryForm();
+  else showLoginForm();
+  $('#loginBack').classList.add('show');
+}
+function closeLoginSheet() {
+  $('#loginBack').classList.remove('show');
+}
+
+async function handleLoginSubmit() {
+  const email = $('#loginEmail').value.trim();
+  const password = $('#loginPassword').value;
+  if (!email || !password) { showToast('メールアドレスとパスワードを入力してください'); return; }
+  const btn = $('#loginSubmitBtn');
+  btn.disabled = true;
+  try {
+    const sb = await window.HSSupabaseReady;
+    await sb.signInWithPassword(email, password);
+    $('#loginPassword').value = '';
+    // 画面の更新は onAuthStateChange の SIGNED_IN イベント側で行う
+  } catch (err) {
+    showToast('ログインできませんでした。メールアドレス/パスワードを確認してください');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleResetSubmit() {
+  const email = $('#resetEmail').value.trim();
+  if (!email) { showToast('メールアドレスを入力してください'); return; }
+  const btn = $('#resetSubmitBtn');
+  btn.disabled = true;
+  try {
+    const sb = await window.HSSupabaseReady;
+    const redirectTo = window.location.origin + window.location.pathname;
+    await sb.sendPasswordResetEmail(email, redirectTo);
+    showToast('設定メールを送信しました。届いたらSafariでリンクを開いてください');
+    showLoginForm();
+  } catch (err) {
+    showToast('メール送信に失敗しました');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleRecoverySubmit() {
+  const password = $('#recoveryPassword').value;
+  if (!password || password.length < 6) { showToast('6文字以上のパスワードを入力してください'); return; }
+  const btn = $('#recoverySubmitBtn');
+  btn.disabled = true;
+  try {
+    const sb = await window.HSSupabaseReady;
+    await sb.updatePassword(password);
+    $('#recoveryPassword').value = '';
+    showToast('パスワードを設定しました');
+    // 画面の更新は onAuthStateChange 側（この時点で既にログイン済みセッション）
+  } catch (err) {
+    showToast('パスワードを設定できませんでした');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleLogout() {
+  try {
+    const sb = await window.HSSupabaseReady;
+    await sb.signOut();
+    showToast('ログアウトしました（ローカルへの記録は引き続き可能です）');
+  } catch (err) {
+    showToast('ログアウトに失敗しました');
+  }
+}
+
+function initSupabaseAuth() {
+  window.HSSupabaseReady.then((sb) => {
+    sb.onAuthStateChange((event, session) => {
+      hsAuthSession = session || null;
+      updateAccountUi();
+      if (event === 'PASSWORD_RECOVERY') openLoginSheet('recovery');
+      else if (event === 'SIGNED_IN') closeLoginSheet();
+      else if (event === 'SIGNED_OUT') openLoginSheet('login');
+    });
+    return sb.getSession();
+  }).then((session) => {
+    hsAuthSession = session || null;
+    updateAccountUi();
+    if (!hsAuthSession) openLoginSheet('login');
+  }).catch(() => {
+    showToast('ログイン機能の初期化に失敗しました（記録はこれまで通り可能です）');
+  });
 }
 
 // ---------------- 長押しステッパー ----------------
@@ -2964,6 +3138,20 @@ $('#settingsBack').addEventListener('click', (e) => { if (e.target === e.current
 $('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#unitBack').classList.remove('show'); });
 $('#qtyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#qtyBack').classList.remove('show'); });
 $('#connCheckLink').addEventListener('click', (e) => { e.preventDefault(); window.open(GAS_URL, '_blank'); });
+
+// アカウント（Supabase ログイン・SPEC-012 Step1）
+$('#acctLoginBtn').addEventListener('click', () => openLoginSheet('login'));
+$('#acctLogoutBtn').addEventListener('click', handleLogout);
+$('#loginBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeLoginSheet(); });
+$('#loginSubmitBtn').addEventListener('click', handleLoginSubmit);
+$('#loginResetLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#resetEmail').value = $('#loginEmail').value.trim() || 'tumabsk@gmail.com';
+  showResetForm();
+});
+$('#resetSubmitBtn').addEventListener('click', handleResetSubmit);
+$('#resetBackLink').addEventListener('click', (e) => { e.preventDefault(); showLoginForm(); });
+$('#recoverySubmitBtn').addEventListener('click', handleRecoverySubmit);
 
 // ホーム
 $('#trainToggle').addEventListener('click', () => {
@@ -3179,6 +3367,7 @@ showView('home');
 try { flushPendingQueue(); } catch (e) {}
 updateSyncUi();
 maybeAutoSyncFromServer();
+initSupabaseAuth();
 </script>
 </body>
 </html>

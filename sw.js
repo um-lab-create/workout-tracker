@@ -9,13 +9,14 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v15';
+const CACHE = 'cockpit-cache-v16';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 const CORE = [
   './',
   'index.html', 'day.html', 'meal.html', 'workout.html', 'body.html', 'health-import.html', 'app.html',
   'nutrition-db.js', 'js/storage.js', 'js/api-client.js', 'js/nutrition-calc.js', 'js/food-catalog.js',
+  'js/supabase-client.js',
   'manifest.webmanifest', 'manifest-app.webmanifest',
   'icons/cockpit.svg', 'icons/cockpit-192.png', 'icons/cockpit-512.png', 'icons/apple-touch-icon.png'
 ];
@@ -24,7 +25,8 @@ const CORE = [
 const CDN = [
   'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css',
   'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-  'https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js'
+  'https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
 ];
 
 self.addEventListener('install', (event) => {
