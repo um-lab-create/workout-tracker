@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v16';
+const CACHE = 'cockpit-cache-v17';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 const CORE = [
@@ -55,6 +55,9 @@ self.addEventListener('fetch', (event) => {
 
   // GAS API は常にネットワーク（古いサーバ応答をキャッシュしない）
   if (/(^|\.)script\.google\.com$/.test(url.hostname) || /(^|\.)googleusercontent\.com$/.test(url.hostname)) return;
+
+  // Supabase API（REST/Auth）も常にネットワーク（select は GET のため、キャッシュすると古いデータを返してしまう）
+  if (/(^|\.)supabase\.co$/.test(url.hostname)) return;
 
   // HTML ナビゲーションは network-first
   if (req.mode === 'navigate') {

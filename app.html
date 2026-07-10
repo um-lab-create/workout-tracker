@@ -769,8 +769,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <button class="secondary-btn" id="acctLoginBtn" type="button">ログイン</button>
       <button class="secondary-btn" id="acctLogoutBtn" type="button" style="display:none">ログアウト</button>
     </div>
-    <div class="set-row"><span class="sl">利用PIN（書込）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
-    <div class="set-row"><span class="sl">READ_PIN（読取）</span><input id="setReadPin" type="password" inputmode="numeric" placeholder="未設定"></div>
+    <div class="set-row"><span class="sl">利用PIN（GASミラー用・観察期間のみ）</span><input id="setWritePin" type="password" inputmode="numeric" placeholder="未設定"></div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
     <div class="section-label" style="margin-top:12px">目標</div>
     <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
@@ -780,6 +779,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="sync-action-row">
       <button class="secondary-btn" id="syncServerBtn" type="button">サーバーから同期</button>
       <div class="last-sync" id="lastSyncLabel">最終同期: 未実行</div>
+    </div>
+    <div class="action-row">
+      <button class="secondary-btn" id="weeklyReviewBtn" type="button">週次レビューを見る</button>
     </div>
     <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
     <div class="section-label" style="margin-top:16px">くわしい画面（従来ページ）</div>
@@ -791,9 +793,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <a href="index.html">コックピット<span>従来ホーム・管理</span></a>
       <a href="health-import.html">ヘルスケア取込<span>Apple Health XML</span></a>
       <a href="body.html">体組成手入力<span>詳細な体組成記録</span></a>
-      <a href="index.html#actions">管理操作<span>体組成取込・集計更新</span></a>
+      <a href="index.html#actions">管理操作<span>体組成CSV取込（従来）</span></a>
     </div>
-    <div class="sync-note" id="connCheckNote">送信は Apps Script に届くまで数秒かかります。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続成功！」と表示されればOK）。</div>
+    <div class="sync-note" id="connCheckNote">記録は Supabase に保存されます（観察期間中はシートにもミラー）。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続OK ✓」と表示されればOK）。</div>
   </div>
 </div>
 
@@ -851,6 +853,21 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   </div>
 </div>
 
+<!-- 週次レビュー（v_weekly_review 読取・SPEC-012 Step2。丸めは表示側 §14 Q4） -->
+<style>
+  .wk-grid { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:13px; }
+  .wk-grid span { color:var(--sub, #888); }
+  .wk-grid b { text-align:right; font-variant-numeric:tabular-nums; }
+</style>
+<div class="modal-back" id="weeklyBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>週次レビュー</h3>
+    <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
+    <div id="weeklyList"></div>
+  </div>
+</div>
+
 <script src="nutrition-db.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/api-client.js"></script>
@@ -865,7 +882,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
      - meal_recs_v3 / meal_draft_v4 / meal_presets_v3 / meal_custom_foods_v1 /
        meal_products_v1 / body_recs_v1 / wt:lastValues:v2 / wt:history:v2 /
        nutrition_targets_v1 / hs:carb-cycle:v1 は旧ページと同一形式で読み書き。
-     - POST: 食事ログ / 食事明細(rows) / 筋トレログ / 体組成ログ手動（キー・形式は旧ページと同一）
+     - 書込（SPEC-012 Step2）: Supabase 本線（例外＝確実に検知）→ 成功後に
+       DUAL_WRITE_GAS の間だけ従来 GAS POST を投げ捨て式で併走（ミラー失敗は無視）。
+       テーブル対応は docs/cutover_plan_2026-07-10.md 付録A が正。
+     - 読取: settings / meal_details / v_weekly_review を supabase-js select で取得。
+       READ_PIN 読取は廃止（コード削除は GAS 退役時）。
+     - オフラインキュー: hs:sb-queue:v1（操作ベース）。旧 hs:pending-queue は
+       GAS ミラー稼働中に flushPendingQueue で流し切るのみ（新規には積まない）。
    ================================================================ */
 
 // ---------------- ユーティリティ ----------------
@@ -1453,26 +1476,25 @@ function warnMealDirtyOnce() {
   showToast('変更が未送信です（食事タブで更新する）');
 }
 
+// 送信状態は confirmed（Supabase 書込成功）/ queued（オフライン・未ログイン）の2状態
+// （旧 requested は no-cors 固有のため消滅。SPEC-012 実装方針4）
 function writeStatusText(result) {
-  if (!result) return '送信要求済み';
-  if (result.status === 'confirmed') return result.dedup ? '送信済み ✓（重複なし）' : '送信済み ✓';
+  if (!result) return '送信済み ✓';
   if (result.status === 'queued') return '未送信（あとで再送）';
-  return '送信要求済み';
-}
-function mergeWriteStatuses(results) {
-  if ((results || []).some((r) => r && r.status === 'queued')) return { status: 'queued' };
-  if ((results || []).some((r) => r && r.status === 'requested')) return { status: 'requested' };
-  return { status: 'confirmed', dedup: (results || []).some((r) => r && r.dedup) };
+  return '送信済み ✓';
 }
 
 async function resendMealRecord(record) {
-  const results = [];
-  results.push(await writeToSheet({ sheet: '食事ログ', ...record }));
-  const rows = detailRowsFromRecord(record);
-  if (rows.length) results.push(await writeToSheet({ sheet: '食事明細', rows }));
-  const status = mergeWriteStatuses(results);
-  if (status.status !== 'queued') markMealSynced(record.id, true);
-  return status;
+  try {
+    await pushMealToServer(record);
+    markMealSynced(record.id, true);
+    return { status: 'confirmed' };
+  } catch (err) {
+    window.HSSbQueue.enqueue('meal_save', `meal_save:${record.date}:${record.timingKey}`,
+      { date: record.date, timingKey: record.timingKey });
+    renderSyncStatus();
+    return { status: 'queued' };
+  }
 }
 
 function restoreDeletedMeal(record, draftSnapshot) {
@@ -1492,7 +1514,7 @@ function restoreDeletedMeal(record, draftSnapshot) {
   renderHome();
   resendMealRecord(restored)
     .then((result) => showToast(`復元しました: ${writeStatusText(result)}`))
-    .catch((err) => showToast(err && err.code === 'AUTH_REQUIRED' ? 'PIN設定後に再送してください' : '復元はローカル保存しました'));
+    .catch(() => showToast('復元はローカル保存しました（あとで自動再送）'));
 }
 
 async function deleteCurrentMealRecord() {
@@ -1525,9 +1547,13 @@ async function deleteCurrentMealRecord() {
   haptic([8, 24, 8]);
 
   try {
-    await writeToSheet({ sheet: '食事ログ', action: 'delete', recordId, date: record.date, timingKey: record.timingKey });
+    await pushMealDeleteToServer({ date: record.date, timingKey: record.timingKey, recordId });
   } catch (err) {
-    // 未送信のまま削除した場合など。ローカル削除は成立させる。
+    // オフライン・未ログイン時は削除操作をキューへ（同スロットの保存opは取り下げる）
+    window.HSSbQueue.discard(`meal_save:${record.date}:${record.timingKey}`);
+    window.HSSbQueue.enqueue('meal_delete', `meal_delete:${record.date}:${record.timingKey}`,
+      { date: record.date, timingKey: record.timingKey, recordId });
+    renderSyncStatus();
   }
   showUndoToast('削除しました', '元に戻す', () => restoreDeletedMeal(record, draftSnapshot));
 }
@@ -1653,38 +1679,7 @@ function openUnitSheet(i) {
 function summarizeItems(items) {
   return items.map((it) => `${it.name} ${fmtQty(it.qty)}${it.unit}`).join(' / ');
 }
-function buildMealDetailRows(record) {
-  const rows = state.items.map((it) => ({
-    date: record.date,
-    timing: record.timing,
-    timingKey: record.timingKey,
-    recordId: record.id,
-    foodId: it.foodId,
-    name: it.name,
-    qty: Number(it.qty) || 0,
-    unit: it.unit,
-    grams: it.grams == null ? '' : Math.round((Number(it.grams) || 0) * 10) / 10,
-    pendingReview: Boolean(it.pendingReview)
-  }));
-  if (record.diningOut) {
-    rows.push({
-      date: record.date,
-      timing: record.timing,
-      timingKey: record.timingKey,
-      recordId: record.id,
-      foodId: 'dining-out-pending',
-      name: record.restaurantName ? `外食: ${record.restaurantName}` : '外食未計算',
-      qty: 1,
-      unit: '件',
-      grams: '',
-      pendingReview: true,
-      diningOut: true,
-      calcStatus: '未計算',
-      note: record.diningText || record.note || ''
-    });
-  }
-  return rows;
-}
+// 食事明細の GAS ミラー行は detailRowsFromRecord(record) を共用する（Step2 で一本化）
 
 let isSavingMeal = false;
 async function saveMeal() {
@@ -1741,23 +1736,19 @@ async function saveMeal() {
   state.editingRecordId = record.id;
   persistDraft();
 
-  // サーバー送信（食事ログ + 食事明細。recordId で upsert される）
+  // サーバー送信（Supabase 本線 → 成功後 GAS ミラー。SPEC-012 Step2）
   let writeResult = null;
-  let writeError = null;
   try {
-    const results = [];
-    results.push(await writeToSheet({ sheet: '食事ログ', ...record }));
-    const rows = buildMealDetailRows(record);
-    if (rows.length) results.push(await writeToSheet({ sheet: '食事明細', rows }));
-    writeResult = mergeWriteStatuses(results);
+    await pushMealToServer(record);
+    writeResult = { status: 'confirmed' };
+    markMealSynced(record.id, true);
+    flashSuccess(btn, '✓ 記録しました');
+    showToast(`${timing.title}: ${writeStatusText(writeResult)}`);
   } catch (err) {
-    writeError = err;
-    if (err && err.code === 'AUTH_REQUIRED') showToast('PIN を設定してから送信してください（ローカル保存済み）');
-    else showToast(`送信エラー: ${err && err.message ? err.message : err}`);
+    writeResult = { status: 'queued' };
+    queueWithToast('meal_save', `meal_save:${record.date}:${record.timingKey}`,
+      { date: record.date, timingKey: record.timingKey }, timing.title, err);
   }
-  if (writeResult && writeResult.status !== 'queued') markMealSynced(record.id, true);
-  if (writeResult && writeResult.status === 'confirmed') flashSuccess(btn, '✓ 記録しました');
-  if (writeResult && !writeError) showToast(`${timing.title}: ${writeStatusText(writeResult)}`);
   haptic([8, 24, 8]);
 
   isSavingMeal = false;
@@ -1800,7 +1791,287 @@ function detailRowsFromRecord(record) {
   return rows;
 }
 
-// ---------------- READ_PIN サーバー同期（SPEC-003） ----------------
+// ================================================================
+// Supabase 同期層（SPEC-012 Step2: 書込・読取の supabase-js 化）
+// 保存フロー: まず Supabase で書く（失敗は例外）→ 成功後 DUAL_WRITE_GAS の間は
+// 従来 writeToSheet() を投げ捨て式で併走（ミラーはロールバック保険。GAS 退役時に
+// フラグごと削除する）。失敗時は hs:sb-queue:v1 に「操作」を積み、再送時は
+// localStorage の最新状態から同期し直す。
+// ================================================================
+const DUAL_WRITE_GAS = true; // GASミラー併走フラグ（観察期間終了＝GAS退役時にコードごと削除）
+const FOODS_MAP_KEY = 'hs:foods-map:v1';
+let foodsKeyMap = (lsGet(FOODS_MAP_KEY, null) || {}).map || {};
+
+function toNumOrNull(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function makeClientUuid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  // 古い環境向けフォールバック（uuid v4 形式）
+  const hex = [];
+  const buf = new Uint8Array(16);
+  (window.crypto && window.crypto.getRandomValues)
+    ? window.crypto.getRandomValues(buf)
+    : buf.forEach((_, i) => { buf[i] = Math.floor(Math.random() * 256); });
+  buf[6] = (buf[6] & 0x0f) | 0x40;
+  buf[8] = (buf[8] & 0x3f) | 0x80;
+  buf.forEach((b) => hex.push(b.toString(16).padStart(2, '0')));
+  return `${hex.slice(0,4).join('')}-${hex.slice(4,6).join('')}-${hex.slice(6,8).join('')}-${hex.slice(8,10).join('')}-${hex.slice(10,16).join('')}`;
+}
+
+/**
+ * GAS ミラー（投げ捨て式）。失敗しても無視・UIに出さない。
+ * プロンプトは出さない: WRITE_PIN が端末に保存済みの時だけ送る。
+ */
+function mirrorToGas(payloads) {
+  if (!DUAL_WRITE_GAS) return;
+  if (!navigator.onLine) return;         // オフライン時は旧キューに積まない（Supabase側のキューが正）
+  if (!loadWritePin()) return;           // PIN未保存ならミラーは黙ってスキップ
+  (payloads || []).forEach((p) => {
+    try { writeToSheet(p).catch(() => {}); } catch (e) { /* ミラーはベストエフォート */ }
+  });
+}
+
+/** foods の legacy_key → uuid 対応表を取得してキャッシュする（24時間TTL・失敗は無視）。 */
+async function refreshFoodsMap(force = false) {
+  try {
+    const cached = lsGet(FOODS_MAP_KEY, null);
+    if (!force && cached && cached.fetchedAt && Date.now() - cached.fetchedAt < 24 * 60 * 60 * 1000) {
+      foodsKeyMap = cached.map || {};
+      return;
+    }
+    const sb = await window.HSSupabaseReady;
+    const map = await sb.fetchFoodsKeyMap();
+    foodsKeyMap = map || {};
+    lsSet(FOODS_MAP_KEY, { fetchedAt: Date.now(), map: foodsKeyMap });
+  } catch (e) { /* 未ログイン・オフライン時はスキップ（food_id 無しでも food_key で保存できる） */ }
+}
+function foodIdForKey(foodKey) {
+  return (foodKey && foodsKeyMap[foodKey]) || null;
+}
+
+/** app レコード → Supabase 食事保存 payload（meals + meal_items + dining）。 */
+function sbMealPayload(record) {
+  const timingLabel = (TIMINGS[record.timingKey] && TIMINGS[record.timingKey].label) || record.timing;
+  const items = (record.structuredItems || [])
+    .filter((s) => s && s.foodId !== 'dining-out-pending')
+    .map((s) => {
+      const known = Boolean(getFoodById(s.foodId));
+      const n = s.nutrients || {};
+      return {
+        foodKey: s.foodId || null,
+        foodId: foodIdForKey(s.foodId),
+        name: s.foodName || s.foodId || '未登録',
+        qty: toNumOrNull(s.qty),
+        unit: s.unit || null,
+        grams: s.grams == null ? null : Math.round((Number(s.grams) || 0) * 10) / 10,
+        pendingReview: Boolean(s.pendingReview),
+        // 栄養DBで再計算できない品目（独自/サーバー由来/概算）だけ推定値を保存する
+        estKcal: known ? null : toNumOrNull(n.energy),
+        estProteinG: known ? null : toNumOrNull(n.protein),
+        estFatG: known ? null : toNumOrNull(n.fat),
+        estCarbG: known ? null : toNumOrNull(n.carb)
+      };
+    });
+  let dining = null;
+  if (record.diningOut) {
+    // ★7: 店名は人間可読テキストとして note 先頭に併合可（meals 契約 §7-1）。
+    // GoogleマップURL・推定根拠URLはいかなる形でも Supabase に渡さない（契約 §7 絶対条件2）。
+    const parts = [];
+    if (record.restaurantName) parts.push(`店名: ${record.restaurantName}`);
+    if (record.diningText) parts.push(record.diningText);
+    dining = { note: parts.join(' / ') || null };
+  }
+  return {
+    eatenOn: record.date,
+    timing: timingLabel, // 日本語表示値（朝/昼/夜/間食）で確定（計画書 §14 Q3）
+    memo: record.memo || null,
+    kcal: toNumOrNull(record.kcal),
+    proteinG: toNumOrNull(record.protein),
+    fatG: toNumOrNull(record.fat),
+    carbG: toNumOrNull(record.carb),
+    legacyRecordId: record.id || null,
+    items,
+    dining
+  };
+}
+
+/** 従来 GAS 向けの食事ミラー payload（キー・形式は旧ページと同一）。 */
+function mealGasPayloads(record) {
+  const payloads = [{ sheet: '食事ログ', ...record }];
+  const rows = detailRowsFromRecord(record);
+  if (rows.length) payloads.push({ sheet: '食事明細', rows });
+  return payloads;
+}
+
+/** 食事1件を Supabase に保存し、成功後に GAS へミラーする。失敗は例外。 */
+async function pushMealToServer(record) {
+  const sb = await window.HSSupabaseReady;
+  await sb.saveMealRecord(sbMealPayload(record));
+  window.HSSbQueue.discard(`meal_delete:${record.date}:${record.timingKey}`);
+  mirrorToGas(mealGasPayloads(record));
+}
+
+/** 食事1件を Supabase から削除し、GAS へ削除ミラーする。失敗は例外。 */
+async function pushMealDeleteToServer({ date, timingKey, recordId }) {
+  const sb = await window.HSSupabaseReady;
+  const timingLabel = (TIMINGS[timingKey] && TIMINGS[timingKey].label) || timingKey;
+  await sb.deleteMealRecord(date, timingLabel);
+  window.HSSbQueue.discard(`meal_save:${date}:${timingKey}`);
+  mirrorToGas([{ sheet: '食事ログ', action: 'delete', recordId, date, timingKey }]);
+}
+
+/** 送信失敗の共通ハンドリング: 操作をキューに積み、状況に応じたトーストを出す。 */
+function queueWithToast(op, key, data, label, err) {
+  window.HSSbQueue.enqueue(op, key, data);
+  if (err && err.code === 'AUTH_REQUIRED') showToast(`${label}: 未ログインのため未送信に保存しました（ログイン後に自動送信）`);
+  else if (!navigator.onLine) showToast(`${label}: オフラインのため未送信に保存しました（復帰後に自動送信）`);
+  else showToast(`${label}: 送信エラーのため未送信に保存しました（${err && err.message ? err.message : err}）`);
+  renderSyncStatus();
+}
+
+// ---- 筋トレ ----
+function sbWorkoutRow(gasRecord) {
+  return {
+    id: makeClientUuid(), // 再送冪等キー（on conflict (id) do nothing）
+    performed_on: gasRecord['日付'],
+    exercise: gasRecord['種目'],
+    weight_kg: toNumOrNull(gasRecord['重量']),
+    reps: toNumOrNull(gasRecord['回数']),
+    sets: toNumOrNull(gasRecord['セット数']),
+    minutes: toNumOrNull(gasRecord['時間']),
+    distance_km: toNumOrNull(gasRecord['距離']),
+    speed_kmh: toNumOrNull(gasRecord['速さ']),
+    intensity: toNumOrNull(gasRecord['強度']),
+    incline: toNumOrNull(gasRecord['傾斜']),
+    load_note: gasRecord['負荷'] === '' || gasRecord['負荷'] == null ? null : String(gasRecord['負荷'])
+  };
+}
+async function pushWorkoutToServer(row, gasPayload) {
+  const sb = await window.HSSupabaseReady;
+  await sb.insertWorkout(row);
+  mirrorToGas([gasPayload]);
+}
+
+// ---- 水分（日次累積スナップショット。同日 upsert で1行に収束） ----
+function hydrationGasPayload(date, rec, total) {
+  return {
+    sheet: '水分ログ',
+    date,
+    totalMl: total,
+    liters: Math.round(total / 100) / 10,
+    targetMl: hydrationTarget(date),
+    entries: (rec.entries || []).map((e) => `${e.label}:${e.ml}ml`).join(' / '),
+    note: '飲み物・汁物・牛乳などの経口水分量。食事とは別管理。'
+  };
+}
+async function pushHydrationToServer(date, rec, total) {
+  const sb = await window.HSSupabaseReady;
+  await sb.upsertHydration({
+    logged_on: date,
+    amount_ml: Math.round(total),
+    target_ml: hydrationTarget(date),
+    breakdown: (rec.entries || []).map((e) => ({ label: e.label || '水分', ml: Number(e.ml) || 0 }))
+  });
+  mirrorToGas([hydrationGasPayload(date, rec, total)]);
+}
+
+// ---- 体組成（手動） ----
+function sbBodyRow(record) {
+  return {
+    id: makeClientUuid(),
+    measured_at: new Date(record.ts || Date.now()).toISOString(),
+    source: 'manual',
+    weight_kg: toNumOrNull(record.weight),
+    body_fat_pct: toNumOrNull(record.fat),
+    condition: toNumOrNull(record.cond),
+    note: record.memo || null
+  };
+}
+function bodyGasPayload(record) {
+  return {
+    sheet: '体組成ログ手動',
+    '日付': record.date,
+    '体重kg': record.weight || '',
+    '体脂肪率%': record.fat || '',
+    '調子': condLabel(record.cond),
+    'メモ': record.memo
+  };
+}
+async function pushBodyToServer(row, gasPayload) {
+  const sb = await window.HSSupabaseReady;
+  await sb.insertBodyComposition(row);
+  mirrorToGas([gasPayload]);
+}
+
+// ---- 目標（設定） ----
+async function pushSettingsToServer() {
+  const targets = baseTargets();
+  const sb = await window.HSSupabaseReady;
+  await sb.upsertUserSettings({
+    target_kcal: Math.round(targets.energy),
+    target_p_g: targets.protein,
+    target_f_g: targets.fat,
+    target_c_g: targets.carb,
+    updated_at: new Date().toISOString()
+  });
+  mirrorToGas([{ sheet: '設定', action: 'update_targets', ...targets }]);
+}
+
+// ---- キュー操作ハンドラ登録（再送時は localStorage の最新状態から同期し直す） ----
+function registerSbOpHandlers() {
+  const q = window.HSSbQueue;
+  q.registerHandler('meal_save', async ({ date, timingKey }) => {
+    const rec = getRecords().find((r) => r && r.date === date && r.timingKey === timingKey);
+    if (!rec) return; // その後ローカルで削除された等 → 送るものが無い
+    await pushMealToServer(rec);
+    markMealSynced(rec.id, true);
+  });
+  q.registerHandler('meal_delete', async (data) => {
+    await pushMealDeleteToServer(data);
+  });
+  q.registerHandler('workout_save', async ({ row, gas }) => {
+    await pushWorkoutToServer(row, gas);
+  });
+  q.registerHandler('hydration_save', async ({ date }) => {
+    const all = lsGet(LS_KEYS.HYDRATION_RECORDS, {}) || {};
+    const rec = all[date];
+    if (!rec) return;
+    const total = hydrationTotal(rec);
+    if (!total) return;
+    await pushHydrationToServer(date, rec, total);
+    rec.synced = true;
+    all[date] = rec;
+    lsSet(LS_KEYS.HYDRATION_RECORDS, all);
+  });
+  q.registerHandler('body_save', async ({ row, gas }) => {
+    await pushBodyToServer(row, gas);
+  });
+  q.registerHandler('settings_save', async () => {
+    await pushSettingsToServer();
+  });
+}
+
+/** キューを流し、動きがあれば画面を更新する（online復帰・起動時・ログイン完了時に呼ぶ）。 */
+async function flushSbQueueAndRender() {
+  try {
+    const sb = await window.HSSupabaseReady;
+    const result = await sb.flushQueue();
+    if (result && result.done) {
+      renderSyncStatus();
+      renderHydration();
+      renderHome();
+      if (state.view === 'meal') renderItems();
+    }
+    return result;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ---------------- サーバー同期（SPEC-003 の READ_PIN 読取 → Supabase select に置換） ----------------
 function normalizeServerDate(value) {
   if (!value) return '';
   const str = String(value);
@@ -1980,29 +2251,92 @@ function mergeServerMealRecords(serverRecords) {
   rebuildFoodUsage(merged);
   return counts;
 }
-function settingsToTargets(settings) {
-  const get = (...keys) => {
-    for (const key of keys) {
-      if (settings && settings[key] !== undefined && settings[key] !== '') return settings[key];
-    }
-    return undefined;
-  };
+/** user_settings（Supabase）1行 → localStorage の nutrition_targets_v1 形式。 */
+function userSettingsToTargets(row) {
   const current = baseTargets();
   return {
-    goal: String(get('目的') || ''),
-    energy: Number(get('目標kcal')) || current.energy,
-    protein: Number(get('目標P_g')) || current.protein,
-    fat: Number(get('目標F_g')) || current.fat,
-    carb: Number(get('目標C_g')) || current.carb,
+    goal: String(row.goal || ''),
+    energy: Number(row.target_kcal) || current.energy,
+    protein: Number(row.target_p_g) || current.protein,
+    fat: Number(row.target_f_g) || current.fat,
+    carb: Number(row.target_c_g) || current.carb,
     profile: {
-      age: Number(get('年齢')) || '',
+      age: Number(row.age) || '',
       sex: 'male',
-      height: Number(get('身長cm')) || '',
-      weight: Number(get('現体重kg', '体重kg')) || '',
-      activity: get('身体活動レベル', '活動レベル') || '',
-      effort: get('がんばり方') || ''
+      height: Number(row.height_cm) || '',
+      weight: Number(row.weight_kg) || '',
+      activity: row.activity_level || '',
+      effort: row.effort || ''
     }
   };
+}
+
+/** meal_dining_context.note（`店名: X / 内容...`）→ 店名と内容に分解する。 */
+function parseDiningNote(note) {
+  const text = String(note || '').trim();
+  if (!text) return { restaurantName: '', diningText: '' };
+  if (text.startsWith('店名: ')) {
+    const sep = text.indexOf(' / ');
+    if (sep < 0) return { restaurantName: text.slice(4).trim(), diningText: '' };
+    return { restaurantName: text.slice(4, sep).trim(), diningText: text.slice(sep + 3).trim() };
+  }
+  return { restaurantName: '', diningText: text };
+}
+
+/**
+ * fetchMealDetails の結果 → 旧サーバー行（食事明細シートと同じキー）へ整形。
+ * serverRowsToAppRecords（既存・検証済み）をそのまま再利用するための変換層で、
+ * フロントのデータ形（DAY_SERVER_RECORDS）は変えない（SPEC-012 実装方針5）。
+ */
+function sbRowsFromMealDetails(data) {
+  const rows = [];
+  const itemsByMeal = {};
+  (data.items || []).forEach((it) => {
+    (itemsByMeal[it.meal_id] = itemsByMeal[it.meal_id] || []).push(it);
+  });
+  const ctxByMeal = {};
+  (data.contexts || []).forEach((c) => { ctxByMeal[c.meal_id] = c; });
+  (data.meals || []).forEach((meal) => {
+    const timingKey = timingKeyFromLabel(meal.timing);
+    const base = {
+      '日付': meal.eaten_on,
+      '区分': meal.timing,
+      '区分キー': timingKey,
+      recordId: meal.legacy_record_id || meal.id
+    };
+    (itemsByMeal[meal.id] || []).forEach((it) => {
+      rows.push({
+        ...base,
+        foodId: it.food_key || '',
+        '名前': it.name || '',
+        '量': it.qty == null ? '' : it.qty,
+        '単位': it.unit || '',
+        'グラム換算': it.grams == null ? '' : it.grams,
+        '要確認フラグ': it.pending_review ? 'TRUE' : '',
+        '推定kcal': it.est_kcal == null ? '' : it.est_kcal,
+        '推定P_g': it.est_protein_g == null ? '' : it.est_protein_g,
+        '推定F_g': it.est_fat_g == null ? '' : it.est_fat_g,
+        '推定C_g': it.est_carb_g == null ? '' : it.est_carb_g
+      });
+    });
+    const ctx = ctxByMeal[meal.id];
+    if (ctx) {
+      const parsed = parseDiningNote(ctx.note);
+      rows.push({
+        ...base,
+        foodId: 'dining-out-pending',
+        '名前': parsed.restaurantName ? `外食: ${parsed.restaurantName}` : '外食',
+        '量': 1,
+        '単位': '件',
+        'グラム換算': '',
+        '要確認フラグ': 'TRUE',
+        '外食フラグ': 'TRUE',
+        '店名': parsed.restaurantName,
+        '外食内容': parsed.diningText
+      });
+    }
+  });
+  return rows;
 }
 function formatLastSync(ts) {
   if (!ts) return '最終同期: 未実行';
@@ -2018,25 +2352,29 @@ function updateSyncUi() {
 }
 async function syncFromServer(options = {}) {
   const manual = Boolean(options.manual);
-  const forcePrompt = Boolean(options.forcePrompt);
   if (!navigator.onLine) {
     if (manual) showToast('オフラインのため同期できません');
     return { skipped: true, reason: 'offline' };
   }
-  if (!manual && !loadReadPin()) return { skipped: true, reason: 'no-read-pin' };
   const last = Number(lsGet(LS_KEYS.LAST_SYNC, 0)) || 0;
   if (!manual && last && Date.now() - last < 30 * 60 * 1000) return { skipped: true, reason: 'fresh' };
   state.serverSyncing = true;
   updateSyncUi();
   try {
+    const sb = await window.HSSupabaseReady;
+    const session = await sb.getSession();
+    if (!session) {
+      if (manual) { showToast('ログインすると同期できます'); openLoginSheet('login'); }
+      return { skipped: true, reason: 'no-session' };
+    }
     const from = shiftDate(todayStr(), -13);
     const to = todayStr();
-    const settingsData = await readFromSheet('settings', {}, forcePrompt);
-    if (settingsData && settingsData.settings) {
-      lsSet(LS_KEYS.NUTRITION_TARGETS, settingsToTargets(settingsData.settings));
+    const settingsRow = await sb.fetchUserSettings();
+    if (settingsRow) {
+      lsSet(LS_KEYS.NUTRITION_TARGETS, userSettingsToTargets(settingsRow));
     }
-    const detailsData = await readFromSheet('meal_details', { from, to }, false);
-    const serverRecords = serverRowsToAppRecords(detailsData.rows || []);
+    const details = await sb.fetchMealDetails(from, to);
+    const serverRecords = serverRowsToAppRecords(sbRowsFromMealDetails(details));
     lsSet(LS_KEYS.DAY_SERVER_RECORDS, serverRecords);
     const counts = mergeServerMealRecords(serverRecords);
     lsSet(LS_KEYS.LAST_SYNC, Date.now());
@@ -2048,7 +2386,7 @@ async function syncFromServer(options = {}) {
     if (manual) showToast(`同期しました（追加${counts.added} / 更新${counts.updated}）`);
     return { status: 'ok', ...counts };
   } catch (err) {
-    if (manual || (err && String(err.message || err).includes('PIN'))) showToast('READ_PINを確認してください');
+    if (manual) showToast(`同期エラー: ${String(err && err.message ? err.message : err)}`);
     return { status: 'error', message: String(err && err.message ? err.message : err) };
   } finally {
     state.serverSyncing = false;
@@ -2164,7 +2502,7 @@ function renderHydration() {
   if ($('#waterLabel')) $('#waterLabel').textContent = `${liters} / ${targetL}L`;
   if ($('#waterFill')) $('#waterFill').style.width = `${Math.min(100, total / target * 100)}%`;
   if ($('#homeWaterVal')) $('#homeWaterVal').textContent = `${liters}L`;
-  if ($('#homeWaterSub')) $('#homeWaterSub').textContent = `目標 ${targetL}L${rec.synced ? ' / 送信要求済み' : ''}`;
+  if ($('#homeWaterSub')) $('#homeWaterSub').textContent = `目標 ${targetL}L${rec.synced ? ' / 送信済み ✓' : ''}`;
 }
 function addHydration(ml, label) {
   const rec = hydrationForDate();
@@ -2187,25 +2525,27 @@ function undoHydration() {
   showToast('水分記録を戻しました');
 }
 async function sendHydration() {
-  const rec = hydrationForDate();
+  const date = state.date;
+  const rec = hydrationForDate(date);
   const total = hydrationTotal(rec);
   if (!total) { showToast('水分量が0です'); return null; }
-  const result = await writeToSheet({
-    sheet: '水分ログ',
-    date: state.date,
-    totalMl: total,
-    liters: Math.round(total / 100) / 10,
-    targetMl: hydrationTarget(),
-    entries: (rec.entries || []).map((e) => `${e.label}:${e.ml}ml`).join(' / '),
-    note: '飲み物・汁物・牛乳などの経口水分量。食事とは別管理。'
-  });
+  let result;
+  try {
+    await pushHydrationToServer(date, rec, total);
+    result = { status: 'confirmed' };
+  } catch (err) {
+    window.HSSbQueue.enqueue('hydration_save', `hydration_save:${date}`, { date });
+    renderSyncStatus();
+    result = { status: 'queued' };
+  }
   rec.synced = result.status !== 'queued';
-  saveHydration(state.date, rec);
+  saveHydration(date, rec);
   return result;
 }
 function pendingSendCount() {
   const unsyncedMeals = getRecords().filter((r) => r && r.synced === false).length;
-  return (lsGet(LS_KEYS.PENDING_QUEUE, []) || []).length
+  return (window.HSSbQueue ? window.HSSbQueue.count() : 0)   // 新キュー（Supabase 操作）
+    + (lsGet(LS_KEYS.PENDING_QUEUE, []) || []).length         // 旧GASキュー（移行措置・流し切りのみ）
     + (lsGet(LS_KEYS.WT_QUEUE, []) || []).length
     + (state.workoutDrafts || []).length
     + unsyncedMeals;
@@ -2217,20 +2557,15 @@ function renderSyncStatus() {
   $('#homeSyncSub').textContent = pending ? '未送信/下書きあり' : '待機なし';
 }
 async function retryPending() {
-  try { await flushPendingQueue(); } catch (e) {}
+  // 旧GASキュー（移行措置: 残件があればGASミラー稼働中に流し切る。PIN保存済みの時だけ）
+  if (loadWritePin()) { try { await flushPendingQueue(); } catch (e) {} }
+  // 新キュー（Supabase 操作）
+  await flushSbQueueAndRender();
+  // キューに乗っていない未同期食事（旧バージョンからの引き継ぎ分など）
   const unsynced = getRecords().filter((r) => r && r.synced === false);
   for (const rec of unsynced) {
-    try {
-      const results = [];
-      results.push(await writeToSheet({ sheet: '食事ログ', ...rec }));
-      const rows = detailRowsFromRecord(rec);
-      if (rows.length) results.push(await writeToSheet({ sheet: '食事明細', rows }));
-      const status = mergeWriteStatuses(results);
-      if (status.status !== 'queued') markMealSynced(rec.id, true);
-      if (status.status === 'queued') break;
-    } catch (e) {
-      break;
-    }
+    const result = await resendMealRecord(rec);
+    if (result.status === 'queued') break;
   }
   renderSyncStatus();
   renderHome();
@@ -2673,27 +3008,26 @@ async function sendWorkoutDrafts() {
   btn.disabled = true;
   const drafts = state.workoutDrafts.slice();
   const sent = [];
-  const queued = [];
+  let queuedCount = 0;
   for (const item of drafts) {
+    // Supabase 本線（クライアント生成 uuid で再送冪等）→ 成功後 GAS ミラー
+    const row = sbWorkoutRow(item);
     try {
-      const result = await writeToSheet(item);
-      sent.push({ ...item, _draft: false, _queued: result.status === 'queued', _writeStatus: result.status, _ts: Date.now() });
+      await pushWorkoutToServer(row, item);
+      sent.push({ ...item, _draft: false, _queued: false, _writeStatus: 'confirmed', _ts: Date.now() });
     } catch (err) {
-      if (err && err.code === 'AUTH_REQUIRED') { showToast('PIN を設定してから送信してください'); btn.disabled = false; return; }
-      queued.push({ ...item, _queuedAt: Date.now() });
+      window.HSSbQueue.enqueue('workout_save', null, { row, gas: item });
+      sent.push({ ...item, _draft: false, _queued: true, _writeStatus: 'queued', _ts: Date.now() });
+      queuedCount += 1;
     }
   }
   sent.forEach(rememberWorkout);
-  if (queued.length) {
-    const q = lsGet(LS_KEYS.WT_QUEUE, []) || [];
-    lsSet(LS_KEYS.WT_QUEUE, q.concat(queued));
-  }
   state.workoutDrafts = [];
   lsSet('wt:draftQueue:v1', state.workoutDrafts);
   const confirmed = sent.filter((item) => item._writeStatus === 'confirmed').length;
-  const queuedCount = sent.filter((item) => item._queued).length + queued.length;
-  showToast(queuedCount ? `${queuedCount}件を未送信に保存しました` : `${confirmed ? '送信済み ✓' : '送信要求済み'} ${sent.length}件`);
+  showToast(queuedCount ? `${queuedCount}件を未送信に保存しました（あとで自動送信）` : `送信済み ✓ ${confirmed}件`);
   btn.disabled = false;
+  renderSyncStatus();
   renderWorkoutToday();
   renderHome();
 }
@@ -2804,20 +3138,14 @@ async function saveBody() {
 
   const btn = $('#saveBodyBtn');
   btn.disabled = true;
+  const row = sbBodyRow(record);       // uuid は1回だけ生成（再送冪等キー）
+  const gas = bodyGasPayload(record);
   try {
-    const result = await writeToSheet({
-      sheet: '体組成ログ手動',
-      '日付': record.date,
-      '体重kg': record.weight || '',
-      '体脂肪率%': record.fat || '',
-      '調子': condLabel(record.cond),
-      'メモ': record.memo
-    });
-    if (result.status === 'confirmed') flashSuccess(btn, '✓ 記録しました');
-    showToast(`からだ: ${writeStatusText(result)}`);
+    await pushBodyToServer(row, gas);
+    flashSuccess(btn, '✓ 記録しました');
+    showToast(`からだ: ${writeStatusText({ status: 'confirmed' })}`);
   } catch (err) {
-    if (err && err.code === 'AUTH_REQUIRED') showToast('PIN 設定後に送信されます（ローカル保存済み）');
-    else showToast('オフライン保存しました（復帰後に自動送信）');
+    queueWithToast('body_save', null, { row, gas }, 'からだ', err);
   }
   haptic([8, 24, 8]);
   btn.disabled = false;
@@ -2828,7 +3156,7 @@ async function saveBody() {
 
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack'].forEach((id) => {
+  ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('show');
   });
@@ -2882,7 +3210,6 @@ function setTiming(tk) {
 // ---------------- 設定モーダル ----------------
 function openSettings() {
   $('#setWritePin').value = loadWritePin();
-  $('#setReadPin').value = loadReadPin();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
   const targets = baseTargets();
   $('#setTargetEnergy').value = Math.round(targets.energy);
@@ -2895,9 +3222,7 @@ function openSettings() {
 }
 async function saveSettings() {
   const wp = $('#setWritePin').value.trim();
-  const rp = $('#setReadPin').value.trim();
   if (wp) saveWritePin(wp);
-  if (rp) saveReadPin(rp);
   try {
     const cfg = loadCarbCycle();
     cfg.carbDelta = Number($('#setCarbDelta').value) || 50;
@@ -2914,10 +3239,12 @@ async function saveSettings() {
   updateSyncUi();
   renderHome();
   try {
-    const result = await writeToSheet({ sheet: '設定', action: 'update_targets', ...targets });
-    showToast(result && result.status === 'queued' ? '設定を保存しました（サーバ反映は再送で行われます）' : `設定を保存しました: ${writeStatusText(result)}`);
+    await pushSettingsToServer();
+    showToast(`設定を保存しました: ${writeStatusText({ status: 'confirmed' })}`);
   } catch (err) {
-    showToast(err && err.code === 'AUTH_REQUIRED' ? 'PIN設定後にサーバ反映できます' : '設定を保存しました（サーバ反映は再送で行われます）');
+    window.HSSbQueue.enqueue('settings_save', 'settings_save', {});
+    renderSyncStatus();
+    showToast('設定を保存しました（サーバ反映はログイン/オンライン復帰後に自動で行われます）');
   }
 }
 
@@ -3041,7 +3368,13 @@ function initSupabaseAuth() {
       hsAuthSession = session || null;
       updateAccountUi();
       if (event === 'PASSWORD_RECOVERY') openLoginSheet('recovery');
-      else if (event === 'SIGNED_IN') closeLoginSheet();
+      else if (event === 'SIGNED_IN') {
+        closeLoginSheet();
+        // ログイン完了時の再送トリガ（SPEC-012 実装方針4）＋ foods対応表・設定の同期
+        flushSbQueueAndRender();
+        refreshFoodsMap();
+        maybeAutoSyncFromServer();
+      }
       else if (event === 'SIGNED_OUT') openLoginSheet('login');
     });
     return sb.getSession();
@@ -3049,9 +3382,76 @@ function initSupabaseAuth() {
     hsAuthSession = session || null;
     updateAccountUi();
     if (!hsAuthSession) openLoginSheet('login');
+    else {
+      // 起動時の再送トリガ（SPEC-012 実装方針4）
+      flushSbQueueAndRender();
+      refreshFoodsMap();
+    }
   }).catch(() => {
     showToast('ログイン機能の初期化に失敗しました（記録はこれまで通り可能です）');
   });
+}
+
+// ---------------- 週次レビュー（v_weekly_review・SPEC-012 Step2） ----------------
+// ★7恒久ルール: この面の入力は v_weekly_review のみ。meal_dining_context は
+// join も表示もしない（監査 [A-2]。広げる変更は privacy-auditor の再監査必須）。
+function wkInt(v) { return v == null ? '–' : String(Math.round(Number(v))); }               // 平均タンパク質/カロリー=整数
+function wkDec1(v) { return v == null ? '–' : (Math.round(Number(v) * 10) / 10).toFixed(1); } // 平均系=小数1桁
+function wkPct(v) { return v == null ? '–' : `${Math.round(Number(v) * 100)}%`; }            // 達成率=%
+function wkWeekLabel(weekStart) {
+  const d = new Date(`${weekStart}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return String(weekStart || '');
+  const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000);
+  return `${d.getMonth() + 1}/${d.getDate()}〜${end.getMonth() + 1}/${end.getDate()}`;
+}
+function renderWeeklyReview(rows) {
+  const list = $('#weeklyList');
+  if (!rows || !rows.length) {
+    list.innerHTML = '<div class="empty-note">まだ週次データがありません</div>';
+    return;
+  }
+  list.innerHTML = rows.map((w) => {
+    const diff = w.body_fat_diff_prev_week_pt;
+    const diffText = diff == null ? '' : `（前週${Number(diff) > 0 ? '+' : ''}${wkDec1(diff)}pt）`;
+    const notes = [
+      w.achievement ? `達成度: ${escapeHtml(w.achievement)}` : '',
+      w.good_points ? `良かった点: ${escapeHtml(w.good_points)}` : '',
+      w.improvements ? `改善点: ${escapeHtml(w.improvements)}` : '',
+      w.coach_note ? `コーチ: ${escapeHtml(w.coach_note)}` : ''
+    ].filter(Boolean);
+    return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
+      <div style="font-weight:800;margin-bottom:6px">${wkWeekLabel(w.week_start)}</div>
+      <div class="wk-grid">
+        <span>筋トレ</span><b>${w.workout_days ?? 0}日（${wkPct(w.workout_target_rate)}）</b>
+        <span>平均たんぱく質</span><b>${wkInt(w.avg_protein_g)} g</b>
+        <span>平均カロリー</span><b>${wkInt(w.avg_kcal)} kcal</b>
+        <span>平均脂質</span><b>${wkDec1(w.avg_fat_g)} g（超過${w.fat_over_days ?? 0}日）</b>
+        <span>PFC達成</span><b>${w.pfc_days ?? 0}日（${wkPct(w.pfc_rate)}）</b>
+        <span>食事記録</span><b>${w.meal_days ?? 0}日</b>
+        <span>平均睡眠</span><b>${wkDec1(w.avg_sleep_hr)} h</b>
+        <span>体脂肪率 週平均</span><b>${wkDec1(w.body_fat_week_avg_pct)}%${diffText}</b>
+        <span>体重 週平均</span><b>${wkDec1(w.weight_week_avg_kg)} kg</b>
+      </div>
+      ${notes.length ? `<div class="sync-note" style="margin-top:6px">${notes.join('<br>')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+async function openWeeklyReview() {
+  $('#weeklyBack').classList.add('show');
+  const list = $('#weeklyList');
+  list.innerHTML = '<div class="empty-note">読み込み中…</div>';
+  try {
+    const sb = await window.HSSupabaseReady;
+    const session = await sb.getSession();
+    if (!session) {
+      list.innerHTML = '<div class="empty-note">ログインすると表示できます</div>';
+      openLoginSheet('login');
+      return;
+    }
+    renderWeeklyReview(await sb.fetchWeeklyReview(8));
+  } catch (err) {
+    list.innerHTML = `<div class="empty-note">読み込みに失敗しました（${escapeHtml(String(err && err.message ? err.message : err))}）</div>`;
+  }
 }
 
 // ---------------- 長押しステッパー ----------------
@@ -3130,14 +3530,26 @@ $('#dateLabel').addEventListener('click', () => setDate(todayStr()));
 $('#gearBtn').addEventListener('click', openSettings);
 $('#saveSettingsBtn').addEventListener('click', saveSettings);
 $('#syncServerBtn').addEventListener('click', async () => {
-  const rp = $('#setReadPin').value.trim();
-  if (rp) saveReadPin(rp);
-  await syncFromServer({ manual: true, forcePrompt: !loadReadPin() });
+  await syncFromServer({ manual: true });
 });
 $('#settingsBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#settingsBack').classList.remove('show'); });
 $('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#unitBack').classList.remove('show'); });
 $('#qtyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#qtyBack').classList.remove('show'); });
-$('#connCheckLink').addEventListener('click', (e) => { e.preventDefault(); window.open(GAS_URL, '_blank'); });
+$('#weeklyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#weeklyBack').classList.remove('show'); });
+$('#weeklyReviewBtn').addEventListener('click', openWeeklyReview);
+// 疎通確認: 旧 doGet の代わりに、ログイン状態＋user_settings への軽い select で判定（SPEC-012 §5）
+$('#connCheckLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    const sb = await window.HSSupabaseReady;
+    const session = await sb.getSession();
+    if (!session) { showToast('未ログインです。ログインしてから確認してください'); openLoginSheet('login'); return; }
+    await sb.pingRead();
+    showToast('接続OK ✓（Supabaseに接続できています）');
+  } catch (err) {
+    showToast(`接続エラー: ${String(err && err.message ? err.message : err)}`);
+  }
+});
 
 // アカウント（Supabase ログイン・SPEC-012 Step1）
 $('#acctLoginBtn').addEventListener('click', () => openLoginSheet('login'));
@@ -3361,10 +3773,15 @@ bindContinuousPress(document.body, '[data-body]', runBodyButton);
 // ---------------- 初期化 ----------------
 buildCatalog();
 loadFoodUsage();
+registerSbOpHandlers();
 setDate(todayStr());
 loadMealFor(state.date, state.timing);
 showView('home');
-try { flushPendingQueue(); } catch (e) {}
+// 旧GASキューの移行措置: 残件はGASミラー稼働中に従来経路で流し切る（新規には積まない。
+// 残件ゼロがGAS退役の前提条件＝計画書 §8-④。PIN未保存なら何もしない）
+if (loadWritePin()) { try { flushPendingQueue(); } catch (e) {} }
+// 新キュー（hs:sb-queue:v1）の再送トリガ: オンライン復帰時（起動時・ログイン完了時は initSupabaseAuth 側）
+window.addEventListener('online', () => { flushSbQueueAndRender(); });
 updateSyncUi();
 maybeAutoSyncFromServer();
 initSupabaseAuth();
