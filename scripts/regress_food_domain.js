@@ -133,5 +133,17 @@ ok('eufy変換', rows2.length === 1 && rows2[0].weight_kg === 67.2 && rows2[0].m
 // 8) 週次丸め
 ok('週次丸め', g.wkInt(155.6) === '156' && g.wkDec1(6.75) === '6.8' && g.wkPct(0.857) === '86%');
 
+// 9) 漢字→かなエイリアス（SPEC-017 E2）
+const v1 = g.buildQueryVariants('豚バラ');
+ok('エイリアス: 豚バラ→ぶた分割展開', v1.length >= 2 && /ぶた/.test(v1[1]), JSON.stringify(v1));
+const v2 = g.buildQueryVariants('鶏もも');
+ok('エイリアス: 鶏の両読み(にわとり/とり)', v2.some((x) => x.includes('にわとり')) && v2.some((x) => / とり /.test(x)), JSON.stringify(v2));
+// バリアントAND一致の実地: 八訂様の名前に「豚肉」が当たる
+const hay = g.normalizeForSearch('ぶた 大型種肉 ばら 脂身つき 生 畜肉類');
+const vt = g.buildQueryVariants('豚肉').map((s) => s.split(/\s+/).map(g.normalizeForSearch).filter(Boolean));
+ok('エイリアス: 「豚肉」が八訂名にヒット', vt.some((t) => t.every((tok) => hay.includes(tok))));
+const vd = g.buildQueryVariants('大根').map((s) => s.split(/\s+/).map(g.normalizeForSearch).filter(Boolean));
+ok('エイリアス: 「大根」→だいこんヒット', vd.some((t) => t.every((tok) => g.normalizeForSearch('だいこん 根 皮つき 生 だいこん類').includes(tok))));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

@@ -862,6 +862,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .wk-grid span { color:var(--sub, #888); }
   .wk-grid b { text-align:right; font-variant-numeric:tabular-nums; }
   /* 食品ドメイン（SPEC-014） */
+  /* 長い食品名のあふれ対策（SPEC-017 E3）: 品目は2行clamp・検索行は1行ellipsis */
+  .item-row .item-name { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .result-row .rn { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .cat-tag { font-size:9.5px; padding:2px 6px; border-radius:8px; background:var(--glass,rgba(0,0,0,.05)); color:var(--muted,#888); flex:none; }
   .add-food-cta { display:block; width:100%; margin-top:8px; padding:11px; border:1.5px dashed var(--accent,#ff8a2a); border-radius:14px; background:transparent; color:var(--accent,#ff8a2a); font-weight:800; font-size:13.5px; }
   .kind-btn { display:block; width:100%; text-align:left; padding:13px 14px; margin-bottom:8px; border:1px solid var(--line,rgba(0,0,0,.1)); border-radius:14px; background:var(--panel,#fff); font-size:14px; font-weight:800; }
   .kind-btn small { display:block; font-weight:500; font-size:11.5px; color:var(--muted,#888); margin-top:2px; }
@@ -974,6 +978,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 <script src="js/storage.js"></script>
 <script src="js/nutrition-calc.js"></script>
 <script src="js/food-catalog.js"></script>
+<script src="js/search-alias.js"></script>
 <script src="js/supabase-client.js"></script>
 <script>
 'use strict';
@@ -1693,7 +1698,10 @@ function renderSearch() {
   } else {
     // [fix] 正規化は空白を除去するため、トークン分割を先に行う（「ぶた ばら」のような
     // 複数語AND検索を可能にする。八訂の長い階層名で特に重要。SPEC-015）
-    const tokens = q.split(/\s+/).map(normalizeForSearch).filter(Boolean);
+    // 漢字→かなエイリアス（SPEC-017）: 「豚肉」→「ぶた」等のバリアントを併走させ、
+    // どれか1バリアントの全トークンが当たれば一致とする。
+    const variants = buildQueryVariants(q).map((v) => v.split(/\s+/).map(normalizeForSearch).filter(Boolean)).filter((v) => v.length);
+    const tokens = variants[0] || [];
     const nq = tokens.join('');
     // 八訂の大量公式行（hakutei-*）は2文字以上の入力から出す（1文字でのノイズ回避。SPEC-015）。
     // ただし使用実績のあるものは常に出す。
@@ -1701,12 +1709,12 @@ function renderSearch() {
     list = allFoods.filter((f) => {
       if (shortQuery && String(f.id).startsWith('hakutei-') && !normalizeFoodUsageEntry(usage[f.id]).count) return false;
       const hay = normalizeForSearch([f.name, f.brand, f.kana, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
-      return tokens.every((t) => hay.includes(t));
+      return variants.some((vt) => vt.every((t) => hay.includes(t)));
     }).sort((a, b) => {
       const an = normalizeForSearch(a.name);
       const bn = normalizeForSearch(b.name);
-      const aPrefix = an.startsWith(tokens[0] || '') ? 1 : 0;
-      const bPrefix = bn.startsWith(tokens[0] || '') ? 1 : 0;
+      const aPrefix = variants.some((vt) => an.startsWith(vt[0] || '')) ? 1 : 0;
+      const bPrefix = variants.some((vt) => bn.startsWith(vt[0] || '')) ? 1 : 0;
       if (bPrefix !== aPrefix) return bPrefix - aPrefix;
       const ac = normalizeFoodUsageEntry(usage[a.id]).count;
       const bc = normalizeFoodUsageEntry(usage[b.id]).count;
@@ -1731,9 +1739,10 @@ function renderSearch() {
         <span class="rk">${fmtQty(preferred.qty)}${escapeHtml(preferred.unit)}・${fmtNum(kcal)}kcal</span>
       </button>`;
     }
+    const catTag = f.category && f.category !== '共通' ? `<span class="cat-tag">${escapeHtml(f.category)}</span>` : '';
     return `<button class="result-row" data-add="${escapeHtml(f.id)}">
       <span class="rn">${escapeHtml(f.name)}</span>
-      ${isProduct ? '<span class="badge">商品</span>' : ''}
+      ${isProduct ? '<span class="badge">商品</span>' : ''}${catTag}
       <span class="rk">${fmtQty(preferred.qty)}${escapeHtml(preferred.unit)}・${fmtNum(kcal)}kcal</span>
       <span class="add">＋</span>
     </button>`;
@@ -2548,11 +2557,11 @@ function renderRcSearch() {
   const q = $('#rcSearch').value.trim();
   const box = $('#rcSearchResults');
   if (!q) { box.innerHTML = ''; return; }
-  const tokens = q.split(/\s+/).map(normalizeForSearch).filter(Boolean);
+  const variants = buildQueryVariants(q).map((v) => v.split(/\s+/).map(normalizeForSearch).filter(Boolean)).filter((v) => v.length);
   const hits = allFoods.filter((f) => {
     if (f.entryType === 'recipe') return false;
     const hay = normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
-    return tokens.every((t) => hay.includes(t));
+    return variants.some((vt) => vt.every((t) => hay.includes(t)));
   }).slice(0, 6);
   box.innerHTML = hits.map((f) => `<button type="button" data-rc-add="${escapeHtml(f.id)}">${escapeHtml(f.name)}<span style="color:var(--muted,#999)">　${f.mode === 'perUnit' ? (f.unitLabel || '個') : '100g'}あたり ${fmtNum(f.mode === 'perUnit' ? (f.macrosPerUnit || {}).kcal || 0 : (f.macros || {}).kcal || 0)}kcal</span></button>`).join('')
     || '<div class="empty-note">見つかりません（下の「概算で追加」へ）</div>';
