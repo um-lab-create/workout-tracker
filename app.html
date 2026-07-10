@@ -1158,6 +1158,7 @@ function autoTiming() {
 // 自作メニューは旧 meal.html で編集し、app.html 側では検索対象として統合する。
 let foodLookup = {};
 let allFoods = [];
+let foodIndexMap = {};
 function recipeToCatalogFood(recipe) {
   if (!recipe || !recipe.id || !recipe.name || !Array.isArray(recipe.items)) return null;
   const servings = Math.max(1, Number(recipe.servings) || 1);
@@ -1216,6 +1217,8 @@ function buildCatalog() {
     foodLookup[f.id] = f;
   });
   allFoods = Object.values(foodLookup);
+  foodIndexMap = {};
+  allFoods.forEach((f, i) => { foodIndexMap[f.id] = i; });
 }
 function getFoodById(id) { return foodLookup[id] || null; }
 
@@ -1454,8 +1457,8 @@ function usageDefaultForFood(food) {
   return { qty: fallback.defaultQty || 1, unit: fallback.label };
 }
 function foodCatalogIndex(foodId) {
-  const idx = allFoods.findIndex((food) => food && food.id === foodId);
-  return idx < 0 ? 999999 : idx;
+  const idx = foodIndexMap[foodId];
+  return idx === undefined ? 999999 : idx;
 }
 function mergeDefaultPresets(stored) {
   const merged = {};
@@ -1688,10 +1691,16 @@ function renderSearch() {
     if (!list.length) list = allFoods.slice(0, 12);
     label = 'よくつかう';
   } else {
-    const nq = normalizeForSearch(q);
-    const tokens = nq.split(/\s+/).filter(Boolean);
+    // [fix] 正規化は空白を除去するため、トークン分割を先に行う（「ぶた ばら」のような
+    // 複数語AND検索を可能にする。八訂の長い階層名で特に重要。SPEC-015）
+    const tokens = q.split(/\s+/).map(normalizeForSearch).filter(Boolean);
+    const nq = tokens.join('');
+    // 八訂の大量公式行（hakutei-*）は2文字以上の入力から出す（1文字でのノイズ回避。SPEC-015）。
+    // ただし使用実績のあるものは常に出す。
+    const shortQuery = nq.length < 2;
     list = allFoods.filter((f) => {
-      const hay = normalizeForSearch([f.name, f.brand, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
+      if (shortQuery && String(f.id).startsWith('hakutei-') && !normalizeFoodUsageEntry(usage[f.id]).count) return false;
+      const hay = normalizeForSearch([f.name, f.brand, f.kana, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
       return tokens.every((t) => hay.includes(t));
     }).sort((a, b) => {
       const an = normalizeForSearch(a.name);
@@ -1702,6 +1711,12 @@ function renderSearch() {
       const ac = normalizeFoodUsageEntry(usage[a.id]).count;
       const bc = normalizeFoodUsageEntry(usage[b.id]).count;
       if (bc !== ac) return bc - ac;
+      // 使用実績・前方一致が同点なら 自分の食品 > 埋め込み/公式 > 八訂全量（SPEC-014/015 のランキング）
+      const aOwn = a.owner ? 1 : 0, bOwn = b.owner ? 1 : 0;
+      if (bOwn !== aOwn) return bOwn - aOwn;
+      const aHaku = String(a.id).startsWith('hakutei-') ? 1 : 0;
+      const bHaku = String(b.id).startsWith('hakutei-') ? 1 : 0;
+      if (aHaku !== bHaku) return aHaku - bHaku;
       return foodCatalogIndex(a.id) - foodCatalogIndex(b.id);
     }).slice(0, 10);
     label = list.length ? '検索結果' : '見つかりません — そのまま下のボタンから追加できます';
@@ -2533,10 +2548,12 @@ function renderRcSearch() {
   const q = $('#rcSearch').value.trim();
   const box = $('#rcSearchResults');
   if (!q) { box.innerHTML = ''; return; }
-  const nq = normalizeForSearch(q);
-  const hits = allFoods.filter((f) => f.entryType !== 'recipe' &&
-    normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' ')).includes(nq)
-  ).slice(0, 6);
+  const tokens = q.split(/\s+/).map(normalizeForSearch).filter(Boolean);
+  const hits = allFoods.filter((f) => {
+    if (f.entryType === 'recipe') return false;
+    const hay = normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
+    return tokens.every((t) => hay.includes(t));
+  }).slice(0, 6);
   box.innerHTML = hits.map((f) => `<button type="button" data-rc-add="${escapeHtml(f.id)}">${escapeHtml(f.name)}<span style="color:var(--muted,#999)">　${f.mode === 'perUnit' ? (f.unitLabel || '個') : '100g'}あたり ${fmtNum(f.mode === 'perUnit' ? (f.macrosPerUnit || {}).kcal || 0 : (f.macros || {}).kcal || 0)}kcal</span></button>`).join('')
     || '<div class="empty-note">見つかりません（下の「概算で追加」へ）</div>';
 }
@@ -4236,6 +4253,7 @@ $('#dateLabel').addEventListener('click', () => setDate(todayStr()));
 $('#gearBtn').addEventListener('click', openSettings);
 $('#saveSettingsBtn').addEventListener('click', saveSettings);
 $('#syncServerBtn').addEventListener('click', async () => {
+  await refreshFoodsCatalog(true);   // 食品カタログも即時更新（AI調査の確定反映などに使う）
   await syncFromServer({ manual: true });
 });
 $('#settingsBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#settingsBack').classList.remove('show'); });
