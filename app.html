@@ -791,17 +791,12 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <input type="file" id="eufyCsvInput" accept=".csv,text/csv" style="display:none">
     <div class="sync-note" id="dataAdminNote">eufyLife アプリの CSV を選ぶと体組成を取り込みます（重複は自動スキップ）。バックアップ JSON は自分の全記録の写しです — 人に送ったり公開の場所に置いたりしないでください。</div>
     <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
-    <div class="section-label" style="margin-top:16px">くわしい画面（従来ページ）</div>
+    <div class="section-label" style="margin-top:16px">そのほかの画面</div>
     <div class="link-grid">
-      <a href="meal.html?panel=product">商品DB<span>市販品・バーコード登録</span></a>
-      <a href="meal.html?panel=custom">独自食材<span>未登録食材を追加</span></a>
-      <a href="meal.html?panel=recipe">自作メニュー<span>作り置き・弁当</span></a>
-      <a href="day.html">栄養ダッシュボード<span>day.html — 詳細な栄養分析</span></a>
-      <a href="index.html">コックピット<span>従来ホーム・管理</span></a>
-      <a href="health-import.html">ヘルスケア取込<span>Apple Health XML</span></a>
-      <a href="body.html">体組成手入力<span>詳細な体組成記録</span></a>
-      <a href="index.html#actions">管理操作<span>体組成CSV取込（従来）</span></a>
+      <a href="health-import.html">ヘルスケア取込<span>Apple Health zip</span></a>
+      <a href="index.html">ハブ<span>旧シート閲覧リンクなど</span></a>
     </div>
+    <div class="sync-note">旧ページ（workout/meal/day/body）は退役しました。栄養分析（35栄養素）と商品DB・独自食材・自作メニューの編集画面は SPEC-013 でこのアプリに移植予定です（登録済みデータは検索から従来どおり使えます）。</div>
     <div class="sync-note" id="connCheckNote">記録は Supabase に保存されます（観察期間中はシートにもミラー）。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続OK ✓」と表示されればOK）。</div>
   </div>
 </div>

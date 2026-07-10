@@ -5,12 +5,11 @@
 (function () {
   'use strict';
 
+  // 旧4ページ（workout/meal/day/body.html）は SPEC-012 Step6.5 で退役・削除済み
   var tabs = [
-    { key: 'home', href: 'index.html', icon: '⌂', label: 'ホーム', match: ['index.html', ''] },
-    { key: 'workout', href: 'workout.html', icon: '筋', label: '筋トレ', match: ['workout.html'] },
-    { key: 'meal', href: 'meal.html', icon: '食', label: '食事', match: ['meal.html'] },
+    { key: 'app', href: 'app.html', icon: '⌂', label: 'アプリ', match: ['app.html'] },
     { key: 'import', href: 'health-import.html', icon: '取', label: '取込', match: ['health-import.html'] },
-    { key: 'day', href: 'day.html', icon: '日', label: '日次', match: ['day.html'] }
+    { key: 'home', href: 'index.html', icon: 'ハ', label: 'ハブ', match: ['index.html', ''] }
   ];
 
   function currentFile() {
@@ -25,7 +24,7 @@
     style.textContent = [
       '.cockpit-nav{position:fixed;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:90;width:min(calc(100% - 28px),560px);margin:0 auto;padding:8px;border:1px solid var(--line,rgba(0,0,0,.08));border-radius:24px;background:rgba(255,250,242,.95);backdrop-filter:blur(16px);box-shadow:0 18px 54px rgba(0,0,0,.12)}',
       ':root[data-theme="dark"] .cockpit-nav{background:rgba(24,25,29,.94);box-shadow:0 22px 70px rgba(0,0,0,.48)}',
-      '.cockpit-nav-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}',
+      '.cockpit-nav-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}',
       '.cockpit-nav-link{min-width:0;text-decoration:none;color:var(--muted,#6b6f76)}',
       '.cockpit-nav-item{min-height:56px;display:grid;place-items:center;gap:2px;padding:7px 3px;border:1px solid var(--line,rgba(0,0,0,.08));border-radius:17px;background:var(--glass,rgba(0,0,0,.04));text-align:center}',
       '.cockpit-nav-icon{font-size:20px;line-height:1;font-weight:950;color:var(--ink,#1b1d1f)}',

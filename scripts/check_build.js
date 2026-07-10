@@ -17,7 +17,8 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const PAGES = ['index.html', 'workout.html', 'meal.html', 'day.html', 'body.html', 'app.html'];
+// 旧4ページ（workout/meal/day/body.html）は SPEC-012 Step6.5 で退役・削除済み
+const PAGES = ['index.html', 'health-import.html', 'app.html'];
 
 let failed = 0;
 for (const page of PAGES) {
