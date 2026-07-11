@@ -166,6 +166,23 @@ ok('AIパーサ: microsを取り込む', supp.micros.vitB1 === 1.2 && supp.micro
 ok('AIパーサ: 未知キー/0/文字列のmicrosは捨てる',
   !('unknownKey' in supp.micros) && !('vitD' in supp.micros) && !('vitE' in supp.micros));
 
+// 10c) E5: 八訂食材の常用単位テンプレ（g だけでは 卵1個・のり1枚 が入力できなかった）
+const eggCat = g.serverFoodToCatalog({ id: 'e1', legacy_key: 'hakutei-12004', name: '卵', kind: 'ingredient',
+  mode: 'per100g', kcal_per_100g: 142, protein_g: 12.2, fat_g: 10.2, carb_g: 0.3, units: { g: 1 }, meta: {} });
+const eggPortion = g.calcFoodPortion(eggCat, 1, '個');
+ok('E5: 卵に「個」単位が付く（1個=50g→71kcal）',
+  eggCat.units[0].label === '個' && eggCat.units[0].grams === 50 && Math.round(eggPortion.kcal) === 71,
+  JSON.stringify({ units: eggCat.units.map((u) => u.label), kcal: eggPortion.kcal }));
+const noriCat = g.serverFoodToCatalog({ id: 'n1', legacy_key: 'hakutei-09004', name: 'のり', kind: 'ingredient',
+  mode: 'per100g', kcal_per_100g: 297, protein_g: 41.4, fat_g: 3.7, carb_g: 44.3, units: { g: 1 }, meta: {} });
+ok('E5: のりに「枚」単位（1枚=3g）', noriCat.units[0].label === '枚' && noriCat.units[0].grams === 3);
+ok('E5: g は必ず末尾に残る', eggCat.units[eggCat.units.length - 1].label === 'g');
+// 既に人間向け単位を持つ食品（埋め込み・市販品）は書き換えない
+const breadCat = g.serverFoodToCatalog({ id: 'b1', legacy_key: 'bread', name: '食パン', kind: 'ingredient',
+  mode: 'per100g', kcal_per_100g: 248, protein_g: 8.9, fat_g: 4.1, carb_g: 46.7,
+  units: [{ label: '枚', grams: 80, step: 0.5, defaultQty: 1 }, { label: 'g', grams: 1, step: 10, defaultQty: 100 }], meta: {} });
+ok('E5: 既存の人間向け単位は上書きしない（食パン1枚=80gのまま）', breadCat.units[0].grams === 80);
+
 // 11) 栄養分析（SPEC-013）: カタログ食品→栄養エントリ変換で micros が失われないこと
 const entry = vm.runInContext(`NUTRITION_DB.convertFoodToNutritionEntry(serverFoodToCatalog({
   id: 'u9', legacy_key: 'hakutei-06267', name: 'ほうれんそう 葉 生', kind: 'ingredient', mode: 'per100g',

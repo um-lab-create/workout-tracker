@@ -2418,12 +2418,72 @@ function registerSbOpHandlers() {
 //   公式278件の表示品質（単位のstep等）とオフライン初回のフォールバックに使う。
 // - 追加・編集は owner=自分 の foods 行。冪等キーは legacy_key（フロントの文字列id）。
 // ================================================================
-// v2: serverFoodToCatalog に staple を追加（U2）。旧キャッシュは自動で無効化され再取得される
-const FOODS_CACHE_KEY = 'hs:foods-cache:v2';
+// v3: staple(U2) + 常用単位テンプレ(E5)。旧キャッシュは自動で無効化され再取得される
+const FOODS_CACHE_KEY = 'hs:foods-cache:v3';
 const FOOD_MIGRATED_KEY = 'hs:food-migrated:v1';
 
 function makeUserFoodId(prefix) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// ---- E5: 八訂食材の常用単位テンプレ（g だけでは「のり1枚」「卵1個」が入力できない）----
+// 代表的な1回量（g）。出典は日本食品標準成分表の「目安量」および一般的な流通規格。
+// 名前の前方一致（クリーニング済みの表示名に対して）で判定し、g は常に末尾に残す。
+const UNIT_TEMPLATES = [
+  [/^卵|^鶏卵|^うずら/, [['個', 50, 0.5]]],
+  [/^ご飯/, [['膳', 150, 0.5]]],
+  [/^食パン/, [['枚', 60, 0.5]]],
+  [/^うどん|^そば|^中華麺|^パスタ|^スパゲッティ|^そうめん/, [['玉', 200, 0.5], ['束', 100, 0.5]]],
+  [/^納豆/, [['パック', 45, 1]]],
+  [/^豆腐|^木綿豆腐|^絹ごし豆腐/, [['丁', 300, 0.5], ['パック', 150, 0.5]]],
+  [/^厚揚げ|^油揚げ/, [['枚', 30, 0.5]]],
+  [/^牛乳|^豆乳/, [['杯', 200, 0.5]]],
+  [/^ヨーグルト/, [['カップ', 100, 0.5], ['大スプーン', 15, 1]]],
+  [/^鮭|^さば|^あじ|^さんま|^ぶり|^たら|^かじき|^銀鮭|^紅鮭|^たい/, [['切れ', 80, 0.5]]],
+  [/^いわし|^ししゃも/, [['尾', 60, 1]]],
+  [/^まぐろ|^かつお/, [['さく', 100, 0.5], ['切れ', 80, 0.5]]],
+  [/^鶏むね|^鶏もも/, [['枚', 250, 0.25], ['100g', 100, 0.5]]],
+  [/^豚|^牛(?!乳)/, [['100g', 100, 0.5], ['枚', 30, 1]]],
+  [/^ハム|^ベーコン/, [['枚', 20, 1]]],
+  [/^ウインナー|^ソーセージ/, [['本', 20, 1]]],
+  [/^のり|^あまのり|^焼きのり/, [['枚', 3, 1]]],
+  [/^わかめ/, [['小鉢', 20, 1]]],
+  [/^ほうれん草|^小松菜|^チンゲン菜|^春菊/, [['束', 200, 0.25], ['皿', 70, 0.5]]],
+  [/^キャベツ|^白菜|^レタス/, [['枚', 50, 1], ['皿', 100, 0.5]]],
+  [/^ブロッコリー/, [['房', 30, 1], ['皿', 80, 0.5]]],
+  [/^トマト/, [['個', 150, 0.5]]],
+  [/^ミニトマト|^プチトマト/, [['個', 15, 1]]],
+  [/^きゅうり|^にんじん|^ねぎ|^長ねぎ/, [['本', 100, 0.5]]],
+  [/^玉ねぎ|^じゃがいも|^なす|^かぼちゃ/, [['個', 150, 0.5]]],
+  [/^ピーマン/, [['個', 35, 1]]],
+  [/^大根/, [['本', 800, 0.1], ['輪切り', 100, 0.5]]],
+  [/^しいたけ|^マッシュルーム/, [['個', 15, 1]]],
+  [/^しめじ|^えのき|^舞茸|^エリンギ|^なめこ/, [['パック', 100, 0.5]]],
+  [/^バナナ/, [['本', 90, 0.5]]],
+  [/^りんご|^梨|^柿/, [['個', 250, 0.25]]],
+  [/^みかん|^キウイ/, [['個', 80, 0.5]]],
+  [/^いちご/, [['粒', 15, 1]]],
+  [/^アボカド/, [['個', 140, 0.5]]],
+  [/^さつまいも|^長芋|^里芋/, [['個', 200, 0.25]]],
+  // 調味料は八訂だと「うすくちしょうゆ」「米みそ 甘みそ」等なので部分一致も拾う
+  [/^味噌|^醤油|^みりん|^酒|^ケチャップ|^マヨネーズ|^ソース|しょうゆ|みそ(?!汁)|^食塩|^酢/, [['大さじ', 18, 0.5], ['小さじ', 6, 1]]],
+  [/^砂糖|^小麦粉|^薄力粉|^強力粉|^中力粉|^片栗粉|^パン粉/, [['大さじ', 9, 0.5]]],
+  [/木綿豆腐|絹ごし豆腐|^豆腐/, [['丁', 300, 0.5], ['パック', 150, 0.5]]],
+  [/^オリーブ油|^サラダ油|^ごま油|^バター/, [['大さじ', 12, 0.5], ['小さじ', 4, 1]]],
+  [/^チーズ|^プロセスチーズ/, [['個', 18, 1], ['スライス', 18, 1]]],
+  [/^オートミール/, [['食分', 30, 0.5]]],
+  [/^くるみ|^アーモンド|^カシューナッツ|^ピーナッツ/, [['粒', 1.5, 5]]]
+];
+/** g のみの食材に常用単位を足す（g は末尾に温存。既に人間向け単位があれば触らない） */
+function applyUnitTemplate(name, units) {
+  const list = Array.isArray(units) ? units : [];
+  const hasHuman = list.some((u) => u && u.label !== 'g' && u.label !== 'ml');
+  if (hasHuman || !name) return list;
+  const hit = UNIT_TEMPLATES.find(([re]) => re.test(name));
+  if (!hit) return list;
+  const added = hit[1].map(([label, grams, step]) => ({ label, grams, step, defaultQty: 1 }));
+  const gramUnit = list.find((u) => u && u.label === 'g') || { label: 'g', grams: 1, step: 10, defaultQty: 100 };
+  return [...added, gramUnit];
 }
 
 /** foods 行 → フロントのカタログ食品オブジェクト。 */
@@ -2491,7 +2551,8 @@ function serverFoodToCatalog(row) {
     saltPer100g: row.salt_g == null ? null : Number(row.salt_g),
     fiberPer100g: row.fiber_g == null ? null : Number(row.fiber_g),
     micros: row.micros || {},
-    units: units || [{ label: 'g', grams: 1, step: 10, defaultQty: 100 }]
+    // [fix] E5: 八訂食材は g のみで「1個/1枚/1切れ」が使えなかった → 常用単位の辞書を当てる
+    units: applyUnitTemplate(base.name, units || [{ label: 'g', grams: 1, step: 10, defaultQty: 100 }])
   };
 }
 
@@ -2539,7 +2600,23 @@ function loadFoodsCache() {
   const cached = lsGet(FOODS_CACHE_KEY, null);
   return (cached && Array.isArray(cached.foods)) ? cached : { fetchedAt: 0, foods: [] };
 }
-function saveFoodsCache(cache) { lsSet(FOODS_CACHE_KEY, cache); }
+// [fix] 旧バージョンのカタログキャッシュ（各2MB超）が残ると localStorage 容量超過で
+// 新キャッシュの保存が黙って失敗する。キー更新時は必ず旧版を掃除する（E7 容量予算にも効く）。
+const STALE_FOODS_CACHE_KEYS = ['hs:foods-cache:v1', 'hs:foods-cache:v2'];
+function purgeStaleFoodsCaches() {
+  STALE_FOODS_CACHE_KEYS.forEach((k) => {
+    if (k !== FOODS_CACHE_KEY) { try { localStorage.removeItem(k); } catch (e) { /* noop */ } }
+  });
+}
+function saveFoodsCache(cache) {
+  purgeStaleFoodsCaches();
+  try {
+    lsSet(FOODS_CACHE_KEY, cache);
+  } catch (e) {
+    showToast('カタログの保存に失敗しました（端末の空き容量不足）', 'error');
+    throw e;
+  }
+}
 
 /** カタログキャッシュへ1件マージ（オフライン追加でも即・検索/記録に出すため）。 */
 function mergeFoodIntoCache(food) {
@@ -2649,8 +2726,21 @@ async function pushRecipeToServer(recipe) {
   foodsKeyMap[recipe.food.id] = foodId;
   mergeFoodIntoCache(recipe.food);
 }
+// ---- レシピ材料のローカル控え（E4: オフライン作成レシピを編集すると材料が消える問題）----
+// サーバー（recipe_items）が正だが、未送信・オフライン時は復元できないためローカルにも持つ。
+const RECIPE_ITEMS_KEY = 'hs:recipe-items:v1';
+function loadRecipeItemsLocal(foodId) {
+  const all = lsGet(RECIPE_ITEMS_KEY, null) || {};
+  return Array.isArray(all[foodId]) ? all[foodId] : null;
+}
+function saveRecipeItemsLocal(foodId, items) {
+  const all = lsGet(RECIPE_ITEMS_KEY, null) || {};
+  all[foodId] = items || [];
+  lsSet(RECIPE_ITEMS_KEY, all);
+}
 function saveRecipeLocal(recipe) {
   mergeFoodIntoCache(recipe.food);
+  saveRecipeItemsLocal(recipe.food.id, recipe.items);   // [fix] E4: 材料をローカルにも残す
   return pushRecipeToServer(recipe)
     .then(() => { showToast('レシピを保存しました ✓'); renderSyncStatus(); })
     .catch((err) => queueWithToast('recipe_save', `recipe_save:${recipe.food.id}`, { recipe }, 'レシピ', err));
@@ -2949,12 +3039,20 @@ function openRecipeBuilder(food = null) {
   $('#rcSearch').value = '';
   $('#rcSearchResults').innerHTML = '';
   $('#rcFreeArea').style.display = 'none';
-  renderRecipeItems();
+  // [fix] E4: まずローカル控えを即表示（オフライン作成・未送信レシピでも材料が消えない）
+  if (food) {
+    const localItems = loadRecipeItemsLocal(food.id);
+    if (localItems && localItems.length) {
+      recipeState.items = localItems.map((it) => ({ ...it }));
+      renderRecipeItems();
+    }
+  }
   $('#recipeBack').classList.add('show');
   if (food && food.serverId) {
-    // 既存レシピの材料をサーバーから復元
+    // 既存レシピの材料をサーバーから復元（サーバーが正。取得できたらローカル控えも更新）
     window.HSSupabaseReady.then((sb) => sb.fetchRecipeItems(food.serverId)).then((rows) => {
-      recipeState.items = (rows || []).map((r) => {
+      if (!rows || !rows.length) return;                 // 空応答でローカル控えを消さない
+      recipeState.items = rows.map((r) => {
         const free = !r.ingredient_food_id && r.est_kcal != null;
         const localFood = allFoods.find((f) => f.serverId === r.ingredient_food_id);
         return {
@@ -2965,8 +3063,14 @@ function openRecipeBuilder(food = null) {
           estKcal: r.est_kcal, estProteinG: r.est_protein_g, estFatG: r.est_fat_g, estCarbG: r.est_carb_g
         };
       });
+      saveRecipeItemsLocal(food.id, recipeState.items);
       renderRecipeItems();
-    }).catch(() => showToast('材料の読み込みに失敗しました（オフライン?）'));
+    }).catch(() => {
+      if (!recipeState.items.length) showToast('材料の読み込みに失敗しました（オフライン?）', 'error');
+    });
+  } else if (food && !recipeState.items.length) {
+    // serverId も控えも無い＝材料を復元できない。保存すると材料が消えるため明示的に警告
+    showToast('このレシピの材料を復元できません。保存すると材料が置き換わります', 'error');
   }
 }
 
@@ -6194,6 +6298,7 @@ bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton);
 bindContinuousPress(document.body, '[data-body]', runBodyButton);
 
 // ---------------- 初期化 ----------------
+purgeStaleFoodsCaches();   // 起動時に旧カタログキャッシュを掃除（容量超過の予防）
 buildCatalog();
 loadFoodUsage();
 registerSbOpHandlers();
