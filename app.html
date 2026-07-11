@@ -1060,7 +1060,12 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="set-row"><span class="sl">炭水化物 g</span><input id="ffC" type="number" inputmode="decimal" min="0" step="0.1"></div>
     <div class="set-row"><span class="sl">食塩相当量 g（任意）</span><input id="ffSalt" type="number" inputmode="decimal" min="0" step="0.1"></div>
     <div class="set-row"><span class="sl">概算（あとで確定する）</span><input id="ffEstimate" type="checkbox" style="width:22px;height:22px"></div>
-    <div class="sync-note">ミクロ栄養素は空でOK（八訂の食材は自動で全部入り）。</div>
+    <!-- 微量栄養素（SPEC-023）: AI調査の取込結果を保持し、ここに一覧表示する（サプリ・強化食品に必須） -->
+    <div id="ffMicrosBox" style="display:none">
+      <div class="section-label" style="margin-top:8px">取り込んだ栄養素<button class="mini-chip" id="ffMicrosClear" type="button" style="float:right">消す</button></div>
+      <div class="card" style="padding:8px 12px"><div id="ffMicrosList" class="ff-micros"></div></div>
+    </div>
+    <div class="sync-note">ビタミン・ミネラルは「AIに調べてもらう」で自動的に入ります（八訂の食材は最初から全部入り）。</div>
     <button class="primary-btn full sticky-save" id="ffSaveBtn">保存する</button>
   </div>
 </div>
@@ -1143,6 +1148,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .nt-food-row .nm { flex:1; min-width:0; font-size:13px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-food-row .kc { flex:none; font-size:12px; color:var(--muted,#888); font-variant-numeric:tabular-nums; }
   .nt-food-row .tags { flex:none; display:flex; gap:4px; }
+  .ff-micros { display:grid; grid-template-columns:repeat(2,1fr); gap:4px 10px; }
+  .ff-micros span { font-size:11.5px; color:var(--muted,#888); display:flex; justify-content:space-between; gap:6px; }
+  .ff-micros span b { color:var(--ink,#333); font-variant-numeric:tabular-nums; }
   .fd-strength { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12.5px; border-top:1px solid var(--line,rgba(0,0,0,.05)); }
   .fd-strength .nm { flex:1; }
   .fd-strength .pc { font-weight:900; font-variant-numeric:tabular-nums; }
@@ -2712,9 +2720,13 @@ function openAddFoodSheet(prefillName) {
 }
 
 function openFoodForm(kind, food = null) {
-  foodFormState = { kind, editingId: food ? food.id : null, aiSource: null };
+  foodFormState = {
+    kind, editingId: food ? food.id : null, aiSource: null,
+    micros: food && food.micros ? { ...food.micros } : {}    // 編集時は既存の微量栄養素を保持（SPEC-023）
+  };
   $('#aiHelpArea').style.display = 'none';
   $('#aiResultPaste').value = '';
+  renderFfMicros();
   $('#foodFormTitle').textContent = food
     ? `${kind === 'product' ? '市販品' : '食材'}を編集`
     : (kind === 'product' ? '市販品を追加' : '食材を追加（100gあたり）');
@@ -2733,6 +2745,21 @@ function openFoodForm(kind, food = null) {
   syncFfUnitRow();
   $('#foodFormBack').classList.add('show');
 }
+/** 取り込んだ微量栄養素の一覧表示（SPEC-023） */
+function renderFfMicros() {
+  const box = $('#ffMicrosBox');
+  const list = $('#ffMicrosList');
+  if (!box || !list) return;
+  const micros = (foodFormState && foodFormState.micros) || {};
+  const keys = Object.keys(micros);
+  if (!keys.length) { box.style.display = 'none'; list.innerHTML = ''; return; }
+  const meta = (NUTRITION_DB && NUTRITION_DB.META) || {};
+  box.style.display = '';
+  list.innerHTML = keys.map((k) => {
+    const m = meta[k] || { label: k, unit: '' };
+    return `<span>${escapeHtml(m.label)}<b>${micros[k]}${m.unit}</b></span>`;
+  }).join('');
+}
 function syncFfUnitRow() {
   const perUnit = foodFormState.kind === 'product' && $('#ffBasis').value === 'perUnit';
   $('#ffUnitLabelRow').style.display = perUnit ? '' : 'none';
@@ -2740,7 +2767,16 @@ function syncFfUnitRow() {
 
 // ---- AIで調べる（コピペ方式・SPEC-016。API不使用） ----
 /** 無料の生成AIに貼り付ける調査プロンプトを作る（出力JSONを厳密指定）。 */
+/** micros に受け入れる栄養素キーの一覧（NUTRIENT_META と常に一致させる） */
+function aiMicroKeys() {
+  if (!NUTRITION_DB || !NUTRITION_DB.META) return [];
+  const skip = ['energy', 'protein', 'fat', 'carb'];   // マクロは専用フィールドで受ける
+  return Object.keys(NUTRITION_DB.META).filter((k) => !skip.includes(k));
+}
 function buildAiResearchPrompt(name) {
+  const meta = (NUTRITION_DB && NUTRITION_DB.META) || {};
+  // 例: "vitB1（ビタミンB1・mg）" の並びをそのままプロンプトに出し、AIの出力キーを固定する
+  const microSpec = aiMicroKeys().map((k) => `${k}（${meta[k].label}・${meta[k].unit}）`).join(' / ');
   return [
     'あなたは食品栄養成分の調査係です。次の食品の栄養成分を調べて、指定のJSON形式「だけ」で答えてください。',
     `食品名: ${name}`,
@@ -2748,13 +2784,18 @@ function buildAiResearchPrompt(name) {
     '',
     'ルール:',
     '- メーカー公式サイト・公的情報の値を最優先。見つからない場合は類似品からの概算とし "estimate": true にする',
-    '- 表示の基準を "basis" に: 1個/1袋あたりなら "perUnit"、100gあたりなら "per100g"',
-    '- 不明な項目は null。数値は単位なしの数字のみ',
+    '- 表示の基準を "basis" に: 1個/1袋/1粒/1日分あたりなら "perUnit"、100gあたりなら "per100g"',
+    '- サプリメントも同じ形式。1日分（例: 1粒）を基準にし unit_label を "粒" などにする',
+    '- 不明な項目は null（または micros から省略）。数値は単位なしの数字のみ',
+    '- micros は「表示されている栄養素だけ」を入れる。存在しない栄養素は入れない',
     '- JSON以外の文章・説明・コードフェンスを出力しない',
     '',
+    `micros に使えるキー（この名前のまま・単位もこの通りに換算）: ${microSpec}`,
+    '',
     '{"name": "正式な商品名/食品名", "brand": "メーカー名 or null", "basis": "perUnit",',
-    ' "unit_label": "個/袋/本/枚 など（per100gならnull）",',
+    ' "unit_label": "個/袋/本/枚/粒 など（per100gならnull）",',
     ' "kcal": 0, "protein_g": 0, "fat_g": 0, "carb_g": 0, "salt_g": null,',
+    ' "micros": {"vitB1": 1.2, "Zn": 6.0},',
     ' "estimate": false, "source": "参照した情報源の名称やURL"}'
   ].join('\n');
 }
@@ -2778,13 +2819,25 @@ function parseAiFoodResult(text) {
   const num = (v) => (v == null || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
   const kcal = num(data.kcal);
   if (kcal == null) return { error: 'kcal が数値ではありません' };
+  // micros: NUTRIENT_META に存在するキーの数値だけを採る（未知キー・文字列は捨てる）
+  const micros = {};
+  const allowed = aiMicroKeys();
+  const rawMicros = (data.micros && typeof data.micros === 'object') ? data.micros : {};
+  Object.keys(rawMicros).forEach((k) => {
+    if (!allowed.includes(k)) return;
+    const v = num(rawMicros[k]);
+    if (v != null && v > 0) micros[k] = v;
+  });
+  // 塩分は専用欄・micros(Na) のどちらで来ても拾う
+  const salt = num(data.salt_g);
   return {
     name: typeof data.name === 'string' ? data.name.trim() : '',
     brand: typeof data.brand === 'string' ? data.brand.trim() : '',
     basis: data.basis === 'per100g' ? 'per100g' : 'perUnit',
     unitLabel: typeof data.unit_label === 'string' ? data.unit_label.trim() : '',
     kcal, p: num(data.protein_g) ?? 0, f: num(data.fat_g) ?? 0, c: num(data.carb_g) ?? 0,
-    salt: num(data.salt_g),
+    salt,
+    micros,
     estimate: Boolean(data.estimate),
     source: typeof data.source === 'string' ? data.source.trim().slice(0, 120) : ''
   };
@@ -2819,9 +2872,16 @@ function importAiResult() {
   $('#ffSalt').value = parsed.salt ?? '';
   $('#ffEstimate').checked = parsed.estimate;
   foodFormState.aiSource = parsed.source || 'AI調査（情報源記載なし）';
+  // 微量栄養素（SPEC-023）: サプリ・強化食品はここが本体
+  foodFormState.micros = { ...(foodFormState.micros || {}), ...(parsed.micros || {}) };
+  renderFfMicros();
   syncFfUnitRow();
   $('#aiResultPaste').value = '';
-  showToast(parsed.estimate ? '取り込みました（概算）。値を確認して保存してください' : '取り込みました。値を確認して保存してください');
+  const microCount = Object.keys(parsed.micros || {}).length;
+  const microNote = microCount ? `・栄養素${microCount}項目` : '';
+  showToast(parsed.estimate
+    ? `取り込みました（概算${microNote}）。値を確認して保存してください`
+    : `取り込みました${microNote}。値を確認して保存してください`);
 }
 
 function submitFoodForm() {
@@ -2849,7 +2909,10 @@ function submitFoodForm() {
       ? `AI調査コピペ(${foodFormState.aiSource})`
       : (pendingReview ? 'estimate' : (kind === 'product' ? 'label' : 'manual')),
     verified: !pendingReview && (kind === 'product' || Boolean(foodFormState.aiSource)),
-    keywords: (existing && existing.keywords) || []
+    keywords: (existing && existing.keywords) || [],
+    // 微量栄養素（SPEC-023）: perUnit なら1単位あたり・per100g なら100gあたりの値。
+    // convertFoodToNutritionEntry が micros をそのまま分析へ流す（栄養分析・不足判定に効く）
+    micros: { ...(foodFormState.micros || {}) }
   };
   if (perUnit) {
     food.mode = 'perUnit';
@@ -5907,6 +5970,11 @@ $('#aiHelpToggle').addEventListener('click', (e) => {
 });
 $('#aiCopyPromptBtn').addEventListener('click', copyAiPrompt);
 $('#aiImportBtn').addEventListener('click', importAiResult);
+$('#ffMicrosClear').addEventListener('click', () => {
+  foodFormState.micros = {};
+  renderFfMicros();
+  showToast('取り込んだ栄養素を消しました');
+});
 $('#recipeBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) trySheetClose('recipeBack'); });
 let rcSearchTimer = null;
 $('#rcSearch').addEventListener('input', () => { clearTimeout(rcSearchTimer); rcSearchTimer = setTimeout(renderRcSearch, 120); });

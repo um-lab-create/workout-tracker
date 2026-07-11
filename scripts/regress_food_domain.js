@@ -156,6 +156,15 @@ const bad = g.parseAiFoodResult('すみません、見つかりませんでし�
 ok('AIパーサ: 不正入力はエラー', Boolean(bad.error));
 const noKcal = g.parseAiFoodResult('{"name":"Z","kcal":"不明"}');
 ok('AIパーサ: kcal非数値はエラー', Boolean(noKcal.error));
+// 10b) 微量栄養素の取り込み（SPEC-023: サプリ・強化食品）。未知キー・0・文字列は捨てる
+const supp = g.parseAiFoodResult('{"name":"マルチビタミン","brand":"D社","basis":"perUnit","unit_label":"粒",'
+  + '"kcal":1.2,"protein_g":0,"fat_g":0,"carb_g":0.3,'
+  + '"micros":{"vitB1":1.2,"Zn":6.0,"vitC":100,"unknownKey":9,"vitD":0,"vitE":"不明"},'
+  + '"estimate":false,"source":"公式"}');
+ok('AIパーサ: microsを取り込む', supp.micros.vitB1 === 1.2 && supp.micros.Zn === 6 && supp.micros.vitC === 100,
+  JSON.stringify(supp.micros));
+ok('AIパーサ: 未知キー/0/文字列のmicrosは捨てる',
+  !('unknownKey' in supp.micros) && !('vitD' in supp.micros) && !('vitE' in supp.micros));
 
 // 11) 栄養分析（SPEC-013）: カタログ食品→栄養エントリ変換で micros が失われないこと
 const entry = vm.runInContext(`NUTRITION_DB.convertFoodToNutritionEntry(serverFoodToCatalog({
