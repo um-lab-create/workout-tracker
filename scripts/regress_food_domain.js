@@ -176,5 +176,19 @@ const nt = vm.runInContext(`(() => { const s = buildNutritionState('2026-07-09')
 ok('栄養集計: 記録→state→判定', nt.meals === 1 && nt.kcal > 200 && nt.score > 0 && nt.pri > 0, JSON.stringify(nt));
 ok('栄養集計: microsが再構築で補完される', nt.K > 0, `(K=${nt.K}mg ※スナップショットはマクロのみ)`);
 
+// 13) 同期カウントの差分検知（マネージャー指摘 2026-07-11: 毎回「更新9」と出るバグの回帰）
+const mergeTest = vm.runInContext(`(() => {
+  const rec = { id: 'rec-m1', date: '2026-07-08', timingKey: 'lunch', timing: '昼', synced: true, kcal: 500,
+    items: [], structuredItems: [{ foodId: 'rice', qty: 1, unit: '膳', nutrients: { energy: 500 } }] };
+  localStorage.setItem('meal_recs_v3', JSON.stringify([rec]));
+  const same = mergeServerMealRecords([JSON.parse(JSON.stringify(rec))]);
+  const changed = mergeServerMealRecords([{ ...JSON.parse(JSON.stringify(rec)), kcal: 600,
+    structuredItems: [{ foodId: 'rice', qty: 2, unit: '膳', nutrients: { energy: 600 } }] }]);
+  localStorage.removeItem('meal_recs_v3');
+  return { sameUnchanged: same.unchanged, sameUpdated: same.updated, changedUpdated: changed.updated };
+})()`, context);
+ok('同期カウント: 同一内容はunchanged', mergeTest.sameUnchanged === 1 && mergeTest.sameUpdated === 0, JSON.stringify(mergeTest));
+ok('同期カウント: 変更時のみupdated', mergeTest.changedUpdated === 1, '');
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

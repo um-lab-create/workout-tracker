@@ -3006,10 +3006,20 @@ function serverRowsToAppRecords(rows) {
     };
   });
 }
+// [fix] 同期カウント: 従来は差分検知なしで期間内の全件を「更新」と数えていた
+// （毎回「追加0/更新9」と出るバグ・マネージャー指摘 2026-07-11）。内容シグネチャで
+// 実際に変わった時だけ「更新」と数える。
+function mealRecordSignature(record) {
+  return JSON.stringify({
+    items: (record.structuredItems || []).map((s) => [s.foodId, s.qty, s.unit, Boolean(s.pendingReview)]),
+    kcal: Math.round(Number(record.kcal) || 0),
+    dining: [Boolean(record.diningOut), record.restaurantName || '', record.diningText || '']
+  });
+}
 function mergeServerMealRecords(serverRecords) {
   const local = getRecords();
   const merged = local.slice();
-  const counts = { added: 0, updated: 0, protected: 0 };
+  const counts = { added: 0, updated: 0, unchanged: 0, protected: 0 };
   (serverRecords || []).forEach((serverRecord) => {
     const idx = merged.findIndex((record) => record && record.id === serverRecord.id);
     if (idx < 0) {
@@ -3019,6 +3029,10 @@ function mergeServerMealRecords(serverRecords) {
     }
     if (merged[idx] && merged[idx].synced === false) {
       counts.protected += 1;
+      return;
+    }
+    if (mealRecordSignature(merged[idx]) === mealRecordSignature(serverRecord)) {
+      counts.unchanged += 1;
       return;
     }
     merged[idx] = { ...merged[idx], ...serverRecord, synced: true };
@@ -3181,7 +3195,11 @@ async function syncFromServer(options = {}) {
     renderItems();
     renderHydration();
     renderHome();
-    if (manual) showToast(`同期しました（追加${counts.added} / 更新${counts.updated}）`);
+    if (manual) {
+      showToast(counts.added || counts.updated
+        ? `同期しました（追加${counts.added}・更新${counts.updated}）`
+        : '同期しました（サーバーと一致しています）');
+    }
     return { status: 'ok', ...counts };
   } catch (err) {
     if (manual) showToast(`同期エラー: ${String(err && err.message ? err.message : err)}`);
