@@ -164,6 +164,15 @@ const entry = vm.runInContext(`NUTRITION_DB.convertFoodToNutritionEntry(serverFo
   units: { g: 1 }, micros: { Fe: 2.0, K: 690, folate: 210, vitC: 35 }, meta: {} }))`, context);
 ok('栄養変換: 八訂microsが分析に届く', entry.per100g.Fe === 2 && entry.per100g.folate === 210 && entry.per100g.fiber === 2.8, JSON.stringify({Fe: entry.per100g.Fe, fiber: entry.per100g.fiber}));
 
+// 11b) E9: 脂肪酸成分表編の追補キー（saturatedFat/n3/n6）が分析に届くこと
+const fattyEntry = vm.runInContext(`NUTRITION_DB.convertFoodToNutritionEntry(serverFoodToCatalog({
+  id: 'u10', legacy_key: 'hakutei-10136', name: '鮭 焼き', kind: 'ingredient', mode: 'per100g',
+  kcal_per_100g: 161, protein_g: 29.1, fat_g: 5.1, carb_g: 0.1,
+  units: { g: 1 }, micros: { saturatedFat: 1.01, n3: 1.12, n6: 0.09, vitD: 39 }, meta: {} }))`, context);
+ok('栄養変換: E9脂肪酸(saturatedFat/n3/n6)が分析に届く',
+  fattyEntry.per100g.saturatedFat === 1.01 && fattyEntry.per100g.n3 === 1.12 && fattyEntry.per100g.n6 === 0.09,
+  JSON.stringify({sat: fattyEntry.per100g.saturatedFat, n3: fattyEntry.per100g.n3}));
+
 // 12) 栄養集計と判定（レコード投入→state→judgement）
 vm.runInContext(`
   localStorage.setItem('meal_recs_v3', JSON.stringify([{
