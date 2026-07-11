@@ -865,6 +865,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="sync-note">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
     </div>
     <div id="ntWeekly" style="display:none">
+      <div id="weeklyCoach"></div>
       <div id="weeklyCharts"></div>
       <div id="weeklyList"></div>
       <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
@@ -1180,6 +1181,14 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .wk-chip .v { font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums; }
   .wk-chip .v small { font-size:9px; color:var(--muted,#999); font-weight:600; }
   .wk-details summary { font-size:12px; font-weight:800; color:var(--muted,#888); padding:8px 4px; cursor:pointer; }
+  /* コーチ助言（AIトレーナー v1・SPEC-021） */
+  .coach-card { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-left:3px solid var(--accent,#ff8a2a); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  .coach-card .ch { display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
+  .coach-card .ch .tt { font-size:11px; font-weight:900; color:var(--accent-deep,#b35c12); letter-spacing:.04em; }
+  .coach-card .ch .wk { font-size:10.5px; color:var(--muted,#999); margin-left:auto; }
+  .coach-card p { font-size:12.5px; line-height:1.75; margin:0 0 8px; }
+  .coach-card p:last-child { margin-bottom:0; }
+  .coach-card p.act { font-weight:800; background:var(--accent-soft,#fff1e3); border-radius:10px; padding:8px 10px; }
   .wt-pb-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
   .wt-session { display:flex; align-items:baseline; gap:8px; padding:6px 0; border-top:1px solid var(--line,rgba(0,0,0,.05)); font-size:12.5px; }
   .wt-session .dt { color:var(--muted,#999); font-size:11px; flex:none; min-width:5em; }
@@ -5181,13 +5190,28 @@ function renderWeeklyCharts(rows) {
   el.innerHTML = html;
 }
 
+/** コーチ助言（AIトレーナー v1）を最新週の分だけ専用カードで見せる。段落を保って読める形に。 */
+function renderCoachCard(rows) {
+  const el = $('#weeklyCoach');
+  if (!el) return;
+  const withNote = rows.find((w) => w.coach_note && String(w.coach_note).trim());
+  if (!withNote) { el.innerHTML = ''; return; }
+  const paras = String(withNote.coach_note).split(/\n{2,}|\n/).map((s) => s.trim()).filter(Boolean);
+  el.innerHTML = `<div class="coach-card">
+    <div class="ch"><span class="tt">コーチからの助言</span><span class="wk">${wkWeekLabel(withNote.week_start)}</span></div>
+    ${paras.map((p, i) => `<p class="${i === paras.length - 1 && paras.length > 1 ? 'act' : ''}">${escapeHtml(p)}</p>`).join('')}
+  </div>`;
+}
+
 function renderWeeklyReview(rows) {
   const list = $('#weeklyList');
   if (!rows || !rows.length) {
     $('#weeklyCharts').innerHTML = '';
+    $('#weeklyCoach').innerHTML = '';
     list.innerHTML = '<div class="empty-note">まだ週次データがありません</div>';
     return;
   }
+  renderCoachCard(rows);
   renderWeeklyCharts(rows);
   const chip = (k, v, unit) => `<div class="wk-chip"><span class="k">${k}</span><span class="v">${v}${unit ? `<small> ${unit}</small>` : ''}</span></div>`;
   const cards = rows.map((w) => {
@@ -5196,11 +5220,11 @@ function renderWeeklyReview(rows) {
       : `<span class="bd ${Number(diff) < 0 ? 'down' : Number(diff) > 0 ? 'up' : ''}">${Number(diff) > 0 ? '+' : ''}${wkDec1(diff)}pt</span>`;
     const days = Number(w.workout_days ?? 0);
     const dots = `<span class="wk-dots">${[0, 1, 2].map((i) => `<i class="${i < days ? 'on' : ''}"></i>`).join('')}</span>`;
+    // coach_note は上部の専用カードで見せるため、明細では重複表示しない
     const notes = [
       w.achievement ? `達成度: ${escapeHtml(w.achievement)}` : '',
       w.good_points ? `良かった点: ${escapeHtml(w.good_points)}` : '',
-      w.improvements ? `改善点: ${escapeHtml(w.improvements)}` : '',
-      w.coach_note ? `コーチ: ${escapeHtml(w.coach_note)}` : ''
+      w.improvements ? `改善点: ${escapeHtml(w.improvements)}` : ''
     ].filter(Boolean);
     return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
       <div class="wk-head"><span class="wl">${wkWeekLabel(w.week_start)}</span>
