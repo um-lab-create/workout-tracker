@@ -222,6 +222,14 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .spark-head .diff.up { color: var(--red); }
 .spark-head .range { margin-left: auto; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .spark-svg { width: 100%; height: 56px; margin-top: 6px; display: block; }
+/* 最新の測定（体組成計）グリッド */
+.dm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.dm-cell { background: rgba(125, 95, 60, .06); border-radius: 10px; padding: 6px 8px; min-width: 0; }
+.dm-cell .k { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.dm-cell .v { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dm-cell .v small { font-size: 9px; font-weight: 600; color: var(--muted); }
+.src-tag { font-size: 10px; font-weight: 700; color: var(--muted); background: rgba(125, 95, 60, .08); border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+@media (max-width: 420px) { .dm-grid { grid-template-columns: repeat(3, 1fr); } }
 .primary-btn.success { background: linear-gradient(135deg, var(--green), #6fd381); box-shadow: 0 4px 14px rgba(79, 189, 99, .35); }
 .date-nav .arrow.disabled { opacity: .3; pointer-events: none; }
 
@@ -770,6 +778,15 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <input class="memo-input" id="bodyMemo" placeholder="メモ（任意）">
       <button class="primary-btn full" id="saveBodyBtn">記録する</button>
     </div>
+    <!-- 体組成計（タニタ等）の最新測定。サーバー読取のみ（書込はスクリプト側 SPEC-020） -->
+    <div class="card spark-card" id="dmCard" style="display:none">
+      <div class="spark-head">
+        <span class="sl">最新の測定</span>
+        <b id="dmWeight">–</b>
+        <span class="range" id="dmMeta"></span>
+      </div>
+      <div class="dm-grid" id="dmGrid"></div>
+    </div>
     <div class="card spark-card" id="sparkCard" style="display:none">
       <div class="spark-head">
         <span class="sl">体重の推移</span>
@@ -804,8 +821,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="sync-note">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
     </div>
     <div id="ntWeekly" style="display:none">
-      <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
+      <div id="weeklyCharts"></div>
       <div id="weeklyList"></div>
+      <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
     </div>
   </section>
 
@@ -1079,6 +1097,40 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .fd-strength { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12.5px; border-top:1px solid var(--line,rgba(0,0,0,.05)); }
   .fd-strength .nm { flex:1; }
   .fd-strength .pc { font-weight:900; font-variant-numeric:tabular-nums; }
+
+  /* 分析タブ視覚化（2026-07-12 マネージャー依頼「文字だけでは分からない」） */
+  .nt-gauges { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin:10px 0 4px; }
+  .nt-gauge .gl { display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted,#888); font-weight:700; margin-bottom:3px; }
+  .nt-gauge .gl b { color:var(--ink,#333); font-variant-numeric:tabular-nums; }
+  .nt-gauge .gbar { height:7px; border-radius:4px; background:var(--glass,rgba(0,0,0,.06)); overflow:hidden; }
+  .nt-gauge .gbar i { display:block; height:100%; border-radius:4px; transition:width .3s ease; }
+  .nt-rank-item { padding:7px 0; border-top:1px solid var(--line,rgba(0,0,0,.05)); }
+  .nt-rank-top { display:flex; align-items:baseline; gap:8px; font-size:12.5px; }
+  .nt-rank-top .nm { font-weight:800; flex:1; }
+  .nt-rank-top .pc { font-weight:900; font-variant-numeric:tabular-nums; }
+  .nt-rank-bar { height:6px; border-radius:3px; background:var(--glass,rgba(0,0,0,.06)); overflow:hidden; margin:4px 0 3px; position:relative; }
+  .nt-rank-bar i { display:block; height:100%; border-radius:3px; }
+  .nt-rank-bar .tick { position:absolute; top:-1px; bottom:-1px; width:1.5px; background:rgba(0,0,0,.22); }
+  .nt-rank-sub { font-size:10.5px; color:var(--muted,#999); line-height:1.5; }
+  .low-c { background:#e4a23a; } .high-c { background:#e94e5b; } .good-c { background:#2eb872; }
+  .wk-chart-card { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  .wk-chart-card .tt { font-size:11px; font-weight:900; color:var(--muted,#888); letter-spacing:.04em; }
+  .wk-chart-card .legend { display:flex; gap:10px; font-size:10px; color:var(--muted,#999); margin-top:2px; }
+  .wk-chart-card .legend i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:3px; vertical-align:-1px; }
+  .wk-chart-svg { width:100%; height:110px; display:block; margin-top:6px; }
+  .wk-head { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
+  .wk-head .wl { font-weight:800; }
+  .wk-head .bf { margin-left:auto; font-weight:900; font-variant-numeric:tabular-nums; }
+  .wk-head .bd { font-size:11px; font-weight:800; }
+  .wk-head .bd.down { color:#2eb872; } .wk-head .bd.up { color:#e94e5b; }
+  .wk-dots { display:inline-flex; gap:3px; margin-left:2px; vertical-align:1px; }
+  .wk-dots i { width:7px; height:7px; border-radius:50%; background:var(--glass,rgba(0,0,0,.1)); }
+  .wk-dots i.on { background:var(--accent,#ff8a2a); }
+  .wk-chips { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .wk-chip { background:rgba(125,95,60,.06); border-radius:10px; padding:6px 8px; min-width:0; }
+  .wk-chip .k { display:block; font-size:9.5px; color:var(--muted,#999); white-space:nowrap; }
+  .wk-chip .v { font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .wk-chip .v small { font-size:9px; color:var(--muted,#999); font-weight:600; }
 </style>
 
 <!-- 自分の食品（管理面 + 概算一覧・SPEC-014 §3-4/3-5） -->
@@ -3255,6 +3307,13 @@ async function syncFromServer(options = {}) {
         lsSet(LS_KEYS.MEAL_PRESET, presets);
       }
     } catch (e) { /* テンプレ同期は非致命 */ }
+    // 体組成（タニタ/eufy/手入力）: サーバー → 表示キャッシュ（読取のみ・非致命）
+    try {
+      const bodyRows = await sb.fetchRecentBodyComposition(30);
+      lsSet(BODY_SERVER_CACHE_KEY, { fetchedAt: new Date().toISOString(), rows: bodyRows || [] });
+      bodyServerFetchedAt = Date.now();
+      if (state.view === 'body') renderBodyView();
+    } catch (e) { /* 非致命 */ }
     lsSet(LS_KEYS.LAST_SYNC, Date.now());
     if (state.view === 'meal') loadMealFor(state.date, state.timing);
     renderQuickRow();
@@ -3735,10 +3794,15 @@ function renderHome() {
     $('#homeWorkoutSub').textContent = 'タップして記録';
   }
 
-  // からだサマリー
+  // からだサマリー（サーバー測定=タニタ等が手入力より新しければそちらを表示）
   const bodyRecs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = bodyRecs[0];
-  if (latest) {
+  const serverLatest = (typeof bodyServerRows === 'function' ? bodyServerRows() : [])[0] || null;
+  const serverDate = serverLatest ? bodyRowJst(serverLatest).date : '';
+  if (serverLatest && serverLatest.weight_kg != null && (!latest || serverDate >= String(latest.date))) {
+    $('#homeBodyBig').textContent = `${Number(serverLatest.weight_kg).toFixed(1)} kg`;
+    $('#homeBodySub').textContent = `体脂肪 ${serverLatest.body_fat_pct != null ? Number(serverLatest.body_fat_pct).toFixed(1) : '–'}%・${fmtDateLabel(serverDate)}`;
+  } else if (latest) {
     $('#homeBodyBig').textContent = `${latest.weight || '–'} kg`;
     $('#homeBodySub').textContent = `体脂肪 ${latest.fat || '–'}%・${fmtDateLabel(latest.date)}`;
   } else {
@@ -3935,19 +3999,88 @@ const CONDITIONS = [
 ];
 function condLabel(v) { return (CONDITIONS.find((c) => c.v === v) || {}).label || '普通'; }
 
+// ---- サーバー体組成の表示キャッシュ（SPEC-020 後続: タニタ/eufy/手入力を面に出す。読取のみ） ----
+const BODY_SERVER_CACHE_KEY = 'hs:body-server-cache:v1';
+const BODY_SOURCE_LABEL = { tanita: '体組成計', eufy: '体組成計', manual: '手入力' };
+function bodyServerRows() {
+  const cache = lsGet(BODY_SERVER_CACHE_KEY, null);
+  return (cache && Array.isArray(cache.rows)) ? cache.rows : [];
+}
+/** measured_at(UTC) → JST の日付・時刻（端末TZに依存しない） */
+function bodyRowJst(row) {
+  const iso = new Date(new Date(row.measured_at).getTime() + 9 * 3600 * 1000).toISOString();
+  return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+}
+let bodyServerFetchedAt = 0;
+async function refreshBodyServerCache() {
+  if (Date.now() - bodyServerFetchedAt < 60 * 1000) return;  // 面の開閉連打で叩かない
+  try {
+    const sb = await window.HSSupabaseReady;
+    if (!(await sb.getSession())) return;
+    const rows = await sb.fetchRecentBodyComposition(30);
+    lsSet(BODY_SERVER_CACHE_KEY, { fetchedAt: new Date().toISOString(), rows: rows || [] });
+    bodyServerFetchedAt = Date.now();
+    if (state.view === 'body') renderBodyView();
+    renderHome();
+  } catch (e) { /* オフライン・未ログイン時はキャッシュ表示のまま */ }
+}
+
 function initBodyDefaults() {
   const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = recs[0];
-  if (state.body.weight == null) state.body.weight = latest && latest.weight ? Number(latest.weight) : 69.0;
-  if (state.body.fat == null) state.body.fat = latest && latest.fat ? Number(latest.fat) : 18.0;
+  // タニタ等の自動計測が手入力より新しければ初期値に使う（テスト運用第1回の改善）
+  const server = bodyServerRows()[0] || null;
+  const serverDate = server ? bodyRowJst(server).date : '';
+  const localDate = latest ? String(latest.date) : '';
+  const preferServer = server && serverDate >= localDate;
+  if (state.body.weight == null) {
+    state.body.weight = preferServer && server.weight_kg != null ? Number(server.weight_kg)
+      : (latest && latest.weight ? Number(latest.weight) : 69.0);
+  }
+  if (state.body.fat == null) {
+    state.body.fat = preferServer && server.body_fat_pct != null ? Number(server.body_fat_pct)
+      : (latest && latest.fat ? Number(latest.fat) : 18.0);
+  }
+}
+
+/** 最新の測定カード（体組成計の全項目。サーバー行が無ければ非表示） */
+function renderDeviceMeasureCard() {
+  const card = $('#dmCard');
+  if (!card) return;
+  const latest = bodyServerRows()[0];
+  if (!latest) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const j = bodyRowJst(latest);
+  $('#dmWeight').textContent = latest.weight_kg != null ? `${Number(latest.weight_kg).toFixed(1)}kg` : '–';
+  const deviceLabel = latest.device ? String(latest.device).split(' ')[0] : (BODY_SOURCE_LABEL[latest.source] || latest.source);
+  $('#dmMeta').textContent = `${fmtDateLabel(j.date)} ${j.time}・${deviceLabel}`;
+  const cells = [
+    ['体脂肪率', latest.body_fat_pct, '%'],
+    ['筋肉量', latest.muscle_mass_kg, 'kg'],
+    ['筋質点数', latest.muscle_score, ''],
+    ['内臓脂肪', latest.visceral_fat_level, ''],
+    ['基礎代謝', latest.bmr, 'kcal'],
+    ['体内年齢', latest.body_age, '才'],
+    ['推定骨量', latest.bone_kg, 'kg'],
+    ['体水分率', latest.water_pct, '%']
+  ].filter((c) => c[1] != null);
+  $('#dmGrid').style.display = cells.length ? '' : 'none';
+  $('#dmGrid').innerHTML = cells.map(([k, v, u]) =>
+    `<div class="dm-cell"><span class="k">${k}</span><span class="v">${v}${u ? `<small> ${u}</small>` : ''}</span></div>`).join('');
 }
 
 function renderBodySpark() {
-  const recs = (lsGet('body_recs_v1', []) || [])
+  // サーバー測定（タニタ/eufy/手入力の全部入り）があればそれを推移に使う。無ければローカルのみ
+  const serverSeries = bodyServerRows()
+    .filter((r) => Number(r.weight_kg) > 0)
+    .slice().reverse()
+    .map((r) => ({ date: bodyRowJst(r).date, weight: Number(r.weight_kg) }));
+  const localSeries = (lsGet('body_recs_v1', []) || [])
     .filter((r) => r && Number(r.weight) > 0)
     .slice()
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    .slice(-14);
+    .map((r) => ({ date: r.date, weight: Number(r.weight) }));
+  const recs = (serverSeries.length >= 2 ? serverSeries : localSeries).slice(-14);
   const card = $('#sparkCard');
   if (!card) return;
   if (recs.length < 2) { card.style.display = 'none'; return; }
@@ -3986,15 +4119,30 @@ function renderBodyView() {
   $('#condRow').innerHTML = CONDITIONS.map((c) =>
     `<button class="cond-btn ${c.v === state.body.cond ? 'active' : ''}" data-cond="${c.v}"><span class="em">${c.emo}</span>${c.label}</button>`
   ).join('');
-  const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 5);
-  $('#bodyEmpty').style.display = recs.length ? 'none' : '';
-  $('#bodyList').innerHTML = recs.map((r) =>
+  renderDeviceMeasureCard();
+  // 一覧: サーバー測定（体組成計/手入力）+ サーバーに無いローカル記録（未送信・古い分）を統合表示
+  const server = bodyServerRows();
+  const localRecs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const serverManualKeys = new Set(server.filter((r) => r.source === 'manual')
+    .map((r) => `${bodyRowJst(r).date}:${Number(r.weight_kg || 0).toFixed(1)}`));
+  const pendingLocal = server.length
+    ? localRecs.filter((r) => !serverManualKeys.has(`${r.date}:${Number(r.weight || 0).toFixed(1)}`)).slice(0, 3)
+    : localRecs.slice(0, 5);
+  const localHtml = pendingLocal.map((r) =>
     `<div class="log-row">
       <span class="desc"><b>${r.weight || '–'} kg</b>　体脂肪 ${r.fat || '–'}%　${escapeHtml(condLabel(r.cond))}</span>
       <span class="tm">${fmtDateLabel(r.date)}</span>
       <button class="log-del" data-body-del="${r.ts}" type="button">×</button>
-    </div>`
-  ).join('');
+    </div>`).join('');
+  const serverHtml = server.slice(0, 7).map((r) => {
+    const j = bodyRowJst(r);
+    return `<div class="log-row">
+      <span class="desc"><b>${r.weight_kg != null ? Number(r.weight_kg).toFixed(1) : '–'} kg</b>　体脂肪 ${r.body_fat_pct != null ? Number(r.body_fat_pct).toFixed(1) : '–'}%<span class="src-tag">${BODY_SOURCE_LABEL[r.source] || r.source}</span></span>
+      <span class="tm">${fmtDateLabel(j.date)} ${j.time}</span>
+    </div>`;
+  }).join('');
+  $('#bodyEmpty').style.display = (pendingLocal.length || server.length) ? 'none' : '';
+  $('#bodyList').innerHTML = localHtml + serverHtml;
 }
 
 function restoreBodyRecord(record) {
@@ -4266,11 +4414,15 @@ function renderNutrition() {
   const meta = NT_META();
   ntState = buildNutritionState(state.date);
   const judge = buildNtJudgement(ntState);
+  // 4軸をゲージバーで可視化（2026-07-12 マネージャー依頼: 文字の羅列をやめる）
+  const gaugeColor = (s) => (s >= 80 ? '#2eb872' : s >= 50 ? '#e4a23a' : '#e94e5b');
   $('#ntJudge').innerHTML = `
     <div class="nt-score-row"><span class="nt-score">${judge.score}</span><span style="color:var(--muted,#888)">/100</span><span class="nt-score-label">${judge.label}</span>
       <span style="margin-left:auto;font-size:11px;color:var(--muted,#999)">${fmtDateLabel(state.date)}${ntState.totals.review ? ` / 概算${ntState.totals.review}品` : ''}</span></div>
-    <div class="nt-parts">${judge.parts.map((p) => `<span>${p.label} ${p.score}</span>`).join('')}</div>
-    <ul class="nt-pri" style="padding:0;margin:0">${judge.priorities.map((p) => `<li><b>${escapeHtml(p.title)}</b>${escapeHtml(p.copy)}${p.suggestFood ? ` <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(p.suggestFood)}">追加する</a>` : ''}</li>`).join('')}</ul>`;
+    <div class="nt-gauges">${judge.parts.map((p) => `
+      <div class="nt-gauge"><div class="gl"><span>${p.label}</span><b>${p.score}</b></div>
+        <div class="gbar"><i style="width:${Math.max(3, Math.min(100, p.score))}%;background:${gaugeColor(p.score)}"></i></div></div>`).join('')}</div>
+    <ul class="nt-pri" style="padding:0;margin:0">${judge.priorities.slice(0, 3).map((p) => `<li><b>${escapeHtml(p.title)}</b>${escapeHtml(p.copy)}${p.suggestFood ? ` <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(p.suggestFood)}">追加する</a>` : ''}</li>`).join('')}</ul>`;
 
   const ranking = buildNtRanking(ntState);
   const sections = [
@@ -4278,12 +4430,19 @@ function renderNutrition() {
     { title: '多すぎ注意', rows: ranking.high, empty: '塩分・飽和脂肪酸は目安内です。' },
     { title: '満たせている栄養', rows: ranking.good, empty: 'まだ十分に満たせた栄養が少なめです。' }
   ];
+  // 目安到達度をバーで見せる（150%スケール・100%位置に目盛。色 = 不足/過剰/充足）
+  const rankBar = (r) => {
+    const w = Math.max(2, Math.round((Math.min(r.pct, 150) / 150) * 100));
+    return `<div class="nt-rank-bar"><i class="${r.kind}-c" style="width:${w}%"></i><span class="tick" style="left:${Math.round((100 / 150) * 100)}%"></span></div>`;
+  };
   $('#ntRanking').innerHTML = sections.map((sec) => `
     <div class="nt-rank-col"><div class="nt-kicker">${sec.title}</div>
       ${sec.rows.length ? sec.rows.map((r) => `
-        <div class="nt-rank-row ${r.kind}"><span class="nm">${escapeHtml(r.label)}</span>
-          <span class="cp">${escapeHtml(r.copy)}${r.suggest ? `<br><a href="#" class="nt-suggest" data-nt-add="${escapeHtml(r.suggest.id)}">${escapeHtml(r.suggest.text)}</a>` : ''}</span>
-          <span class="pc">${r.pct}%</span></div>`).join('')
+        <div class="nt-rank-item nt-rank-row ${r.kind}" style="display:block">
+          <div class="nt-rank-top"><span class="nm">${escapeHtml(r.label)}</span><span class="pc">${r.pct}%</span></div>
+          ${rankBar(r)}
+          <div class="nt-rank-sub">${escapeHtml(r.copy)}${r.suggest ? ` <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(r.suggest.id)}">${escapeHtml(r.suggest.text)}</a>` : ''}</div>
+        </div>`).join('')
       : `<div class="empty-note">${sec.empty}</div>`}
     </div>`).join('');
 
@@ -4446,7 +4605,7 @@ function showView(name) {
     renderTimingSeg(); renderQuickRow(); renderItems(); renderSearch(); renderHydration(); renderDiningOut();
   }
   if (name === 'workout') { state.exoValues = loadExoValues(exoById(state.exoId)); renderExoGrid(); renderExoCard(); renderWorkoutToday(); }
-  if (name === 'body') renderBodyView();
+  if (name === 'body') { renderBodyView(); refreshBodyServerCache(); }
   if (name === 'nutrition') { if (ntSegment === 'weekly') loadWeeklyInline(); else renderNutrition(); }
   if (isRecord) {
     const el = document.getElementById(`view-${name}`);
@@ -4759,15 +4918,84 @@ function wkWeekLabel(weekStart) {
   const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000);
   return `${d.getMonth() + 1}/${d.getDate()}〜${end.getMonth() + 1}/${end.getDate()}`;
 }
+// ---- 週次のグラフ（2026-07-12 視覚化。外部ライブラリなしの素SVG） ----
+function wkXLabel(weekStart) {
+  const d = new Date(`${weekStart}T00:00:00+09:00`);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+/** 直近8週の 体重×体脂肪率 の折れ線と、カロリー棒×たんぱく質折れ線 の2枚を描く */
+function renderWeeklyCharts(rows) {
+  const el = $('#weeklyCharts');
+  if (!el) return;
+  const seq = rows.slice().reverse();  // 古い週 → 新しい週
+  const W = 320, H = 110, padT = 14, padB = 18, padL = 18, padR = 18;
+  const xAt = (i, n) => (n === 1 ? W / 2 : padL + (i / (n - 1)) * (W - padL - padR));
+  const yScale = (vals) => {
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = Math.max((max - min) * 0.18, max * 0.02, 0.2);
+    const lo = min - pad, hi = max + pad;
+    return (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  };
+  const line = (pts, color, withDots = true) =>
+    `<polyline points="${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>` +
+    (withDots ? pts.map((p) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="${color}"/>`).join('') : '');
+  const xLabels = (items, n) => items.map((w, i) =>
+    `<text x="${xAt(i, n).toFixed(1)}" y="${H - 4}" font-size="8.5" fill="rgba(0,0,0,.45)" text-anchor="middle">${wkXLabel(w.week_start)}</text>`).join('');
+  let html = '';
+
+  const bw = seq.filter((w) => w.weight_week_avg_kg != null && w.body_fat_week_avg_pct != null);
+  if (bw.length >= 2) {
+    const n = bw.length;
+    const yW = yScale(bw.map((w) => Number(w.weight_week_avg_kg)));
+    const yF = yScale(bw.map((w) => Number(w.body_fat_week_avg_pct)));
+    const wPts = bw.map((w, i) => [xAt(i, n), yW(Number(w.weight_week_avg_kg))]);
+    const fPts = bw.map((w, i) => [xAt(i, n), yF(Number(w.body_fat_week_avg_pct))]);
+    const last = bw[n - 1];
+    html += `<div class="wk-chart-card">
+      <div class="tt">体重 × 体脂肪率（週平均）</div>
+      <div class="legend"><span><i style="background:var(--accent,#ff8a2a)"></i>体重 ${wkDec1(last.weight_week_avg_kg)}kg</span><span><i style="background:#5b8def"></i>体脂肪率 ${wkDec1(last.body_fat_week_avg_pct)}%</span></div>
+      <svg class="wk-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${line(wPts, 'var(--accent, #ff8a2a)')}${line(fPts, '#5b8def')}${xLabels(bw, n)}</svg>
+    </div>`;
+  }
+
+  const mk = seq.filter((w) => w.avg_kcal != null);
+  if (mk.length >= 2) {
+    const n = mk.length;
+    const kcalMax = Math.max(...mk.map((w) => Number(w.avg_kcal))) * 1.15;
+    const barW = Math.min(24, ((W - padL - padR) / n) * 0.5);
+    const bars = mk.map((w, i) => {
+      const h = (Number(w.avg_kcal) / kcalMax) * (H - padT - padB);
+      const x = xAt(i, n) - barW / 2;
+      return `<rect x="${x.toFixed(1)}" y="${(H - padB - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="rgba(255,138,42,.35)"/>`;
+    }).join('');
+    const withP = mk.filter((w) => w.avg_protein_g != null);
+    const yP = withP.length >= 2 ? yScale(withP.map((w) => Number(w.avg_protein_g))) : null;
+    const pPts = yP ? withP.map((w) => [xAt(mk.indexOf(w), n), yP(Number(w.avg_protein_g))]) : [];
+    const last = mk[n - 1];
+    html += `<div class="wk-chart-card">
+      <div class="tt">摂取カロリー × たんぱく質（週平均）</div>
+      <div class="legend"><span><i style="background:rgba(255,138,42,.5)"></i>カロリー ${wkInt(last.avg_kcal)}kcal</span><span><i style="background:#2eb872"></i>たんぱく質 ${wkInt(last.avg_protein_g)}g</span></div>
+      <svg class="wk-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${pPts.length ? line(pPts, '#2eb872') : ''}${xLabels(mk, n)}</svg>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
 function renderWeeklyReview(rows) {
   const list = $('#weeklyList');
   if (!rows || !rows.length) {
+    $('#weeklyCharts').innerHTML = '';
     list.innerHTML = '<div class="empty-note">まだ週次データがありません</div>';
     return;
   }
+  renderWeeklyCharts(rows);
+  const chip = (k, v, unit) => `<div class="wk-chip"><span class="k">${k}</span><span class="v">${v}${unit ? `<small> ${unit}</small>` : ''}</span></div>`;
   list.innerHTML = rows.map((w) => {
     const diff = w.body_fat_diff_prev_week_pt;
-    const diffText = diff == null ? '' : `（前週${Number(diff) > 0 ? '+' : ''}${wkDec1(diff)}pt）`;
+    const diffBadge = diff == null ? ''
+      : `<span class="bd ${Number(diff) < 0 ? 'down' : Number(diff) > 0 ? 'up' : ''}">${Number(diff) > 0 ? '+' : ''}${wkDec1(diff)}pt</span>`;
+    const days = Number(w.workout_days ?? 0);
+    const dots = `<span class="wk-dots">${[0, 1, 2].map((i) => `<i class="${i < days ? 'on' : ''}"></i>`).join('')}</span>`;
     const notes = [
       w.achievement ? `達成度: ${escapeHtml(w.achievement)}` : '',
       w.good_points ? `良かった点: ${escapeHtml(w.good_points)}` : '',
@@ -4775,17 +5003,16 @@ function renderWeeklyReview(rows) {
       w.coach_note ? `コーチ: ${escapeHtml(w.coach_note)}` : ''
     ].filter(Boolean);
     return `<div class="card" style="padding:10px 14px;margin-bottom:10px">
-      <div style="font-weight:800;margin-bottom:6px">${wkWeekLabel(w.week_start)}</div>
-      <div class="wk-grid">
-        <span>筋トレ</span><b>${w.workout_days ?? 0}日（${wkPct(w.workout_target_rate)}）</b>
-        <span>平均たんぱく質</span><b>${wkInt(w.avg_protein_g)} g</b>
-        <span>平均カロリー</span><b>${wkInt(w.avg_kcal)} kcal</b>
-        <span>平均脂質</span><b>${wkDec1(w.avg_fat_g)} g（超過${w.fat_over_days ?? 0}日）</b>
-        <span>PFC達成</span><b>${w.pfc_days ?? 0}日（${wkPct(w.pfc_rate)}）</b>
-        <span>食事記録</span><b>${w.meal_days ?? 0}日</b>
-        <span>平均睡眠</span><b>${wkDec1(w.avg_sleep_hr)} h</b>
-        <span>体脂肪率 週平均</span><b>${wkDec1(w.body_fat_week_avg_pct)}%${diffText}</b>
-        <span>体重 週平均</span><b>${wkDec1(w.weight_week_avg_kg)} kg</b>
+      <div class="wk-head"><span class="wl">${wkWeekLabel(w.week_start)}</span>
+        <span style="font-size:10.5px;color:var(--muted,#999)">筋トレ${days}日</span>${dots}
+        <span class="bf">${wkDec1(w.body_fat_week_avg_pct)}%</span>${diffBadge}</div>
+      <div class="wk-chips">
+        ${chip('カロリー/日', wkInt(w.avg_kcal), 'kcal')}
+        ${chip('たんぱく質/日', wkInt(w.avg_protein_g), 'g')}
+        ${chip('脂質/日', wkDec1(w.avg_fat_g), `g${(w.fat_over_days ?? 0) > 0 ? `・超${w.fat_over_days}日` : ''}`)}
+        ${chip('体重 週平均', wkDec1(w.weight_week_avg_kg), 'kg')}
+        ${chip('PFC達成', `${w.pfc_days ?? 0}日`, wkPct(w.pfc_rate))}
+        ${chip('食事記録', `${w.meal_days ?? 0}日`, `睡眠${wkDec1(w.avg_sleep_hr)}h`)}
       </div>
       ${notes.length ? `<div class="sync-note" style="margin-top:6px">${notes.join('<br>')}</div>` : ''}
     </div>`;

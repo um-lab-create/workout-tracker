@@ -327,6 +327,18 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
   }
 
   /**
+   * 直近の体組成を新しい順に返す（source 不問: tanita / eufy / manual）。
+   * からだ面の「最新の測定」表示用（読取のみ。ローカル一次ストアの書込設計は不変）。
+   */
+  async function fetchRecentBodyComposition(limit = 30) {
+    await requireUserId();
+    return must(await client.from('body_composition')
+      .select('measured_at, source, weight_kg, body_fat_pct, muscle_mass_kg, muscle_score, visceral_fat_level, bmr, body_age, bone_kg, water_pct, device')
+      .order('measured_at', { ascending: false })
+      .limit(limit));
+  }
+
+  /**
    * foods の legacy_key → uuid 対応表を返す（新規保存の food_id 併記用）。
    * @returns {Promise<Object<string,string>>}
    */
@@ -618,6 +630,7 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     fetchUserSettings,
     fetchMealDetails,
     fetchWeeklyReview,
+    fetchRecentBodyComposition,
     fetchFoodsKeyMap,
     pingRead,
     fetchFoodsCatalog,
