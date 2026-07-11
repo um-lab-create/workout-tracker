@@ -803,7 +803,6 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
           <button data-body="fat" data-d="0.1">＋</button>
         </div>
       </div>
-      <div class="cond-row" id="condRow"></div>
       <input class="memo-input" id="bodyMemo" placeholder="メモ（任意）">
       <button class="primary-btn full" id="saveBodyBtn">記録する</button>
     </div>
@@ -854,6 +853,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <div id="weeklyCoach"></div>
       <div id="weeklyCharts"></div>
       <div id="intakeWeightChart"></div>
+      <div id="recoveryChart"></div>
       <div id="streakHeatmap"></div>
       <div id="weeklyList"></div>
       <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
@@ -1210,6 +1210,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .bal-row .bb { flex:1; height:8px; border-radius:4px; background:var(--glass,rgba(0,0,0,.06)); overflow:hidden; }
   .bal-row .bb i { display:block; height:100%; border-radius:4px; }
   .bal-row .bv { flex:none; width:2em; text-align:right; font-weight:800; font-variant-numeric:tabular-nums; color:var(--muted,#888); }
+  .rec-verdict { margin-top:8px; font-size:12px; font-weight:800; border-radius:10px; padding:7px 10px; }
+  .rec-verdict.good { color:var(--green); background:var(--green-soft); }
+  .rec-verdict.warn { color:#c98a00; background:#fff3d6; }
+  .rec-verdict.bad { color:#c0392b; background:#ffe3e0; }
 </style>
 
 <!-- 自分の食品（管理面 + 概算一覧・SPEC-014 §3-4/3-5） -->
@@ -4482,9 +4486,6 @@ function renderBodyView() {
   renderBodySpark();
   $('#bodyWeight').textContent = state.body.weight.toFixed(1);
   $('#bodyFat').textContent = state.body.fat.toFixed(1);
-  $('#condRow').innerHTML = CONDITIONS.map((c) =>
-    `<button class="cond-btn ${c.v === state.body.cond ? 'active' : ''}" data-cond="${c.v}"><span class="em">${c.emo}</span>${c.label}</button>`
-  ).join('');
   renderDeviceMeasureCard();
   // 一覧: サーバー測定（体組成計/手入力）+ サーバーに無いローカル記録（未送信・古い分）を統合表示
   const server = bodyServerRows();
@@ -4496,7 +4497,7 @@ function renderBodyView() {
     : localRecs.slice(0, 5);
   const localHtml = pendingLocal.map((r) =>
     `<div class="log-row">
-      <span class="desc"><b>${r.weight || '–'} kg</b>　体脂肪 ${r.fat || '–'}%　${escapeHtml(condLabel(r.cond))}</span>
+      <span class="desc"><b>${r.weight || '–'} kg</b>　体脂肪 ${r.fat || '–'}%</span>
       <span class="tm">${fmtDateLabel(r.date)}</span>
       <button class="log-del" data-body-del="${r.ts}" type="button">×</button>
     </div>`).join('');
@@ -5431,6 +5432,111 @@ function renderIntakeWeightChart() {
   </div>`;
 }
 
+// ---- 睡眠と回復（Apple Health 由来。体調の手入力は廃止し、客観データで判定する）----
+// 「体調は手入力が面倒なだけなので他情報から判定を」（マネージャー 2026-07-13）
+const HM_CACHE_KEY = 'hs:health-metrics-cache:v1';
+const HM_METRICS = ['sleep_total_hr', 'resting_hr', 'hrv_ms'];
+let hmFetchedAt = 0;
+function healthMetricRows() {
+  const c = lsGet(HM_CACHE_KEY, null);
+  return (c && Array.isArray(c.rows)) ? c.rows : [];
+}
+async function refreshHealthMetrics() {
+  if (Date.now() - hmFetchedAt < 10 * 60 * 1000) return;
+  try {
+    const sb = await window.HSSupabaseReady;
+    if (!(await sb.getSession())) return;
+    const rows = await sb.fetchHealthMetrics(HM_METRICS, shiftDate(todayStr(), -45));
+    lsSet(HM_CACHE_KEY, { fetchedAt: new Date().toISOString(), rows: rows || [] });
+    hmFetchedAt = Date.now();
+    if (state.view === 'nutrition' && ntSegment === 'weekly') renderRecoveryChart();
+  } catch (e) { /* オフライン・未ログインはキャッシュ表示のまま */ }
+}
+/** 直近3日 vs 30日平均で回復状態を判定（安静時心拍↑ / HRV↓ / 睡眠↓ が疲労サイン） */
+function recoveryVerdict(byMetric) {
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+  const recentOf = (m, n) => Object.keys(byMetric[m] || {}).sort().slice(-n).map((d) => byMetric[m][d]);
+  const signals = [];
+  const check = (m, label, worseWhenHigher) => {
+    const r3 = avg(recentOf(m, 3)), r30 = avg(recentOf(m, 30));
+    if (r3 == null || r30 == null || recentOf(m, 30).length < 7) return;
+    const diffPct = ((r3 - r30) / r30) * 100;
+    const bad = worseWhenHigher ? diffPct > 5 : diffPct < -8;
+    const good = worseWhenHigher ? diffPct < -3 : diffPct > 5;
+    signals.push({ label, diffPct, bad, good, r3, r30 });
+  };
+  check('resting_hr', '安静時心拍', true);
+  check('hrv_ms', 'HRV', false);
+  check('sleep_total_hr', '睡眠', false);
+  if (!signals.length) return null;
+  const bads = signals.filter((s) => s.bad);
+  const kind = bads.length >= 2 ? 'bad' : bads.length === 1 ? 'warn' : 'good';
+  const text = kind === 'bad'
+    ? `疲労サイン（${bads.map((s) => s.label).join('・')}が悪化）。今日は軽めか休養を`
+    : kind === 'warn'
+      ? `やや疲労（${bads[0].label}が普段より悪い）。無理はしない`
+      : '回復は良好。予定どおり追い込んでOK';
+  return { kind, text, signals };
+}
+function renderRecoveryChart() {
+  const el = $('#recoveryChart');
+  if (!el) return;
+  const rows = healthMetricRows();
+  if (!rows.length) { el.innerHTML = ''; return; }
+  const byMetric = {};
+  rows.forEach((r) => {
+    const v = Number(r.value);
+    if (!Number.isFinite(v)) return;
+    (byMetric[r.metric] = byMetric[r.metric] || {})[r.measured_on] = v;
+  });
+  const days = [];
+  for (let i = 13; i >= 0; i--) days.push(shiftDate(todayStr(), -i));
+  const sleep = days.map((d) => (byMetric.sleep_total_hr || {})[d] || null);
+  const rhr = days.map((d) => (byMetric.resting_hr || {})[d] || null);
+  if (!sleep.some(Boolean) && !rhr.some(Boolean)) { el.innerHTML = ''; return; }
+
+  const W = 320, H = 120, padT = 14, padB = 18, padL = 18, padR = 18;
+  const n = days.length;
+  const xAt = (i) => padL + (i / (n - 1)) * (W - padL - padR);
+  const sleepMax = Math.max(...sleep.filter(Boolean), 8) * 1.15;
+  const barW = Math.min(14, ((W - padL - padR) / n) * 0.6);
+  const bars = sleep.map((v, i) => {
+    if (!v) return '';
+    const h = (v / sleepMax) * (H - padT - padB);
+    // 7時間を下回る日は色を弱める（睡眠不足の可視化）
+    const fill = v >= 7 ? 'rgba(91,141,239,.45)' : 'rgba(233,78,91,.3)';
+    return `<rect x="${(xAt(i) - barW / 2).toFixed(1)}" y="${(H - padB - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${fill}"/>`;
+  }).join('');
+  const sleepTargetY = H - padB - (7 / sleepMax) * (H - padT - padB);
+  const targetLine = `<line x1="${padL}" y1="${sleepTargetY.toFixed(1)}" x2="${W - padR}" y2="${sleepTargetY.toFixed(1)}" stroke="rgba(0,0,0,.18)" stroke-width="1" stroke-dasharray="3 3"/>`;
+  let rhrPath = '';
+  const rhrVals = rhr.filter(Boolean);
+  if (rhrVals.length >= 2) {
+    const min = Math.min(...rhrVals), max = Math.max(...rhrVals);
+    const pad = Math.max((max - min) * 0.3, 1);
+    const lo = min - pad, hi = max + pad;
+    const pts = rhr.map((v, i) => (v ? [xAt(i), padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB)] : null)).filter(Boolean);
+    rhrPath = `<polyline points="${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#e94e5b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+      + pts.map((p) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.2" fill="#e94e5b"/>`).join('');
+  }
+  const labels = days.map((d, i) => (i % 3 === 0 || i === n - 1)
+    ? `<text x="${xAt(i).toFixed(1)}" y="${H - 4}" font-size="8.5" fill="rgba(0,0,0,.45)" text-anchor="middle">${wkXLabel(d)}</text>` : '').join('');
+  const avgSleep = sleep.filter(Boolean).length
+    ? (sleep.filter(Boolean).reduce((a, b) => a + b, 0) / sleep.filter(Boolean).length) : null;
+  const lastRhr = [...rhr].reverse().find(Boolean);
+  const verdict = recoveryVerdict(byMetric);
+  el.innerHTML = `<div class="wk-chart-card">
+    <div class="tt">睡眠と回復（14日）</div>
+    <div class="legend">
+      <span><i style="background:rgba(91,141,239,.6)"></i>睡眠${avgSleep ? ` 平均${avgSleep.toFixed(1)}h` : ''}</span>
+      <span><i style="background:#e94e5b"></i>安静時心拍${lastRhr ? ` ${Math.round(lastRhr)}bpm` : ''}</span>
+    </div>
+    <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${rhrPath}${labels}</svg>
+    ${verdict ? `<div class="rec-verdict ${verdict.kind}">${escapeHtml(verdict.text)}</div>` : ''}
+    <div class="sync-note" style="margin-top:2px">点線=7時間。赤い棒は睡眠不足の日。安静時心拍が上がり続ける時は疲労のサイン（Apple ヘルスケア由来）。</div>
+  </div>`;
+}
+
 // ---- U3-3: 継続ヒートマップ（記録の連続性を一目で。食事=濃さ / 筋トレ=枠） ----
 function renderStreakHeatmap() {
   const el = $('#streakHeatmap');
@@ -5476,6 +5582,8 @@ function renderWeeklyReview(rows) {
   renderCoachCard(rows);
   renderWeeklyCharts(rows);
   renderIntakeWeightChart();
+  renderRecoveryChart();
+  refreshHealthMetrics();
   renderStreakHeatmap();
   const chip = (k, v, unit) => `<div class="wk-chip"><span class="k">${k}</span><span class="v">${v}${unit ? `<small> ${unit}</small>` : ''}</span></div>`;
   const cards = rows.map((w) => {
@@ -6281,12 +6389,6 @@ document.querySelectorAll('[data-body]').forEach((b) => {
     if (consumeLongPressClick(b)) return;
     runBodyButton(b);
   });
-});
-$('#condRow').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-cond]');
-  if (!b) return;
-  state.body.cond = Number(b.dataset.cond);
-  renderBodyView();
 });
 $('#bodyList').addEventListener('click', (e) => {
   const b = e.target.closest('[data-body-del]');

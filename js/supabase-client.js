@@ -339,6 +339,27 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
   }
 
   /**
+   * health_metrics を指定期間・指定メトリックで返す（睡眠・回復指標のグラフ用・読取のみ）。
+   * PostgREST は1回1000行が上限のためページングする（実測: 全体で14,000行超）。
+   */
+  async function fetchHealthMetrics(metrics, fromDate) {
+    await requireUserId();
+    const out = [];
+    const PAGE = 1000;
+    for (let offset = 0; ; offset += PAGE) {
+      const rows = must(await client.from('health_metrics')
+        .select('measured_on, metric, value')
+        .in('metric', metrics)
+        .gte('measured_on', fromDate)
+        .order('measured_on', { ascending: true })
+        .range(offset, offset + PAGE - 1));
+      out.push(...rows);
+      if (rows.length < PAGE) break;
+    }
+    return out;
+  }
+
+  /**
    * 筋トレ履歴を新しい順に返す（種目別の成長グラフ用・読取のみ）。
    */
   async function fetchWorkoutHistory(limit = 400) {
@@ -643,6 +664,7 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     fetchWeeklyReview,
     fetchRecentBodyComposition,
     fetchWorkoutHistory,
+    fetchHealthMetrics,
     fetchFoodsKeyMap,
     pingRead,
     fetchFoodsCatalog,
