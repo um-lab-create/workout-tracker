@@ -1466,11 +1466,12 @@ function buildCatalog() {
   });
   // 3) サーバーカタログ（foods。SPEC-014 以降の正）。埋め込み公式行は表示品質優先で温存し、
   //    serverId だけ引き継ぐ。それ以外（個人の食品・レシピ・将来の八訂）はサーバー側が上書き
-  const cache = lsGet('hs:foods-cache:v1', null);
+  const cache = lsGet(FOODS_CACHE_KEY, null);
   ((cache && cache.foods) || []).forEach((f) => {
     if (!f || !f.id || !f.name) return;
     if (foodLookup[f.id] && !f.owner) {
       foodLookup[f.id].serverId = f.serverId;
+      if (f.staple) foodLookup[f.id].staple = true;   // U2: 定番マークはサーバー側が正
       return;
     }
     foodLookup[f.id] = f;
@@ -2402,7 +2403,8 @@ function registerSbOpHandlers() {
 //   公式278件の表示品質（単位のstep等）とオフライン初回のフォールバックに使う。
 // - 追加・編集は owner=自分 の foods 行。冪等キーは legacy_key（フロントの文字列id）。
 // ================================================================
-const FOODS_CACHE_KEY = 'hs:foods-cache:v1';
+// v2: serverFoodToCatalog に staple を追加（U2）。旧キャッシュは自動で無効化され再取得される
+const FOODS_CACHE_KEY = 'hs:foods-cache:v2';
 const FOOD_MIGRATED_KEY = 'hs:food-migrated:v1';
 
 function makeUserFoodId(prefix) {
@@ -2427,6 +2429,8 @@ function serverFoodToCatalog(row) {
     keywords: meta.keywords || (row.kana ? [row.kana] : []),
     primaryVariant: meta.primary !== false,           // 八訂の状態バリアント集約（SPEC-018）
     variantTokens: meta.variant_tokens || [],
+    staple: meta.staple === true,                     // 定番食品（U2: 候補プールの母集団）
+
     pendingReview: Boolean(row.pending_review),
     source: row.source || '',
     verified: Boolean(row.verified),
@@ -2510,7 +2514,8 @@ function catalogFoodToRow(food) {
       entryType: food.entryType || null,
       defaultQty: food.defaultQty ?? null,
       step: food.step ?? null,
-      unitLabel: food.unitLabel ?? null
+      unitLabel: food.unitLabel ?? null,
+      ...(food.staple ? { staple: true } : {})   // 定番マークを往復で落とさない（U2）
     }
   };
 }
@@ -3707,60 +3712,90 @@ function renderWeekCard() {
   </div>`;
 }
 
-function bestProteinSuggestion(deficit) {
-  let best = null;
-  allFoods.forEach((f) => {
-    const unit = getDefaultUnit(f);
-    const p = calcFoodPortion(f, unit.defaultQty || 1, unit.label);
-    if (p.p >= 12 && p.kcal <= 280 && p.kcal > 0) {
-      const score = p.p / p.kcal;
-      if (!best || score > best.score) best = { food: f, unit, p, score };
-    }
-  });
-  if (!best) return null;
-  return best;
-}
-function proteinSuggestion(deficit) {
-  const best = bestProteinSuggestion(deficit);
-  if (!best) return '';
-  return ` → ${best.food.name} ${fmtQty(best.unit.defaultQty || 1)}${best.unit.label}で +${Math.round(best.p.p)}g`;
-}
-function renderCoachHint(totals, targets) {
-  const el = $('#coachHint');
-  if (!el) return;
-  const remain = targets.energy - totals.energy;
-  const pRemain = targets.protein - totals.protein;
-  const fRatio = totals.fat / (targets.fat || 1);
-  const cRemain = targets.carb - totals.carb;
-  let text = '', cls = '';
-  let suggest = null;
-  if (totals.energy <= 0) {
-    text = 'まずは1食記録。前回と同じなら数秒で入ります';
-  } else if (fRatio > 1.2) {
-    text = `脂質が多め（${Math.round(totals.fat)}g / ${Math.round(targets.fat)}g）。残りは脂質ひかえめ`; cls = 'warn';
-  } else if (pRemain >= 20 && remain > 100) {
-    suggest = bestProteinSuggestion(pRemain);
-    text = `たんぱく質 あと${Math.round(pRemain)}g${suggest ? ` → ${suggest.food.name} ${fmtQty(suggest.unit.defaultQty || 1)}${suggest.unit.label}で +${Math.round(suggest.p.p)}g` : ''}`;
-  } else if (targets.dayType === 'training' && cRemain > 50 && remain > 100) {
-    text = `筋トレ日。炭水化物をあと${Math.round(cRemain)}g補給`;
-  } else if (remain < -150) {
-    text = `目標を${fmtNum(-remain)}kcalオーバー。次の食事で調整`; cls = 'warn';
-  } else if (remain <= 150 && remain >= -150) {
-    text = 'いいバランス。今日はこのまま締めればOK'; cls = 'good';
-  } else {
-    text = `あと${fmtNum(remain)}kcal。PFCを見て足すものを選ぶ`;
-  }
-  if (suggest) {
-    el.dataset.suggestFood = suggest.food.id;
-    el.innerHTML = `<span>${escapeHtml(text)}</span><span class="mini-add">＋追加</span>`;
-    el.className = `coach-hint actionable ${cls}`;
-  } else {
-    delete el.dataset.suggestFood;
-    el.textContent = text;
-    el.className = `coach-hint ${cls}`;
-  }
-}
+// ============ 候補エンジン（U2 / SPEC-022）============
+// 課題（テスト運用第1回）: カタログ全2,800品から逆引きするため「アルゼンチンあかえび」
+// 「マック ポテトL」など実生活で選ばない候補が第一候補に出ていた。
+// 対策: 候補プールを「自分が実際に食べた食品（使用実績）」∪「定番食品（meta.staple・33品）」に限定し、
+// 残りkcal・時間帯で絞り、1品/組合せの2形態で返す。分析タブと「次の一手」で同じロジックを使う。
 
+/** 候補プール（実績のある食品 + 定番）。アーカイブ・概算・非代表バリアントは除外 */
+function suggestionPool() {
+  const usage = loadFoodUsage();
+  return allFoods.filter((f) => {
+    if (!f || f.archived) return false;
+    if (f.primaryVariant === false) return false;         // 状態バリアント（ゆで等）は代表のみ
+    if (f.pendingReview) return false;                    // 概算は勧めない
+    return f.staple === true || (usage[f.id] && usage[f.id].count > 0);
+  });
+}
+/** 1食あたりの現実的な1回量（使用実績があればその量・無ければ既定単位） */
+function suggestionPortion(food) {
+  const pick = usageDefaultForFood(food);       // { qty, unit(ラベル) }
+  const qty = Number(pick.qty) > 0 ? Number(pick.qty) : 1;
+  const label = pick.unit || getDefaultUnit(food).label;
+  return { unit: { label }, qty, portion: calcFoodPortion(food, qty, label) };
+}
+function suggestionLabel(s) {
+  return `${s.food.name} ${fmtQty(s.qty)}${s.unit.label}`;
+}
+/** その1回量に含まれる栄養素量（マクロは portion から・微量は栄養エントリを g/個 で按分） */
+function nutrientInPortion(food, portion, qty, key) {
+  if (key === 'protein') return portion.p;
+  if (key === 'fat') return portion.f;
+  if (key === 'carb') return portion.c;
+  if (key === 'energy') return portion.kcal;
+  const entry = NUTRITION_DB ? NUTRITION_DB.convertFoodToNutritionEntry(food) : null;
+  if (!entry) return 0;
+  if (entry.mode === 'perUnit') return (entry.perUnit[key] || 0) * (Number(qty) || 1);
+  const grams = Number(portion.grams) || 0;
+  return (entry.per100g[key] || 0) * grams / 100;
+}
+/**
+ * 不足栄養素 key を埋める候補を返す（多い順・最大 limit 件）。
+ * @param {string} key nutrition-db の栄養素キー（protein / Ca / vitD / n3 ...）
+ * @param {{remainKcal?: number, timing?: string}} opts 残りkcal・時間帯で現実性を絞る
+ */
+function suggestFoodsFor(key, opts = {}) {
+  const remainKcal = Number.isFinite(opts.remainKcal) ? opts.remainKcal : Infinity;
+  const usage = loadFoodUsage();
+  const light = opts.timing === 'morning' || opts.timing === 'snack';   // 朝・間食は軽い物を優先
+  const out = [];
+  suggestionPool().forEach((food) => {
+    const { unit, qty, portion } = suggestionPortion(food);
+    if (!portion || !(portion.kcal > 0)) return;
+    const value = nutrientInPortion(food, portion, qty, key);
+    if (!(value > 0)) return;
+    if (portion.kcal > Math.max(remainKcal, 120)) return;  // 残りkcalを大きく超える物は勧めない
+    if (light && portion.kcal > 350) return;
+    const density = value / portion.kcal;                  // kcalあたりの効率
+    const familiar = usage[food.id] ? Math.min(usage[food.id].count, 10) : 0;
+    out.push({
+      food, unit, qty, portion, value,
+      // 効率 × 慣れ（実績のある食品を優先）× 定番ボーナス
+      score: density * (1 + familiar * 0.25) * (food.staple ? 1.15 : 1)
+    });
+  });
+  return out.sort((a, b) => b.score - a.score).slice(0, opts.limit || 3);
+}
+/** たんぱく質の補完提案: 1品で足りるなら1品、足りなければ2品の組合せ */
+function suggestProteinPlan(deficitG, remainKcal, timing) {
+  const cands = suggestFoodsFor('protein', { remainKcal, timing, limit: 6 });
+  if (!cands.length) return null;
+  const single = cands.find((c) => c.value >= deficitG * 0.8) || cands[0];
+  if (single.value >= deficitG * 0.8 || cands.length < 2) {
+    return { kind: 'single', items: [single], gain: single.value };
+  }
+  const second = cands.find((c) => c !== single && c.food.id !== single.food.id);
+  if (!second) return { kind: 'single', items: [single], gain: single.value };
+  return { kind: 'combo', items: [single, second], gain: single.value + second.value };
+}
+/** 旧API互換（次の一手・コーチ行が使う） */
+function bestProteinSuggestion(deficit, remainKcal, timing) {
+  const plan = suggestProteinPlan(deficit || 20, remainKcal, timing);
+  if (!plan) return null;
+  const top = plan.items[0];
+  return { food: top.food, unit: { ...top.unit, defaultQty: top.qty }, p: top.portion, score: top.score, plan };
+}
 // ---- 次の一手カード（Phase D-1: 今いちばん価値ある行動を1枚だけ提示） ----
 function currentMealSlot() {
   const h = new Date().getHours();
@@ -3777,22 +3812,6 @@ function daysSinceLastStrength() {
   if (!dates.length) return null;
   const last = dates.sort().pop();
   return Math.round((Date.parse(`${todayStr()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
-}
-/** 使用実績上位からたんぱく質の補完候補を選ぶ（013の暫定改善: 実際に食べている物だけ） */
-function proteinSuggestionFromUsage() {
-  const usage = loadFoodUsage();
-  let best = null;
-  Object.keys(usage).forEach((foodId) => {
-    const food = getFoodById(foodId);
-    if (!food) return;
-    const unit = getDefaultUnit(food);
-    const p = calcFoodPortion(food, unit.defaultQty || 1, unit.label);
-    if (p.p >= 10 && p.kcal > 0 && p.kcal <= 300) {
-      const score = usage[foodId].count * (p.p / p.kcal);
-      if (!best || score > best.score) best = { food, unit, p, score };
-    }
-  });
-  return best;
 }
 function renderNextMove(totals, targets, perTiming) {
   const card = $('#nextMoveCard');
@@ -3821,10 +3840,16 @@ function renderNextMove(totals, targets, perTiming) {
     move = { title: `脂質が多め（${Math.round(totals.fat)} / ${Math.round(targets.fat)}g）`, sub: '残りの食事は脂質ひかえめに', cta: '分析を見る', action: 'nutrition', cls: 'warn' };
   }
   if (!move && pRemain >= 20 && remain > 100) {
-    const s = proteinSuggestionFromUsage();
-    move = { title: `たんぱく質 あと${Math.round(pRemain)}g`,
-      sub: s ? `候補: ${s.food.name} ${fmtQty(s.unit.defaultQty || 1)}${s.unit.label}で +${Math.round(s.p.p)}g` : '鶏むね・魚・豆腐系を優先',
-      cta: s ? '＋追加' : '記録する', action: s ? `add:${s.food.id}` : 'meal:snack', cls: '' };
+    // U2: 候補は「使用実績 ∪ 定番」から。1品で足りなければ2品の組合せで提案する
+    const plan = suggestProteinPlan(pRemain, remain, slot);
+    const sub = plan
+      ? (plan.kind === 'combo'
+        ? `候補: ${plan.items.map(suggestionLabel).join(' + ')} で +${Math.round(plan.gain)}g`
+        : `候補: ${suggestionLabel(plan.items[0])} で +${Math.round(plan.gain)}g`)
+      : '鶏むね・魚・豆腐系を優先';
+    move = { title: `たんぱく質 あと${Math.round(pRemain)}g`, sub,
+      cta: plan ? '＋追加' : '記録する',
+      action: plan ? `add:${plan.items[0].food.id}` : `meal:${slot || 'snack'}`, cls: '' };
   }
   if (!move && remain < -150) {
     move = { title: `目標を${fmtNum(-remain)}kcalオーバー`, sub: '次の食事で調整すれば大丈夫', cta: '分析を見る', action: 'nutrition', cls: 'warn' };
@@ -4524,13 +4549,19 @@ function buildNutritionState(dateStr) {
 function ntTopContributors(map) {
   return Object.entries(map || {}).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 }
+/**
+ * 不足栄養素の候補（U2/SPEC-022 で共通エンジンに統一）。
+ * 旧実装はカタログ全2,800品の逆引きで「アルゼンチンあかえび」等が出ていた。
+ * 今は「使用実績 ∪ 定番食品」プールから、残りkcalも見て選ぶ。
+ * 戻り値は表示側の互換のためカタログ食品 + 提案量（suggestQty/suggestUnit/suggestValue）。
+ */
 function ntBestFood(key) {
-  if (!NUTRITION_DB) return null;
-  return Object.values(NUTRITION_DB.FOODS)
-    .map((food) => ({ food, value: ntFoodValue(food, key) }))
-    .filter((e) => e.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .map((e) => e.food)[0] || null;
+  const remainKcal = ntState && ntState.nutrients
+    ? ntTargetValue('energy') - (ntState.nutrients.energy || 0)
+    : Infinity;
+  const best = suggestFoodsFor(key, { remainKcal, limit: 1 })[0];
+  if (!best) return null;
+  return { ...best.food, suggestQty: best.qty, suggestUnit: best.unit.label, suggestValue: best.value };
 }
 function ntFoodValue(food, key) {
   if (!food) return 0;
@@ -4540,6 +4571,7 @@ function ntFoodValue(food, key) {
   return (food.per100g[key] || 0) * grams / 100;
 }
 function ntFoodUnitLabel(food) {
+  if (food && food.suggestUnit) return `${fmtQty(food.suggestQty || 1)}${food.suggestUnit}`;  // U2: 提案量
   if (food && food.mode === 'perUnit') return `1${food.unitLabel || '個'}`;
   const key = Object.keys(food.units || {}).find((k) => k !== 'g' && k !== 'ml') || Object.keys(food.units || {})[0];
   if (!key) return '1食分';
