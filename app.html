@@ -1788,7 +1788,8 @@ async function deleteCurrentMealRecord() {
   const records = getRecords();
   const record = records.find((r) => r.id === recordId);
   if (!record) { showToast('記録が見つかりません'); return; }
-  if (!window.confirm(`${record.title || record.timing || 'この食事'}の記録を削除しますか？\nスプレッドシート側も無効化します。`)) return;
+  // [fix] confirm は撤去（2026-07-12 テスト運用）: 直後の Undo トーストが誤操作を守るため二重確認は不要。
+  // 旧文言が退役済みスプレッドシートに言及していた点も解消。PWA でネイティブダイアログは操作ブロックの原因にもなる。
 
   const drafts = loadDrafts();
   const key = draftKey(record.date, record.timingKey);
@@ -2038,6 +2039,11 @@ async function saveMeal() {
   btn.disabled = false;
   renderItems();
   renderHome();
+  // 保存完了でシートを閉じてきょうへ戻す（2026-07-12 テスト運用の改善A。トーストが完了を伝える。
+  // 保存直後なので dirty 警告は不要 → showView 直呼び）
+  if (RECORD_VIEWS.includes(state.view)) {
+    setTimeout(() => showView(state.baseTab || 'home'), 400);
+  }
 }
 
 
@@ -4003,7 +4009,7 @@ function deleteBodyRecord(ts) {
   const recs = lsGet('body_recs_v1', []) || [];
   const target = recs.find((r) => String(r.ts) === String(ts));
   if (!target) { showToast('削除する記録がありません'); return; }
-  if (!window.confirm('この体組成記録をローカルから削除しますか？\nスプレッドシート側の手動記録は、必要なら設定→ダッシュボードから手で消してください。')) return;
+  // [fix] confirm は撤去（2026-07-12）: Undo トーストで復元可能なため（食事削除と同方針・旧GAS文言も解消）
   lsSet('body_recs_v1', recs.filter((r) => String(r.ts) !== String(ts)));
   renderBodyView();
   renderHome();
@@ -4038,6 +4044,10 @@ async function saveBody() {
   $('#bodyMemo').value = '';
   renderBodyView();
   renderHome();
+  // 保存完了でシートを閉じる（改善A。筋トレは複数種目を連続入力するため閉じない）
+  if (RECORD_VIEWS.includes(state.view)) {
+    setTimeout(() => showView(state.baseTab || 'home'), 400);
+  }
 }
 
 // ================================================================
