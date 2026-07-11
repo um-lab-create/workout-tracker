@@ -430,6 +430,41 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   animation: sheetUp .22s ease;
 }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+/* ナビ骨格（SPEC-019 Phase B）: 3タブ + 中央「＋記録」 */
+.tabbar-v2 { grid-template-columns: 1fr 88px 1fr; align-items: end; }
+.record-fab {
+  width: 58px; height: 58px; margin: -22px auto 2px; border: none; border-radius: 29px;
+  background: var(--accent, #ff8a2a); color: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 18px rgba(255, 138, 42, .45), 0 2px 4px rgba(0,0,0,.12);
+}
+.record-fab svg { width: 26px; height: 26px; }
+.record-fab:active { transform: scale(.94); }
+/* 記録ビュー = フルシート（きょう/分析の上に重なる。topbarは見えたまま） */
+#recordScrim { position: fixed; inset: 0; z-index: 39; background: rgba(58, 53, 45, .35); display: none; }
+#recordScrim.show { display: block; }
+.view.record-view.active {
+  position: fixed; top: 56px; bottom: 0; left: 0; right: 0; z-index: 40;
+  margin: 0 auto; max-width: 560px; width: 100%;
+  background: var(--bg); border-radius: 22px 22px 0 0;
+  box-shadow: 0 -10px 44px rgba(0, 0, 0, .22);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 0 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 96px);
+  animation: sheetUp .26s cubic-bezier(.2,.8,.3,1);
+}
+.record-head {
+  position: sticky; top: 0; z-index: 5; background: var(--bg);
+  display: flex; align-items: center; gap: 6px; padding: 10px 0 4px; margin: 0 -2px;
+}
+.record-head .rh-close { min-width: 60px; min-height: 44px; border: none; background: transparent; color: var(--accent, #ff8a2a); font-size: 14px; font-weight: 800; text-align: left; }
+.record-head .rh-title { flex: 1; text-align: center; font-size: 14.5px; font-weight: 900; }
+.record-head .rh-spacer { min-width: 60px; }
+.record-head .rh-grip-row { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: center; padding: 3px 0; }
+.record-head .rh-grip-row .grip { width: 40px; height: 5px; border-radius: 3px; background: #e2d7c2; }
+#mealFooter { z-index: 45; }
+/* 分析タブのセグメント */
+.seg-control { display: flex; gap: 6px; background: var(--glass, rgba(0,0,0,.05)); border-radius: 14px; padding: 4px; margin: 4px 0 12px; }
+.seg-control button { flex: 1; min-height: 40px; border: none; border-radius: 11px; background: transparent; font-size: 13px; font-weight: 800; color: var(--muted, #8a8378); }
+.seg-control button.on { background: var(--panel, #fff); color: var(--ink, #1b1d1f); box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,.06)); }
 /* シート共通規約（SPEC-019 Phase A） */
 .modal { position: relative; animation-duration: .26s; animation-timing-function: cubic-bezier(.2,.8,.3,1); }
 .sheet-x {
@@ -754,6 +789,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 
   <!-- ============ 栄養分析ビュー（SPEC-013・旧day.htmlの移植） ============ -->
   <section class="view" id="view-nutrition">
+    <div class="seg-control" id="ntSeg">
+      <button data-ntseg="daily" class="on">きょうの栄養</button>
+      <button data-ntseg="weekly">週次</button>
+    </div>
+    <div id="ntDaily">
     <div class="card nt-judge" id="ntJudge"></div>
     <div class="section-label">栄養ランキング（不足・多すぎ・充足）</div>
     <div class="nt-ranking" id="ntRanking"></div>
@@ -762,33 +802,30 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="section-label">食品別の寄与（タップで詳細）</div>
     <div id="ntFoods"></div>
     <div class="sync-note">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
+    </div>
+    <div id="ntWeekly" style="display:none">
+      <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
+      <div id="weeklyList"></div>
+    </div>
   </section>
 
 </main>
 
 <!-- ============ タブバー ============ -->
-<nav class="tabbar">
+<nav class="tabbar tabbar-v2">
   <button class="tab-btn" data-view="home">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10.5 9-7.5 9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
-    ホーム
+    きょう
   </button>
-  <button class="tab-btn" data-view="meal">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V3"/><path d="M6 12v9"/><path d="M6 3v4"/><path d="M19 3c-2.2 0-4 2.2-4 5v5h4v8"/></svg>
-    食事
+  <button class="record-fab" id="recordFab" aria-label="記録する">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
   </button>
   <button class="tab-btn" data-view="nutrition">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><circle cx="12" cy="14" r="6"/></svg>
-    栄養
-  </button>
-  <button class="tab-btn" data-view="workout">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M3 9v6"/><path d="M21 9v6"/><path d="M6.5 12h11"/></svg>
-    運動
-  </button>
-  <button class="tab-btn" data-view="body">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 13.5c1-1.2 1.5-2.5 1.5-4A5.5 5.5 0 0 0 12 6a5.5 5.5 0 0 0-9 3.5c0 1.5.5 2.8 1.5 4L12 21z"/></svg>
-    からだ
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/></svg>
+    分析
   </button>
 </nav>
+<div id="recordScrim"></div>
 
 <div id="toast"></div>
 
@@ -1060,12 +1097,16 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="sync-note">「隠す」は検索から消すだけで、過去の記録はそのまま残ります。</div>
   </div>
 </div>
-<div class="modal-back" id="weeklyBack">
+<!-- 記録メニュー（中央＋記録から。SPEC-019 Phase B） -->
+<div class="modal-back" id="recordMenuBack">
   <div class="modal">
     <div class="close-row"><div class="grip"></div></div>
-    <h3>週次レビュー</h3>
-    <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
-    <div id="weeklyList"></div>
+    <h3>記録する</h3>
+    <button class="kind-btn" data-record="meal">食事<small>朝・昼・夜・間食の記録</small></button>
+    <button class="kind-btn" data-record="repeat" id="repeatMealBtn">前回と同じ食事<small id="repeatMealHint">直近の記録を今日に入れる</small></button>
+    <button class="kind-btn" data-record="workout">筋トレ<small>種目・重量・回数</small></button>
+    <button class="kind-btn" data-record="body">からだ<small>体重・体脂肪率・調子</small></button>
+    <button class="kind-btn" data-record="water" id="recordWaterBtn" style="display:none">水分<small>飲んだ量をワンタップ</small></button>
   </div>
 </div>
 
@@ -1242,6 +1283,7 @@ const state = {
   diningOut: { enabled: false, restaurantName: '', googleMapUrl: '', diningText: '' },
   workoutDrafts: lsGet('wt:draftQueue:v1', []),
   lastActiveToday: todayStr(),
+  baseTab: 'home',
   mealDirtyWarned: {}
 };
 
@@ -3401,6 +3443,8 @@ function renderSyncStatus() {
   if (!$('#homeSyncVal')) return;
   $('#homeSyncVal').textContent = `${pending}件`;
   $('#homeSyncSub').textContent = pending ? '未送信/下書きあり' : '待機なし';
+  // 未送信ゼロの時はカード自体を隠す（平常時の情報ノイズを消す。SPEC-019 §6）
+  if ($('#homeSyncCard')) $('#homeSyncCard').style.display = pending ? '' : 'none';
 }
 async function retryPending() {
   await flushSbQueueAndRender();
@@ -4360,18 +4404,30 @@ function initSheetBehaviors() {
 
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
+  ['unitBack', 'qtyBack', 'settingsBack', 'recordMenuBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('show');
   });
 }
+// SPEC-019 Phase B: タブは「きょう(home)/分析(nutrition)」の2面。
+// 食事・筋トレ・からだは「記録ビュー」= タブの上に重なるフルシートとして開く。
+const RECORD_VIEWS = ['meal', 'workout', 'body'];
 function showView(name) {
   const previous = state.view;
   if (previous === 'meal' && name !== 'meal') warnMealDirtyOnce();
   closeAllSheets();
   state.view = name;
-  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
-  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  const isRecord = RECORD_VIEWS.includes(name);
+  if (!isRecord) state.baseTab = name;
+  const baseTab = state.baseTab || 'home';
+  document.querySelectorAll('.view').forEach((v) => {
+    const vn = v.id.replace('view-', '');
+    if (RECORD_VIEWS.includes(vn)) v.classList.toggle('active', isRecord && vn === name);
+    else v.classList.toggle('active', vn === baseTab);
+  });
+  const scrim = $('#recordScrim');
+  if (scrim) scrim.classList.toggle('show', isRecord);
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === baseTab));
   $('#mealFooter').style.display = name === 'meal' ? '' : 'none';
   if (name === 'home') renderHome();
   if (name === 'meal') {
@@ -4381,8 +4437,89 @@ function showView(name) {
   }
   if (name === 'workout') { state.exoValues = loadExoValues(exoById(state.exoId)); renderExoGrid(); renderExoCard(); renderWorkoutToday(); }
   if (name === 'body') renderBodyView();
-  if (name === 'nutrition') renderNutrition();
-  window.scrollTo(0, 0);
+  if (name === 'nutrition') { if (ntSegment === 'weekly') loadWeeklyInline(); else renderNutrition(); }
+  if (isRecord) {
+    const el = document.getElementById(`view-${name}`);
+    if (el) el.scrollTop = 0;
+  } else {
+    window.scrollTo(0, 0);
+  }
+}
+
+/** 記録ビュー（食事/筋トレ/からだ）を閉じて元のタブへ戻る。 */
+function closeRecordView() {
+  if (!RECORD_VIEWS.includes(state.view)) return;
+  if (state.view === 'meal') warnMealDirtyOnce();
+  showView(state.baseTab || 'home');
+}
+
+/** 記録ビューにシートヘッダー（グラバー・タイトル・閉じる）を注入し、スワイプdismissを付ける。 */
+function initRecordViews() {
+  const titles = { meal: '食事を記録', workout: '筋トレを記録', body: 'からだを記録' };
+  RECORD_VIEWS.forEach((name) => {
+    const view = document.getElementById(`view-${name}`);
+    if (!view || view.querySelector('.record-head')) return;
+    view.classList.add('record-view');
+    const head = document.createElement('div');
+    head.className = 'record-head';
+    head.innerHTML = `<div class="rh-grip-row"><div class="grip"></div></div>
+      <button type="button" class="rh-close">閉じる</button>
+      <span class="rh-title">${titles[name]}</span><span class="rh-spacer"></span>`;
+    head.querySelector('.rh-close').addEventListener('click', closeRecordView);
+    let startY = null, delta = 0;
+    head.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; delta = 0; }, { passive: true });
+    head.addEventListener('touchmove', (e) => {
+      if (startY == null) return;
+      delta = Math.max(0, e.touches[0].clientY - startY);
+      view.style.transform = `translateY(${delta}px)`;
+    }, { passive: true });
+    head.addEventListener('touchend', () => {
+      view.style.transform = '';
+      const shouldClose = delta > 80;
+      startY = null; delta = 0;
+      if (shouldClose) closeRecordView();
+    });
+    view.insertBefore(head, view.firstChild);
+  });
+  const scrim = $('#recordScrim');
+  if (scrim) scrim.addEventListener('click', closeRecordView);
+}
+
+// ---- 記録メニュー（中央＋記録） ----
+function latestRepeatableMeal() {
+  return getRecords()
+    .filter((r) => r && r.items && r.items.length)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null;
+}
+function openRecordMenu() {
+  const last = latestRepeatableMeal();
+  const hint = $('#repeatMealHint');
+  const btn = $('#repeatMealBtn');
+  if (last) {
+    btn.style.display = '';
+    hint.textContent = `${fmtDateLabel(last.date)} の${last.title || last.timing}（${fmtNum(last.kcal || 0)}kcal・${last.items.length}品）を今日に`;
+  } else {
+    btn.style.display = 'none';
+  }
+  $('#recordWaterBtn').style.display = showHydration() ? '' : 'none';
+  $('#recordMenuBack').classList.add('show');
+}
+function repeatLastMeal() {
+  const last = latestRepeatableMeal();
+  if (!last) { showToast('繰り返せる食事の記録がまだありません'); return; }
+  setDate(todayStr());
+  state.timing = last.timingKey;
+  loadMealFor(state.date, state.timing);
+  if (state.editingRecordId) {
+    showView('meal');
+    showToast(`今日の${last.title || last.timing}は記録済みのため、編集画面を開きました`);
+    return;
+  }
+  state.items = restoreMealItems(last.items, last.structuredItems);
+  showView('meal');
+  renderItems();
+  persistDraft();
+  showToast(`${fmtDateLabel(last.date)}の内容を入れました。確認して「記録する」`);
 }
 
 function setDate(dateStr) {
@@ -4644,8 +4781,16 @@ function renderWeeklyReview(rows) {
     </div>`;
   }).join('');
 }
-async function openWeeklyReview() {
-  $('#weeklyBack').classList.add('show');
+let ntSegment = 'daily';
+function setNtSegment(seg) {
+  ntSegment = seg;
+  document.querySelectorAll('#ntSeg button').forEach((b) => b.classList.toggle('on', b.dataset.ntseg === seg));
+  $('#ntDaily').style.display = seg === 'daily' ? '' : 'none';
+  $('#ntWeekly').style.display = seg === 'weekly' ? '' : 'none';
+  if (seg === 'weekly') loadWeeklyInline();
+  else renderNutrition();
+}
+async function loadWeeklyInline() {
   const list = $('#weeklyList');
   list.innerHTML = '<div class="empty-note">読み込み中…</div>';
   try {
@@ -4853,8 +4998,26 @@ $('#syncServerBtn').addEventListener('click', async () => {
 $('#settingsBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#settingsBack').classList.remove('show'); });
 $('#unitBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#unitBack').classList.remove('show'); });
 $('#qtyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#qtyBack').classList.remove('show'); });
-$('#weeklyBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#weeklyBack').classList.remove('show'); });
-$('#weeklyReviewBtn').addEventListener('click', openWeeklyReview);
+$('#weeklyReviewBtn').addEventListener('click', () => {
+  $('#settingsBack').classList.remove('show');
+  showView('nutrition');
+  setNtSegment('weekly');
+});
+$('#ntSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ntseg]');
+  if (b) setNtSegment(b.dataset.ntseg);
+});
+$('#recordFab').addEventListener('click', openRecordMenu);
+$('#recordMenuBack').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) { $('#recordMenuBack').classList.remove('show'); return; }
+  const b = e.target.closest('[data-record]');
+  if (!b) return;
+  $('#recordMenuBack').classList.remove('show');
+  const kind = b.dataset.record;
+  if (kind === 'repeat') { repeatLastMeal(); return; }
+  if (kind === 'water') { showView('meal'); setTimeout(() => { const el = document.getElementById('hydrationCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }
+  showView(kind);
+});
 $('#eufyImportBtn').addEventListener('click', () => $('#eufyCsvInput').click());
 $('#eufyCsvInput').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
@@ -5199,6 +5362,7 @@ buildCatalog();
 loadFoodUsage();
 registerSbOpHandlers();
 initSheetBehaviors();   // シート共通規約（×・スワイプdismiss・未保存確認。SPEC-019 Phase A）
+initRecordViews();      // 記録ビューのシート化（ヘッダー注入・スワイプdismiss。SPEC-019 Phase B）
 setDate(todayStr());
 loadMealFor(state.date, state.timing);
 showView('home');
