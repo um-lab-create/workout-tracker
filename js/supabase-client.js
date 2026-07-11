@@ -339,6 +339,17 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
   }
 
   /**
+   * 筋トレ履歴を新しい順に返す（種目別の成長グラフ用・読取のみ）。
+   */
+  async function fetchWorkoutHistory(limit = 400) {
+    await requireUserId();
+    return must(await client.from('workouts')
+      .select('performed_on, exercise, weight_kg, reps, sets, minutes, distance_km, intensity')
+      .order('performed_on', { ascending: false })
+      .limit(limit));
+  }
+
+  /**
    * foods の legacy_key → uuid 対応表を返す（新規保存の food_id 併記用）。
    * @returns {Promise<Object<string,string>>}
    */
@@ -631,6 +642,7 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     fetchMealDetails,
     fetchWeeklyReview,
     fetchRecentBodyComposition,
+    fetchWorkoutHistory,
     fetchFoodsKeyMap,
     pingRead,
     fetchFoodsCatalog,

@@ -809,6 +809,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="seg-control" id="ntSeg">
       <button data-ntseg="daily" class="on">きょうの栄養</button>
       <button data-ntseg="weekly">週次</button>
+      <button data-ntseg="workout">筋トレ</button>
     </div>
     <div id="ntDaily">
     <div class="card nt-judge" id="ntJudge"></div>
@@ -824,6 +825,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <div id="weeklyCharts"></div>
       <div id="weeklyList"></div>
       <div class="sync-note">週ごとの集計（月曜はじまり・直近8週）。数字はログから毎回計算されます。</div>
+    </div>
+    <div id="ntWorkout" style="display:none">
+      <div class="filter-chips" id="wtChartChips"></div>
+      <div id="wtChartArea"></div>
     </div>
   </section>
 
@@ -1131,6 +1136,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .wk-chip .k { display:block; font-size:9.5px; color:var(--muted,#999); white-space:nowrap; }
   .wk-chip .v { font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums; }
   .wk-chip .v small { font-size:9px; color:var(--muted,#999); font-weight:600; }
+  .wk-details summary { font-size:12px; font-weight:800; color:var(--muted,#888); padding:8px 4px; cursor:pointer; }
+  .wt-pb-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
+  .wt-session { display:flex; align-items:baseline; gap:8px; padding:6px 0; border-top:1px solid var(--line,rgba(0,0,0,.05)); font-size:12.5px; }
+  .wt-session .dt { color:var(--muted,#999); font-size:11px; flex:none; min-width:5em; }
+  .wt-session .ld { font-weight:800; flex:1; font-variant-numeric:tabular-nums; }
+  .wt-session .vol { color:var(--muted,#999); font-size:11px; font-variant-numeric:tabular-nums; }
+  .wt-session .pb { font-size:9.5px; font-weight:900; color:#fff; background:#ffb038; border-radius:6px; padding:1px 5px; }
 </style>
 
 <!-- 自分の食品（管理面 + 概算一覧・SPEC-014 §3-4/3-5） -->
@@ -4990,7 +5002,7 @@ function renderWeeklyReview(rows) {
   }
   renderWeeklyCharts(rows);
   const chip = (k, v, unit) => `<div class="wk-chip"><span class="k">${k}</span><span class="v">${v}${unit ? `<small> ${unit}</small>` : ''}</span></div>`;
-  list.innerHTML = rows.map((w) => {
+  const cards = rows.map((w) => {
     const diff = w.body_fat_diff_prev_week_pt;
     const diffBadge = diff == null ? ''
       : `<span class="bd ${Number(diff) < 0 ? 'down' : Number(diff) > 0 ? 'up' : ''}">${Number(diff) > 0 ? '+' : ''}${wkDec1(diff)}pt</span>`;
@@ -5017,14 +5029,170 @@ function renderWeeklyReview(rows) {
       ${notes.length ? `<div class="sync-note" style="margin-top:6px">${notes.join('<br>')}</div>` : ''}
     </div>`;
   }).join('');
+  // 明細は普段は畳んでおく（2026-07-13 マネージャー指示: グラフが主役・実績の羅列は格納）
+  list.innerHTML = `<details class="wk-details"><summary>週ごとの明細を見る（${rows.length}週）</summary>${cards}</details>`;
 }
+// ---- 筋トレ成長グラフ（2026-07-13 マネージャー依頼「何キロ上げたかの成長が見えるグラフ」） ----
+const WT_SERVER_CACHE_KEY = 'hs:workout-server-cache:v1';
+let wtServerFetchedAt = 0;
+let wtChartExercise = null;
+function workoutServerRows() {
+  const cache = lsGet(WT_SERVER_CACHE_KEY, null);
+  return (cache && Array.isArray(cache.rows)) ? cache.rows : [];
+}
+async function refreshWorkoutServerCache() {
+  if (Date.now() - wtServerFetchedAt < 60 * 1000) return;
+  try {
+    const sb = await window.HSSupabaseReady;
+    if (!(await sb.getSession())) return;
+    const rows = await sb.fetchWorkoutHistory(400);
+    lsSet(WT_SERVER_CACHE_KEY, { fetchedAt: new Date().toISOString(), rows: rows || [] });
+    wtServerFetchedAt = Date.now();
+    if (state.view === 'nutrition' && ntSegment === 'workout') renderWorkoutAnalysis();
+  } catch (e) { /* 未ログイン・オフラインはキャッシュ表示のまま */ }
+}
+/** サーバー履歴 + サーバーに未着のローカル履歴を統合して古い順で返す */
+function workoutAllRows() {
+  const key = (r) => `${r.date}|${r.exercise}|${r.weight}|${r.reps}|${r.sets}`;
+  const server = workoutServerRows().map((r) => ({
+    date: r.performed_on, exercise: r.exercise,
+    weight: r.weight_kg != null ? Number(r.weight_kg) : null,
+    reps: r.reps != null ? Number(r.reps) : null,
+    sets: r.sets != null ? Number(r.sets) : null,
+    minutes: r.minutes != null ? Number(r.minutes) : null,
+    distance: r.distance_km != null ? Number(r.distance_km) : null
+  }));
+  const seen = new Set(server.map(key));
+  const local = (lsGet(LS_KEYS.WT_HISTORY, []) || []).map((h) => ({
+    date: h['日付'], exercise: h['種目'],
+    weight: h['重量'] ? Number(h['重量']) : null,
+    reps: h['回数'] ? Number(h['回数']) : null,
+    sets: h['セット数'] ? Number(h['セット数']) : null,
+    minutes: h['時間'] ? Number(h['時間']) : null,
+    distance: h['距離'] ? Number(h['距離']) : null
+  })).filter((r) => r.date && r.exercise && !seen.has(key(r)));
+  return server.concat(local).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+/** 種目ごとの主要指標: 重量系=重量 / アブベンチ=回数 / トレッドミル=距離 */
+function wtMetricFor(exerciseName) {
+  const ex = EXERCISES.find((e) => e.name === exerciseName);
+  if (ex && ex.fields.includes('weight')) {
+    return { key: 'weight', unit: 'kg', dec: 1, volLabel: '総ボリューム', vol: (r) => (r.weight || 0) * (r.reps || 0) * (r.sets || 0), volUnit: 'kg' };
+  }
+  if (ex && ex.id === 'run') {
+    return { key: 'distance', unit: 'km', dec: 1, volLabel: '時間', vol: (r) => r.minutes || 0, volUnit: '分' };
+  }
+  return { key: 'reps', unit: '回', dec: 0, volLabel: '総回数', vol: (r) => (r.reps || 0) * (r.sets || 0), volUnit: '回' };
+}
+function wtFmt(v, dec) {
+  const n = Number(v) || 0;
+  return dec ? String(Math.round(n * 10) / 10).replace(/\.0$/, '') : String(Math.round(n));
+}
+function renderWorkoutAnalysis() {
+  refreshWorkoutServerCache();
+  const chips = $('#wtChartChips');
+  const area = $('#wtChartArea');
+  if (!chips || !area) return;
+  const all = workoutAllRows();
+  const counts = {};
+  all.forEach((r) => { counts[r.exercise] = (counts[r.exercise] || 0) + 1; });
+  const avail = EXERCISES.filter((e) => counts[e.name]);
+  if (!avail.length) {
+    chips.innerHTML = '';
+    area.innerHTML = '<div class="empty-note">まだ筋トレ記録がありません</div>';
+    return;
+  }
+  if (!wtChartExercise || !counts[wtChartExercise]) wtChartExercise = avail[0].name;
+  chips.innerHTML = avail.map((e) =>
+    `<button data-wtex="${escapeHtml(e.name)}" class="${e.name === wtChartExercise ? 'on' : ''}" type="button">${e.kanji} ${e.short}</button>`).join('');
+
+  const cfg = wtMetricFor(wtChartExercise);
+  const ex = EXERCISES.find((e) => e.name === wtChartExercise) || { color: 'var(--accent,#ff8a2a)' };
+  // 日別セッションへ集約（同日複数行は主要指標=最大・ボリューム=合計）
+  const byDate = {};
+  all.filter((r) => r.exercise === wtChartExercise).forEach((r) => {
+    const d = byDate[r.date] || (byDate[r.date] = { date: r.date, main: 0, vol: 0, reps: null, sets: null });
+    d.main = Math.max(d.main, Number(r[cfg.key]) || 0);
+    d.vol += cfg.vol(r);
+    if (r.reps != null) d.reps = r.reps;
+    if (r.sets != null) d.sets = r.sets;
+  });
+  const sessions = Object.values(byDate).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const recent = sessions.slice(-15);
+
+  // グラフ: 棒=ボリューム / 折れ線+数値ラベル=主要指標（重量など）
+  const W = 320, H = 132, padT = 20, padB = 18, padL = 18, padR = 18;
+  const n = recent.length;
+  const xAt = (i) => (n === 1 ? W / 2 : padL + (i / (n - 1)) * (W - padL - padR));
+  let chartSvg = '';
+  if (n >= 1) {
+    const mains = recent.map((s) => s.main);
+    const lo = Math.min(...mains), hi = Math.max(...mains);
+    const pad = Math.max((hi - lo) * 0.25, hi * 0.04, 0.5);
+    const yMain = (v) => padT + (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad))) * (H - padT - padB);
+    const volMax = Math.max(...recent.map((s) => s.vol), 1) * 1.2;
+    const barW = Math.min(18, ((W - padL - padR) / Math.max(n, 1)) * 0.45);
+    const bars = recent.map((s, i) => {
+      const h = (s.vol / volMax) * (H - padT - padB);
+      return `<rect x="${(xAt(i) - barW / 2).toFixed(1)}" y="${(H - padB - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="rgba(125,95,60,.14)"/>`;
+    }).join('');
+    const pts = recent.map((s, i) => [xAt(i), yMain(s.main)]);
+    const lineEl = n >= 2
+      ? `<polyline points="${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="${ex.color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
+      : '';
+    const dots = pts.map((p, i) =>
+      `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.8" fill="${ex.color}"/>` +
+      `<text x="${p[0].toFixed(1)}" y="${(p[1] - 6).toFixed(1)}" font-size="8.5" font-weight="700" fill="rgba(0,0,0,.6)" text-anchor="middle">${wtFmt(recent[i].main, cfg.dec)}</text>`).join('');
+    const step = Math.max(1, Math.ceil(n / 6));
+    const labels = recent.map((s, i) => (i % step === 0 || i === n - 1)
+      ? `<text x="${xAt(i).toFixed(1)}" y="${H - 4}" font-size="8.5" fill="rgba(0,0,0,.45)" text-anchor="middle">${wkXLabel(s.date)}</text>` : '').join('');
+    chartSvg = `<svg class="wk-chart-svg" style="height:132px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${lineEl}${dots}${labels}</svg>`;
+  }
+
+  const pbMain = Math.max(...sessions.map((s) => s.main));
+  const pbSession = sessions.find((s) => s.main === pbMain);  // 最初に達成した回が記録樹立
+  const last = sessions[sessions.length - 1];
+  const prev = sessions[sessions.length - 2];
+  const diff = prev ? last.main - prev.main : 0;
+  const chip = (k, v, unit) => `<div class="wk-chip"><span class="k">${k}</span><span class="v">${v}${unit ? `<small> ${unit}</small>` : ''}</span></div>`;
+  const sessionLine = (s) => {
+    const bits = [`${wtFmt(s.main, cfg.dec)}${cfg.unit}`];
+    if (cfg.key === 'weight' && s.reps) bits.push(`${s.reps}回`);
+    if (cfg.key === 'weight' && s.sets) bits.push(`${s.sets}set`);
+    if (cfg.key === 'reps' && s.sets) bits.push(`${s.sets}set`);
+    return bits.join(' × ');
+  };
+  area.innerHTML = `
+    <div class="wk-chart-card">
+      <div class="tt">${escapeHtml(wtChartExercise)} の成長（直近${n}回）</div>
+      <div class="legend"><span><i style="background:${ex.color}"></i>${cfg.key === 'weight' ? '重量' : cfg.key === 'distance' ? '距離' : '回数'}</span><span><i style="background:rgba(125,95,60,.3)"></i>${cfg.volLabel}</span></div>
+      ${chartSvg || '<div class="empty-note">この種目の記録がまだありません</div>'}
+      <div class="wt-pb-row">
+        ${chip('自己ベスト', `${wtFmt(pbMain, cfg.dec)}`, `${cfg.unit}${pbSession ? `・${wkXLabel(pbSession.date)}` : ''}`)}
+        ${chip('前回', sessionLine(last), '')}
+        ${chip('前回比', prev ? `${diff > 0 ? '+' : ''}${wtFmt(diff, cfg.dec)}` : '–', cfg.unit)}
+      </div>
+    </div>
+    <div class="nt-rank-col">
+      <div class="nt-kicker">直近のセッション</div>
+      ${sessions.slice(-6).reverse().map((s) => `
+        <div class="wt-session"><span class="dt">${fmtDateLabel(s.date)}</span>
+          <span class="ld">${sessionLine(s)}</span>
+          ${pbSession && s.date === pbSession.date ? '<span class="pb">自己ベスト</span>' : ''}
+          <span class="vol">${cfg.volLabel} ${wtFmt(s.vol, 0)}${cfg.volUnit}</span></div>`).join('')}
+    </div>
+    <div class="sync-note">折れ線=${cfg.key === 'weight' ? 'その日の最大重量' : cfg.key === 'distance' ? '距離' : '回数'} / 薄い棒=${cfg.volLabel}。数字は各回の値です。</div>`;
+}
+
 let ntSegment = 'daily';
 function setNtSegment(seg) {
   ntSegment = seg;
   document.querySelectorAll('#ntSeg button').forEach((b) => b.classList.toggle('on', b.dataset.ntseg === seg));
   $('#ntDaily').style.display = seg === 'daily' ? '' : 'none';
   $('#ntWeekly').style.display = seg === 'weekly' ? '' : 'none';
+  $('#ntWorkout').style.display = seg === 'workout' ? '' : 'none';
   if (seg === 'weekly') loadWeeklyInline();
+  else if (seg === 'workout') renderWorkoutAnalysis();
   else renderNutrition();
 }
 async function loadWeeklyInline() {
@@ -5243,6 +5411,12 @@ $('#weeklyReviewBtn').addEventListener('click', () => {
 $('#ntSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-ntseg]');
   if (b) setNtSegment(b.dataset.ntseg);
+});
+$('#wtChartChips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wtex]');
+  if (!b) return;
+  wtChartExercise = b.dataset.wtex;
+  renderWorkoutAnalysis();
 });
 $('#recordFab').addEventListener('click', openRecordMenu);
 $('#recordMenuBack').addEventListener('click', (e) => {
