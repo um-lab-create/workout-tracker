@@ -162,6 +162,25 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .ic.wk { background: #eef4ff; color: var(--blue); }
 .ic.bd { background: var(--green-soft); color: var(--green); }
 
+/* ---------- Phase D: 次の一手カード・ミニトレンド ---------- */
+.next-move { margin-top: 10px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; padding: 11px 14px; }
+.next-move:active { transform: scale(.98); }
+.next-move .nm-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.next-move .nm-kicker { font-size: 9.5px; font-weight: 900; color: var(--accent-deep, #b35c12); letter-spacing: .08em; }
+.next-move .nm-title { font-size: 14px; font-weight: 800; line-height: 1.35; }
+.next-move .nm-sub { font-size: 11px; color: var(--muted); line-height: 1.45; }
+.next-move .nm-cta { flex: none; border-radius: 999px; padding: 6px 12px; background: var(--accent-soft, #ffe9d6); color: var(--accent-deep, #b35c12); font-size: 11px; font-weight: 900; white-space: nowrap; }
+.next-move.good .nm-kicker, .next-move.good .nm-cta { color: var(--green); }
+.next-move.good .nm-cta { background: var(--green-soft); }
+.next-move.warn .nm-kicker, .next-move.warn .nm-cta { color: #c98a00; }
+.next-move.warn .nm-cta { background: #fff3d6; }
+.ht-spark { width: 100%; height: 26px; display: block; margin-top: 2px; }
+.week-stats .ws-line { display: flex; gap: 6px; margin-top: 8px; }
+.week-stats .wsc { flex: 1; text-align: center; font-size: 10px; font-weight: 800; color: var(--muted); background: rgba(125,95,60,.06); border-radius: 8px; padding: 5px 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.week-stats .wsc b { color: var(--ink, #333); }
+.week-stats .wsc.achieved { color: var(--green); background: var(--green-soft); }
+.week-stats .wsc.achieved b { color: var(--green); }
+
 /* ---------- SPEC-001 統合: 週間・コーチ・数量シート・体重推移 ---------- */
 .coach-hint {
   margin-top: 8px; font-size: 11px; color: var(--accent-deep); font-weight: 700;
@@ -634,11 +653,15 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
         </div>
       </div>
     </div>
-    <div class="coach-hint" id="coachHint"></div>
-
-    <div class="train-row">
-      <button class="train-chip" id="trainToggle"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
-    </div>
+    <!-- 次の一手（Phase D-1: コーチ一言+筋トレ日ボタンを統合した行動カード） -->
+    <button class="card next-move" id="nextMoveCard" type="button">
+      <span class="nm-body">
+        <span class="nm-kicker">次の一手</span>
+        <span class="nm-title" id="nmTitle">–</span>
+        <span class="nm-sub" id="nmSub"></span>
+      </span>
+      <span class="nm-cta" id="nmCta">→</span>
+    </button>
 
     <div class="status-grid">
       <button class="status-card" id="homeWaterCard">
@@ -649,16 +672,32 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       </button>
     </div>
 
-    <div class="card week-card">
+    <div class="section-label">食事をつける</div>
+    <div class="meal-grid" id="homeMealGrid"></div>
+
+    <!-- ミニトレンド（Phase D-2: 成長をホームで見せる。データは既存キャッシュ再利用） -->
+    <div class="row2" id="homeTrendRow" style="display:none">
+      <button class="card mini-card" id="homeWeightTrend">
+        <span class="head"><span class="ic bd">体</span>体重</span>
+        <span class="big" id="htWeightBig">–</span>
+        <span class="sub" id="htWeightSub"></span>
+        <svg class="ht-spark" id="htWeightSpark" viewBox="0 0 120 30" preserveAspectRatio="none"></svg>
+      </button>
+      <button class="card mini-card" id="homeWtPr">
+        <span class="head"><span class="ic wk">運</span>筋トレ</span>
+        <span class="big" id="htPrBig">–</span>
+        <span class="sub" id="htPrSub"></span>
+        <svg class="ht-spark" id="htPrSpark" viewBox="0 0 120 30" preserveAspectRatio="none"></svg>
+      </button>
+    </div>
+
+    <div class="card week-card" id="weekCard">
       <div class="week-days" id="weekDays"></div>
       <div class="week-stats" id="weekStats"></div>
     </div>
 
-    <div class="section-label">食事をつける</div>
-    <div class="meal-grid" id="homeMealGrid"></div>
-
-    <div class="section-label">きょうの記録</div>
-    <div class="row2">
+    <div class="section-label" id="homeTodayLabel">きょうの記録</div>
+    <div class="row2" id="homeTodayRow">
       <button class="card mini-card" id="homeWorkoutCard">
         <span class="head"><span class="ic wk">運</span>運動</span>
         <span class="big" id="homeWorkoutBig">–</span>
@@ -738,6 +777,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 
   <!-- ============ 運動 ============ -->
   <section class="view" id="view-workout">
+    <!-- 筋トレ日トグル（Phase D-1 でホームから移設。炭水化物+Cの目標調整はこのまま） -->
+    <div class="train-row">
+      <button class="train-chip" id="trainToggle" type="button"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
+    </div>
     <div class="exo-grid" id="exoGrid"></div>
     <div class="card" style="margin-top:10px">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px" id="exoTitle"></div>
@@ -3647,10 +3690,12 @@ function renderWeekCard() {
   const strengthCount = week.filter((d) => strength[d]).length;
   const pfcDays = week.filter((d) => d <= today && isPfcAchieved(d)).length;
   const streak = mealStreak();
-  $('#weekStats').innerHTML = `
-    <div class="ws ${strengthCount >= 3 ? 'achieved' : ''}"><b>${strengthCount}<span class="g">/3</span></b><span>筋トレ日</span></div>
-    <div class="ws ${pfcDays >= 5 ? 'achieved' : ''}"><b>${pfcDays}<span class="g">/5日</span></b><span>PFC達成</span></div>
-    <div class="ws ${streak >= 7 ? 'achieved' : ''}"><b>${streak}<span class="g">日</span></b><span>連続記録</span></div>`;
+  // Phase D-3: 3ボックス → 1行チップに圧縮（詳細は分析タブ・週次へ。カードタップで遷移）
+  $('#weekStats').innerHTML = `<div class="ws-line">
+    <span class="wsc ${strengthCount >= 3 ? 'achieved' : ''}">筋トレ <b>${strengthCount}</b>/3</span>
+    <span class="wsc ${pfcDays >= 5 ? 'achieved' : ''}">PFC <b>${pfcDays}</b>/5日</span>
+    <span class="wsc ${streak >= 7 ? 'achieved' : ''}">連続 <b>${streak}</b>日</span>
+  </div>`;
 }
 
 function bestProteinSuggestion(deficit) {
@@ -3705,6 +3750,141 @@ function renderCoachHint(totals, targets) {
     el.textContent = text;
     el.className = `coach-hint ${cls}`;
   }
+}
+
+// ---- 次の一手カード（Phase D-1: 今いちばん価値ある行動を1枚だけ提示） ----
+function currentMealSlot() {
+  const h = new Date().getHours();
+  if (h >= 7 && h < 10) return 'morning';
+  if (h >= 11 && h < 14) return 'lunch';
+  if (h >= 18 && h < 21) return 'dinner';
+  return null;
+}
+/** 直近の筋トレ（重量系）から何日空いたか。記録なしは null */
+function daysSinceLastStrength() {
+  const dates = workoutAllRows()
+    .filter((r) => STRENGTH_NAMES.includes(r.exercise))
+    .map((r) => r.date);
+  if (!dates.length) return null;
+  const last = dates.sort().pop();
+  return Math.round((Date.parse(`${todayStr()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
+}
+/** 使用実績上位からたんぱく質の補完候補を選ぶ（013の暫定改善: 実際に食べている物だけ） */
+function proteinSuggestionFromUsage() {
+  const usage = loadFoodUsage();
+  let best = null;
+  Object.keys(usage).forEach((foodId) => {
+    const food = getFoodById(foodId);
+    if (!food) return;
+    const unit = getDefaultUnit(food);
+    const p = calcFoodPortion(food, unit.defaultQty || 1, unit.label);
+    if (p.p >= 10 && p.kcal > 0 && p.kcal <= 300) {
+      const score = usage[foodId].count * (p.p / p.kcal);
+      if (!best || score > best.score) best = { food, unit, p, score };
+    }
+  });
+  return best;
+}
+function renderNextMove(totals, targets, perTiming) {
+  const card = $('#nextMoveCard');
+  if (!card) return;
+  if (state.date !== todayStr()) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const remain = targets.energy - totals.energy;
+  const pRemain = targets.protein - totals.protein;
+  const fRatio = totals.fat / (targets.fat || 1);
+  let move = null;
+
+  const slot = currentMealSlot();
+  if (slot && perTiming[slot] && !perTiming[slot].recorded) {
+    move = { title: `${TIMINGS[slot].title}が未記録`, sub: '前回と同じなら数秒で入ります', cta: '記録する', action: `meal:${slot}`, cls: '' };
+  }
+  if (!move) {
+    const gap = daysSinceLastStrength();
+    if (gap != null && gap >= 3) {
+      const lastWt = workoutAllRows().filter((r) => STRENGTH_NAMES.includes(r.exercise) && r.weight).pop();
+      move = { title: `${gap}日空いた。今日は筋トレ日にしない？`,
+        sub: lastWt ? `前回: ${lastWt.exercise} ${lastWt.weight}kg` : '',
+        cta: '開く', action: 'workout', cls: '' };
+    }
+  }
+  if (!move && fRatio > 1.2) {
+    move = { title: `脂質が多め（${Math.round(totals.fat)} / ${Math.round(targets.fat)}g）`, sub: '残りの食事は脂質ひかえめに', cta: '分析を見る', action: 'nutrition', cls: 'warn' };
+  }
+  if (!move && pRemain >= 20 && remain > 100) {
+    const s = proteinSuggestionFromUsage();
+    move = { title: `たんぱく質 あと${Math.round(pRemain)}g`,
+      sub: s ? `候補: ${s.food.name} ${fmtQty(s.unit.defaultQty || 1)}${s.unit.label}で +${Math.round(s.p.p)}g` : '鶏むね・魚・豆腐系を優先',
+      cta: s ? '＋追加' : '記録する', action: s ? `add:${s.food.id}` : 'meal:snack', cls: '' };
+  }
+  if (!move && remain < -150) {
+    move = { title: `目標を${fmtNum(-remain)}kcalオーバー`, sub: '次の食事で調整すれば大丈夫', cta: '分析を見る', action: 'nutrition', cls: 'warn' };
+  }
+  if (!move && totals.energy <= 0) {
+    move = { title: 'まずは1食記録', sub: '前回と同じなら数秒で入ります', cta: '記録する', action: `meal:${slot || 'snack'}`, cls: '' };
+  }
+  if (!move) {
+    const streak = mealStreak();
+    move = { title: 'いいバランス。このまま締めればOK', sub: streak >= 2 ? `${streak}日連続で記録中` : '', cta: '週次を見る', action: 'weekly', cls: 'good' };
+  }
+  card.className = `card next-move ${move.cls}`;
+  card.dataset.nmAction = move.action;
+  $('#nmTitle').textContent = move.title;
+  $('#nmSub').textContent = move.sub;
+  $('#nmSub').style.display = move.sub ? '' : 'none';
+  $('#nmCta').textContent = move.cta;
+}
+
+// ---- ミニトレンド（Phase D-2: 体重と筋トレの成長をホームで見せる） ----
+function miniSpark(values, color) {
+  if (values.length < 2) return '';
+  const W = 120, H = 30;
+  const min = Math.min(...values), max = Math.max(...values);
+  const pad = Math.max((max - min) * 0.2, 0.1);
+  const lo = min - pad, hi = max + pad;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * (W - 6) + 3;
+    const y = H - 4 - ((v - lo) / (hi - lo)) * (H - 8);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+function renderHomeTrends() {
+  const row = $('#homeTrendRow');
+  if (!row) return;
+  let anyShown = false;
+  // 体重（サーバー体組成の直近14回）
+  const weights = bodyServerRows().filter((r) => Number(r.weight_kg) > 0).slice(0, 14).reverse();
+  if (weights.length >= 2) {
+    anyShown = true;
+    const vals = weights.map((r) => Number(r.weight_kg));
+    const latest = vals[vals.length - 1], prev = vals[vals.length - 2];
+    const diff = latest - prev;
+    $('#htWeightBig').textContent = `${latest.toFixed(1)} kg`;
+    $('#htWeightSub').textContent = `前回${diff === 0 ? '±0' : `${diff > 0 ? '+' : ''}${diff.toFixed(1)}`}・${fmtDateLabel(bodyRowJst(bodyServerRows()[0]).date)}`;
+    $('#htWeightSpark').innerHTML = miniSpark(vals, 'var(--green)');
+  }
+  // 筋トレ（直近にやった重量系種目の重量推移）
+  const strength = workoutAllRows().filter((r) => STRENGTH_NAMES.includes(r.exercise) && r.weight);
+  if (strength.length) {
+    const lastEx = strength[strength.length - 1].exercise;
+    const byDate = {};
+    strength.filter((r) => r.exercise === lastEx).forEach((r) => {
+      byDate[r.date] = Math.max(byDate[r.date] || 0, r.weight);
+    });
+    const sessions = Object.keys(byDate).sort().map((d) => byDate[d]).slice(-10);
+    if (sessions.length >= 1) {
+      anyShown = true;
+      const ex = EXERCISES.find((e) => e.name === lastEx) || { short: lastEx, color: 'var(--blue)' };
+      const latest = sessions[sessions.length - 1], prev = sessions[sessions.length - 2];
+      const diff = prev != null ? latest - prev : null;
+      $('#htPrBig').textContent = `${String(latest).replace(/\.0$/, '')} kg`;
+      $('#htPrSub').textContent = `${ex.short}${diff == null ? '' : `・前回${diff === 0 ? '±0' : `${diff > 0 ? '+' : ''}${String(Math.round(diff * 10) / 10).replace(/\.0$/, '')}`}`}`;
+      $('#htPrSpark').innerHTML = miniSpark(sessions, ex.color);
+      $('#homeWtPr').dataset.exercise = lastEx;
+    }
+  }
+  row.style.display = anyShown ? '' : 'none';
 }
 
 function addSuggestedFoodFromCoach(foodId) {
@@ -3775,8 +3955,9 @@ function renderHome() {
     ? `筋トレ日（炭水化物 +${(loadCarbCycle().carbDelta) || 0}g）`
     : '筋トレ日として記録する';
 
-  renderCoachHint(totals, targets);
+  renderNextMove(totals, targets, perTiming);
   renderWeekCard();
+  renderHomeTrends();
   renderHydration();
   renderSyncStatus();
 
@@ -3821,6 +4002,13 @@ function renderHome() {
     $('#homeBodyBig').textContent = '未記録';
     $('#homeBodySub').textContent = 'タップして記録';
   }
+
+  // Phase D-2: 今日の運動・からだが両方済みならこの段はトレンドに役割を譲って非表示
+  const bodyDoneToday = serverDate === todayStr() || (latest && String(latest.date) === todayStr());
+  const workoutDoneToday = Boolean(todayLogs.length || draftCount);
+  const hideToday = bodyDoneToday && workoutDoneToday && $('#homeTrendRow').style.display !== 'none';
+  $('#homeTodayRow').style.display = hideToday ? 'none' : '';
+  $('#homeTodayLabel').style.display = hideToday ? 'none' : '';
 }
 
 // ---------------- 運動ビュー（旧 workout.html と同一契約） ----------------
@@ -5500,9 +5688,28 @@ $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
 $('#homeBodyCard').addEventListener('click', () => showView('body'));
 $('#homeWaterCard').addEventListener('click', () => showView('meal'));
 $('#homeSyncCard').addEventListener('click', retryPending);
-$('#coachHint').addEventListener('click', (e) => {
-  const foodId = e.currentTarget.dataset.suggestFood;
-  if (foodId) addSuggestedFoodFromCoach(foodId);
+$('#nextMoveCard').addEventListener('click', (e) => {
+  const action = e.currentTarget.dataset.nmAction || '';
+  if (action.startsWith('meal:')) {
+    state.timing = action.slice(5);
+    loadMealFor(todayStr(), state.timing);
+    showView('meal');
+  } else if (action.startsWith('add:')) {
+    addSuggestedFoodFromCoach(action.slice(4));
+  } else if (action === 'workout') {
+    showView('workout');
+  } else if (action === 'nutrition') {
+    showView('nutrition'); setNtSegment('daily');
+  } else if (action === 'weekly') {
+    showView('nutrition'); setNtSegment('weekly');
+  }
+});
+$('#weekCard').addEventListener('click', () => { showView('nutrition'); setNtSegment('weekly'); });
+$('#homeWeightTrend').addEventListener('click', () => showView('body'));
+$('#homeWtPr').addEventListener('click', (e) => {
+  const ex = e.currentTarget.dataset.exercise;
+  if (ex) wtChartExercise = ex;
+  showView('nutrition'); setNtSegment('workout');
 });
 
 // 食事
