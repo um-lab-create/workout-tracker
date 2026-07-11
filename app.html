@@ -1543,6 +1543,12 @@ function foodCatalogIndex(foodId) {
   const idx = foodIndexMap[foodId];
   return idx === undefined ? 999999 : idx;
 }
+/** クエリのいずれかのトークンが、その食品の状態語（ゆで/冷凍/焼き等）に一致するか（SPEC-018）。 */
+function hakuteiVariantMatched(food, variants) {
+  const vt = (food.variantTokens || []).map((t) => normalizeForSearch(t));
+  if (!vt.length) return false;
+  return (variants || []).some((tokens) => tokens.some((t) => vt.some((v) => v.includes(t) || t.includes(v))));
+}
 function mergeDefaultPresets(stored) {
   const merged = {};
   TIMING_KEYS.forEach((tk) => {
@@ -1782,10 +1788,16 @@ function renderSearch() {
     const tokens = variants[0] || [];
     const nq = tokens.join('');
     // 八訂の大量公式行（hakutei-*）は2文字以上の入力から出す（1文字でのノイズ回避。SPEC-015）。
-    // ただし使用実績のあるものは常に出す。
-    const shortQuery = nq.length < 2;
+    // ただし使用実績のあるものは常に出す。判定はエイリアス展開後の最長バリアントで行う
+    //（「鮭」1文字でも→「さけ」2文字なので出る。SPEC-018）
+    const shortQuery = Math.max(...variants.map((v) => v.join('').length), 0) < 2;
     list = allFoods.filter((f) => {
-      if (shortQuery && String(f.id).startsWith('hakutei-') && !normalizeFoodUsageEntry(usage[f.id]).count) return false;
+      const isHakutei = String(f.id).startsWith('hakutei-');
+      const used = normalizeFoodUsageEntry(usage[f.id]).count;
+      if (shortQuery && isHakutei && !used) return false;
+      // 状態バリアントの集約（SPEC-018）: 非代表（ゆで/冷凍/焼き等）は、
+      // 使用実績があるか、クエリに状態語が含まれる時だけ出す
+      if (isHakutei && f.primaryVariant === false && !used && !hakuteiVariantMatched(f, variants)) return false;
       const hay = normalizeForSearch([f.name, f.brand, f.kana, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
       return variants.some((vt) => vt.every((t) => hay.includes(t)));
     }).sort((a, b) => {
@@ -1803,6 +1815,7 @@ function renderSearch() {
       const aHaku = String(a.id).startsWith('hakutei-') ? 1 : 0;
       const bHaku = String(b.id).startsWith('hakutei-') ? 1 : 0;
       if (aHaku !== bHaku) return aHaku - bHaku;
+      if (a.name.length !== b.name.length) return a.name.length - b.name.length;  // プレーン（短い名前）優先
       return foodCatalogIndex(a.id) - foodCatalogIndex(b.id);
     }).slice(0, 10);
     label = list.length ? '検索結果' : '見つかりません — そのまま下のボタンから追加できます';
@@ -2230,6 +2243,8 @@ function serverFoodToCatalog(row) {
     category: meta.category || '共通',
     entryType: meta.entryType || (row.kind === 'product' ? 'product' : row.kind === 'recipe' ? 'recipe' : 'food'),
     keywords: meta.keywords || (row.kana ? [row.kana] : []),
+    primaryVariant: meta.primary !== false,           // 八訂の状態バリアント集約（SPEC-018）
+    variantTokens: meta.variant_tokens || [],
     pendingReview: Boolean(row.pending_review),
     source: row.source || '',
     verified: Boolean(row.verified),
@@ -2729,6 +2744,7 @@ function renderRcSearch() {
   const variants = buildQueryVariants(q).map((v) => v.split(/\s+/).map(normalizeForSearch).filter(Boolean)).filter((v) => v.length);
   const hits = allFoods.filter((f) => {
     if (f.entryType === 'recipe') return false;
+    if (String(f.id).startsWith('hakutei-') && f.primaryVariant === false && !hakuteiVariantMatched(f, variants)) return false;
     const hay = normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
     return variants.some((vt) => vt.every((t) => hay.includes(t)));
   }).slice(0, 6);
