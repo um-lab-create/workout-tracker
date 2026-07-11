@@ -157,5 +157,24 @@ ok('AIパーサ: 不正入力はエラー', Boolean(bad.error));
 const noKcal = g.parseAiFoodResult('{"name":"Z","kcal":"不明"}');
 ok('AIパーサ: kcal非数値はエラー', Boolean(noKcal.error));
 
+// 11) 栄養分析（SPEC-013）: カタログ食品→栄養エントリ変換で micros が失われないこと
+const entry = vm.runInContext(`NUTRITION_DB.convertFoodToNutritionEntry(serverFoodToCatalog({
+  id: 'u9', legacy_key: 'hakutei-06267', name: 'ほうれんそう 葉 生', kind: 'ingredient', mode: 'per100g',
+  kcal_per_100g: 18, protein_g: 2.2, fat_g: 0.4, carb_g: 3.1, fiber_g: 2.8, salt_g: 0,
+  units: { g: 1 }, micros: { Fe: 2.0, K: 690, folate: 210, vitC: 35 }, meta: {} }))`, context);
+ok('栄養変換: 八訂microsが分析に届く', entry.per100g.Fe === 2 && entry.per100g.folate === 210 && entry.per100g.fiber === 2.8, JSON.stringify({Fe: entry.per100g.Fe, fiber: entry.per100g.fiber}));
+
+// 12) 栄養集計と判定（レコード投入→state→judgement）
+vm.runInContext(`
+  localStorage.setItem('meal_recs_v3', JSON.stringify([{
+    id: 'rec-t1', date: '2026-07-09', timingKey: 'lunch', timing: '昼', synced: true,
+    items: [{foodId: 'rice', qty: 1, unit: '膳'}],
+    structuredItems: [{ foodId: 'rice', foodName: '白米', qty: 1, unit: '膳', nutrients: { energy: 252, protein: 3.8, fat: 0.5, carb: 55.7 } }]
+  }]));
+`, context);
+const nt = vm.runInContext(`(() => { const s = buildNutritionState('2026-07-09'); const j = buildNtJudgement(s); return { meals: s.totals.meals, kcal: Math.round(s.nutrients.energy), K: Math.round(s.nutrients.K || 0), score: j.score, pri: j.priorities.length }; })()`, context);
+ok('栄養集計: 記録→state→判定', nt.meals === 1 && nt.kcal > 200 && nt.score > 0 && nt.pri > 0, JSON.stringify(nt));
+ok('栄養集計: microsが再構築で補完される', nt.K > 0, `(K=${nt.K}mg ※スナップショットはマクロのみ)`);
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

@@ -386,51 +386,60 @@
     return FOODS[id] || null;
   }
 
+  // [fix] SPEC-013: サーバーカタログ食品（八訂・レシピ・個人追加）は micros / perUnitNutrients /
+  // saltPer100g / fiberPer100g に全栄養素を持つ。従来はマクロ4種前後しか変換しておらず、
+  // 八訂食品の栄養分析が PFC のみになってしまうため、全キーをマージする。
+  function pickNutrientKeys(source) {
+    var out = {};
+    if (!source) return out;
+    NUTRIENT_KEYS.forEach(function (key) {
+      var v = Number(source[key]);
+      if (isFinite(v) && v) out[key] = v;
+    });
+    return out;
+  }
+
   function convertFoodToNutritionEntry(food) {
     if (!food) return null;
     if (FOODS[food.id]) return FOODS[food.id];
     if (food.mode === 'perUnit') {
-      var extra = food.nutrientsPerUnit || {};
+      var perUnit = {};
+      // 優先順: 旧extra < micros < perUnitNutrients（レシピの全栄養ベクトル）< macrosPerUnit（マクロの正）
+      Object.assign(perUnit,
+        pickNutrientKeys(food.nutrientsPerUnit),
+        pickNutrientKeys(food.micros),
+        pickNutrientKeys(food.perUnitNutrients));
+      perUnit.energy = (food.macrosPerUnit && food.macrosPerUnit.kcal) || perUnit.energy || 0;
+      perUnit.protein = (food.macrosPerUnit && food.macrosPerUnit.p) || perUnit.protein || 0;
+      perUnit.fat = (food.macrosPerUnit && food.macrosPerUnit.f) || perUnit.fat || 0;
+      perUnit.carb = (food.macrosPerUnit && food.macrosPerUnit.c) || perUnit.carb || 0;
       return definePerUnit({
         id: food.id,
         name: food.name,
         unitLabel: food.unitLabel || '個',
-        source: 'meal-local',
-        perUnit: {
-          energy: food.macrosPerUnit && food.macrosPerUnit.kcal || 0,
-          protein: food.macrosPerUnit && food.macrosPerUnit.p || 0,
-          fat: food.macrosPerUnit && food.macrosPerUnit.f || 0,
-          carb: food.macrosPerUnit && food.macrosPerUnit.c || 0,
-          saturatedFat: extra.saturatedFat || 0,
-          fiber: extra.fiber || 0,
-          salt: extra.salt || 0,
-          Na: extra.Na || 0,
-          K: extra.K || 0,
-          Ca: extra.Ca || 0,
-          Mg: extra.Mg || 0,
-          Fe: extra.Fe || 0,
-          vitA: extra.vitA || 0,
-          vitE: extra.vitE || 0,
-          vitK: extra.vitK || 0,
-          folate: extra.folate || 0
-        }
+        source: food.source || 'meal-local',
+        coverage: food.coverage,
+        perUnit: perUnit
       });
     }
     const units = {};
     (food.units || []).forEach(function (unit) {
       units[unit.label] = unit.grams;
     });
+    var per100g = pickNutrientKeys(food.micros);
+    per100g.energy = (food.macros && food.macros.kcal) || 0;
+    per100g.protein = (food.macros && food.macros.p) || 0;
+    per100g.fat = (food.macros && food.macros.f) || 0;
+    per100g.carb = (food.macros && food.macros.c) || 0;
+    if (food.saltPer100g != null) per100g.salt = Number(food.saltPer100g) || 0;
+    if (food.fiberPer100g != null) per100g.fiber = Number(food.fiberPer100g) || 0;
     return definePer100g({
       id: food.id,
       name: food.name,
-      source: 'meal-local',
+      source: food.source || 'meal-local',
+      coverage: food.coverage,
       units: units,
-      per100g: {
-        energy: food.macros && food.macros.kcal || 0,
-        protein: food.macros && food.macros.p || 0,
-        fat: food.macros && food.macros.f || 0,
-        carb: food.macros && food.macros.c || 0
-      }
+      per100g: per100g
     });
   }
 

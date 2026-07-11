@@ -734,6 +734,18 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     </div>
   </section>
 
+  <!-- ============ 栄養分析ビュー（SPEC-013・旧day.htmlの移植） ============ -->
+  <section class="view" id="view-nutrition">
+    <div class="card nt-judge" id="ntJudge"></div>
+    <div class="section-label">栄養ランキング（不足・多すぎ・充足）</div>
+    <div class="nt-ranking" id="ntRanking"></div>
+    <div class="section-label">35栄養素の過不足</div>
+    <div class="nt-grid" id="ntGrid"></div>
+    <div class="section-label">食品別の寄与（タップで詳細）</div>
+    <div id="ntFoods"></div>
+    <div class="sync-note">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
+  </section>
+
 </main>
 
 <!-- ============ タブバー ============ -->
@@ -745,6 +757,10 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   <button class="tab-btn" data-view="meal">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V3"/><path d="M6 12v9"/><path d="M6 3v4"/><path d="M19 3c-2.2 0-4 2.2-4 5v5h4v8"/></svg>
     食事
+  </button>
+  <button class="tab-btn" data-view="nutrition">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><circle cx="12" cy="14" r="6"/></svg>
+    栄養
   </button>
   <button class="tab-btn" data-view="workout">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M3 9v6"/><path d="M21 9v6"/><path d="M6.5 12h11"/></svg>
@@ -956,6 +972,60 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <button class="primary-btn full" id="rcSaveBtn">保存する（1食分として検索に出ます）</button>
   </div>
 </div>
+
+<!-- 食品詳細シート（SPEC-013・栄養ビューの食品カードから） -->
+<div class="modal-back" id="foodDetailBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3 id="fdTitle">食品の詳細</h3>
+    <div class="sync-note" id="fdSub"></div>
+    <div class="wk-grid" id="fdMacros"></div>
+    <div class="section-label">特徴的な栄養素（1日目安に対する寄与）</div>
+    <div id="fdStrengths"></div>
+    <button class="secondary-btn full" id="fdAddBtn" type="button">この食品を食事に追加</button>
+  </div>
+</div>
+
+<style>
+  /* 栄養分析ビュー（SPEC-013） */
+  .nt-judge { padding:14px; }
+  .nt-score-row { display:flex; align-items:baseline; gap:10px; }
+  .nt-score { font-size:34px; font-weight:900; }
+  .nt-score-label { font-size:13px; font-weight:800; }
+  .nt-parts { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+  .nt-parts span { font-size:10.5px; padding:3px 8px; border-radius:10px; background:var(--glass,rgba(0,0,0,.05)); color:var(--muted,#777); }
+  .nt-pri { font-size:12.5px; line-height:1.6; }
+  .nt-pri b { display:block; }
+  .nt-pri li { margin-bottom:6px; list-style:none; }
+  .nt-ranking { display:flex; flex-direction:column; gap:10px; }
+  .nt-rank-col { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-radius:14px; padding:10px 12px; }
+  .nt-kicker { font-size:11px; font-weight:900; color:var(--muted,#888); margin-bottom:6px; letter-spacing:.04em; }
+  .nt-rank-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line,rgba(0,0,0,.05)); font-size:12.5px; }
+  .nt-rank-row .nm { font-weight:800; flex:none; min-width:5.5em; }
+  .nt-rank-row .cp { flex:1; color:var(--muted,#888); font-size:11px; line-height:1.5; min-width:0; }
+  .nt-rank-row .pc { font-weight:900; flex:none; font-variant-numeric:tabular-nums; }
+  .nt-rank-row.low .pc { color:#e4a23a; } .nt-rank-row.high .pc { color:#e94e5b; } .nt-rank-row.good .pc { color:#2eb872; }
+  .nt-suggest { color:var(--accent,#ff8a2a); font-weight:700; text-decoration:underline; }
+  .nt-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .nt-card { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-radius:12px; padding:9px 11px; }
+  .nt-card .hd { display:flex; justify-content:space-between; align-items:baseline; gap:4px; }
+  .nt-card .nm { font-size:11.5px; font-weight:800; }
+  .nt-card .vl { font-size:11px; color:var(--muted,#888); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .nt-bar { height:5px; border-radius:3px; background:var(--glass,rgba(0,0,0,.06)); margin:6px 0 4px; overflow:hidden; position:relative; }
+  .nt-bar > i { display:block; height:100%; border-radius:3px; }
+  .nt-bar > i.ok { background:#2eb872; } .nt-bar > i.low { background:#e4a23a; } .nt-bar > i.high { background:#e94e5b; }
+  .nt-st { font-size:10px; color:var(--muted,#999); }
+  .nt-more { grid-column:1 / -1; }
+  .nt-more summary { font-size:12px; font-weight:800; color:var(--muted,#888); padding:6px 0; }
+  .nt-more-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
+  .nt-food-row { display:flex; align-items:center; gap:8px; background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-radius:12px; padding:9px 12px; margin-bottom:7px; width:100%; text-align:left; }
+  .nt-food-row .nm { flex:1; min-width:0; font-size:13px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nt-food-row .kc { flex:none; font-size:12px; color:var(--muted,#888); font-variant-numeric:tabular-nums; }
+  .nt-food-row .tags { flex:none; display:flex; gap:4px; }
+  .fd-strength { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12.5px; border-top:1px solid var(--line,rgba(0,0,0,.05)); }
+  .fd-strength .nm { flex:1; }
+  .fd-strength .pc { font-weight:900; font-variant-numeric:tabular-nums; }
+</style>
 
 <!-- 自分の食品（管理面 + 概算一覧・SPEC-014 §3-4/3-5） -->
 <div class="modal-back" id="myFoodsBack">
@@ -3874,9 +3944,310 @@ async function saveBody() {
   renderHome();
 }
 
+// ================================================================
+// 栄養分析ビュー（SPEC-013・旧 day.html の移植。計算は nutrition-db/nutrition-calc を共用）
+// データ源: localStorage 一次ストア（記録+下書き）× 食品カタログ（八訂 micros 対応済み）。
+// 過去記録のスナップショットに micros が無くても、food_key からカタログを引き直して補完する。
+// ================================================================
+const NT_EXCESS_KEYS = ['salt', 'saturatedFat'];
+const NT_IMPORTANT = ['fiber', 'Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3'];
+const NT_META = () => (NUTRITION_DB ? NUTRITION_DB.META : {});
+
+function ntTargetOverride(key) {
+  const t = activeTargets();
+  if (key === 'energy') return t.energy;
+  if (key === 'protein') return t.protein;
+  if (key === 'fat') return t.fat;
+  if (key === 'carb') return t.carb;
+  return 0;
+}
+function ntTargetValue(key) {
+  const meta = NT_META()[key];
+  return ntTargetOverride(key) || (meta && meta.target) || 0;
+}
+function ntTargetPct(key, value) {
+  const target = ntTargetValue(key);
+  return target ? Math.round((Number(value || 0) / target) * 100) : 0;
+}
+function ntFormat(key, value) {
+  return NUTRITION_DB ? NUTRITION_DB.formatValue(key, value) : String(Math.round(value || 0));
+}
+function ntStatus(key, pct, value) {
+  if (!value) return { label: '未摂取', kind: 'low' };
+  if (NT_EXCESS_KEYS.includes(key)) return pct > 120 ? { label: '多め', kind: 'high' } : { label: '適切', kind: 'ok' };
+  if (pct < 60) return { label: '不足', kind: 'low' };
+  if (pct < 100) return { label: 'もう少し', kind: 'low' };
+  if (pct <= 180) return { label: '適切', kind: 'ok' };
+  return { label: '多め', kind: 'high' };
+}
+function ntClamp(v) { return Math.max(0, Math.min(100, Math.round(v))); }
+function ntBandScore(v, iLo, iHi, hLo, hHi) {
+  if (v >= iLo && v <= iHi) return 100;
+  if (v < iLo) return ntClamp(((v - hLo) / (iLo - hLo)) * 100);
+  return ntClamp(((hHi - v) / (hHi - iHi)) * 100);
+}
+function ntAdequacy(pct) {
+  if (!pct) return 0;
+  if (pct < 100) return ntClamp(pct);
+  if (pct <= 180) return 100;
+  return ntClamp(100 - (pct - 180) * 0.35);
+}
+function ntExcessScore(key, nutrients) {
+  const pct = ntTargetPct(key, nutrients[key] || 0);
+  if (!pct || pct <= 100) return 100;
+  if (pct <= 120) return 80;
+  return ntClamp(80 - (pct - 120) * 0.7);
+}
+
+/** その日の全記録+下書きを栄養ベクトルに集計する（micros はカタログから再構築して補完）。 */
+function buildNutritionState(dateStr) {
+  const meta = NT_META();
+  const nutrients = NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {};
+  const contributions = {};
+  Object.keys(meta).forEach((k) => { contributions[k] = {}; });
+  const foodTotals = {};
+  const totals = { kcal: 0, p: 0, f: 0, c: 0, meals: 0, review: 0 };
+  const drafts = loadDrafts();
+  TIMING_KEYS.forEach((tk) => {
+    const rec = findRecord(dateStr, tk);
+    let items = null;
+    if (rec) items = (rec.structuredItems && rec.structuredItems.length) ? rec.structuredItems : null;
+    if (!items) {
+      const draft = rec ? null : drafts[draftKey(dateStr, tk)];
+      if (draft && draft.structuredItems && draft.structuredItems.length) items = draft.structuredItems;
+    }
+    if (!items || !items.length) return;
+    totals.meals += 1;
+    items.forEach((s) => {
+      if (!s) return;
+      // スナップショットにはマクロしか無いことがある（サーバー同期・旧記録）。
+      // 食品がカタログにあれば量から全栄養素を再構築する（記録時の量は変えない）。
+      let structured = s;
+      const food = s.foodId !== 'dining-out-pending' ? getFoodById(s.foodId) : null;
+      if (food && NUTRITION_DB) {
+        try {
+          const rebuilt = NUTRITION_DB.structureItem(
+            { foodId: s.foodId, name: s.foodName, qty: s.qty, unit: s.unit, pendingReview: s.pendingReview },
+            food
+          );
+          // 再構築でマクロが失われた場合（単位不一致等）はスナップショットを優先
+          if (rebuilt && rebuilt.nutrients && (rebuilt.nutrients.energy || !(s.nutrients && s.nutrients.energy))) {
+            structured = rebuilt;
+          }
+        } catch (e) { /* スナップショットで続行 */ }
+      }
+      const n = structured.nutrients || {};
+      const name = s.foodName || s.foodId || '不明';
+      Object.keys(nutrients).forEach((k) => {
+        const v = Number(n[k]) || 0;
+        if (!v) return;
+        nutrients[k] += v;
+        contributions[k][name] = (contributions[k][name] || 0) + v;
+      });
+      totals.kcal += Number(n.energy) || 0;
+      totals.p += Number(n.protein) || 0;
+      totals.f += Number(n.fat) || 0;
+      totals.c += Number(n.carb) || 0;
+      totals.review += s.pendingReview ? 1 : 0;
+      if (!foodTotals[name]) foodTotals[name] = { name, foodId: s.foodId, nutrients: NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {}, qtyText: [], review: false };
+      Object.keys(nutrients).forEach((k) => { foodTotals[name].nutrients[k] += Number(n[k]) || 0; });
+      foodTotals[name].qtyText.push(`${fmtQty(s.qty)}${s.unit || ''}`);
+      foodTotals[name].review = foodTotals[name].review || Boolean(s.pendingReview);
+    });
+  });
+  return { nutrients, contributions, foodTotals, totals };
+}
+
+function ntTopContributors(map) {
+  return Object.entries(map || {}).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+}
+function ntBestFood(key) {
+  if (!NUTRITION_DB) return null;
+  return Object.values(NUTRITION_DB.FOODS)
+    .map((food) => ({ food, value: ntFoodValue(food, key) }))
+    .filter((e) => e.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((e) => e.food)[0] || null;
+}
+function ntFoodValue(food, key) {
+  if (!food) return 0;
+  if (food.mode === 'perUnit') return food.perUnit[key] || 0;
+  const unitKey = Object.keys(food.units || {}).find((k) => k !== 'g' && k !== 'ml') || Object.keys(food.units || {})[0] || 'g';
+  const grams = (food.units && food.units[unitKey]) || 100;
+  return (food.per100g[key] || 0) * grams / 100;
+}
+function ntFoodUnitLabel(food) {
+  if (food && food.mode === 'perUnit') return `1${food.unitLabel || '個'}`;
+  const key = Object.keys(food.units || {}).find((k) => k !== 'g' && k !== 'ml') || Object.keys(food.units || {})[0];
+  if (!key) return '1食分';
+  return /^\d/.test(String(key)) ? key : `1${key}`;
+}
+
+function buildNtJudgement(state) {
+  if (!state.totals.meals) {
+    return { score: 0, label: '未入力', parts: [], priorities: [{ title: 'まず1食だけ記録', copy: '食事タブでどれか1食入れると、栄養判定が動きます。' }] };
+  }
+  const energyPct = ntTargetPct('energy', state.nutrients.energy || state.totals.kcal || 0);
+  const energyScore = ntBandScore(energyPct, 80, 115, 45, 155);
+  const pfc = {
+    p: ntTargetPct('protein', state.totals.p || 0),
+    f: ntTargetPct('fat', state.totals.f || 0),
+    c: ntTargetPct('carb', state.totals.c || 0)
+  };
+  const pfcScore = Math.round((ntAdequacy(pfc.p) + ntAdequacy(pfc.f) + ntAdequacy(pfc.c)) / 3);
+  const microScore = Math.round(NT_IMPORTANT.reduce((sum, k) => sum + ntAdequacy(ntTargetPct(k, state.nutrients[k] || 0)), 0) / NT_IMPORTANT.length);
+  const excessScore = Math.round((ntExcessScore('salt', state.nutrients) + ntExcessScore('saturatedFat', state.nutrients)) / 2);
+  // 旧day.htmlの「構成(SV)」評価は移植対象外のため重みを再配分（熱量20/PFC25/栄養素40/過剰15）
+  const score = Math.round(energyScore * 0.20 + pfcScore * 0.25 + microScore * 0.40 + excessScore * 0.15);
+  const priorities = [];
+  if (energyPct < 75) priorities.push({ title: 'エネルギー不足', copy: `目安の${energyPct}%。主食かたんぱく質を1品足す候補です。` });
+  else if (energyPct > 125) priorities.push({ title: 'エネルギー多め', copy: `目安の${energyPct}%。追加するなら野菜・海藻寄りが安全です。` });
+  if (pfc.p < 75) priorities.push({ title: 'たんぱく質が不足', copy: `目標の${pfc.p}%。鶏むね・魚・豆腐系を優先。` });
+  if (pfc.f > 130) priorities.push({ title: '脂質が多め', copy: `目標の${pfc.f}%。次の1品は低脂質寄りに。` });
+  if (pfc.c > 130) priorities.push({ title: '炭水化物が多め', copy: `目標の${pfc.c}%。主食追加より主菜・副菜を優先。` });
+  NT_IMPORTANT
+    .map((k) => ({ k, meta: NT_META()[k], pct: ntTargetPct(k, state.nutrients[k] || 0) }))
+    .filter((x) => x.pct < 70)
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 3)
+    .forEach((x) => {
+      const food = ntBestFood(x.k);
+      priorities.push({
+        title: `${x.meta.label}が不足（${x.pct}%）`,
+        copy: food ? `候補: ${food.name} ${ntFoodUnitLabel(food)}` : '候補食品はDB拡充待ち',
+        suggestFood: food ? food.id : null
+      });
+    });
+  return {
+    score,
+    label: score >= 85 ? '良好' : score >= 70 ? 'あと少し' : score >= 45 ? '要調整' : '不足多め',
+    parts: [
+      { label: '熱量', score: energyScore }, { label: 'PFC', score: pfcScore },
+      { label: '栄養素', score: microScore }, { label: '過剰', score: excessScore }
+    ],
+    priorities: priorities.slice(0, 4)
+  };
+}
+
+function buildNtRanking(state) {
+  const meta = NT_META();
+  const rows = Object.keys(meta)
+    .filter((k) => ntTargetValue(k) && (NT_IMPORTANT.includes(k) || NT_EXCESS_KEYS.includes(k)))
+    .map((k) => {
+      const value = state.nutrients[k] || 0;
+      const pct = ntTargetPct(k, value);
+      const leaders = ntTopContributors(state.contributions[k]).slice(0, 2);
+      const leaderText = leaders.length
+        ? `主な食品: ${leaders.map((i) => `${i.name} ${ntFormat(k, i.value)}${meta[k].unit}`).join('、')}`
+        : '主な食品: まだ記録なし';
+      return { k, meta: meta[k], value, pct, leaderText };
+    });
+  const low = rows.filter((r) => NT_IMPORTANT.includes(r.k) && r.pct < 100).sort((a, b) => a.pct - b.pct).slice(0, 5)
+    .map((r) => {
+      const food = ntBestFood(r.k);
+      return { label: r.meta.label, pct: r.pct, kind: 'low', copy: r.leaderText, suggest: food ? { id: food.id, text: `候補: ${food.name} ${ntFoodUnitLabel(food)}` } : null };
+    });
+  const high = rows.filter((r) => NT_EXCESS_KEYS.includes(r.k) && r.pct > 100).sort((a, b) => b.pct - a.pct).slice(0, 3)
+    .map((r) => ({ label: r.meta.label, pct: r.pct, kind: 'high', copy: `${r.leaderText} / 次は薄味・低脂質寄り`, suggest: null }));
+  const good = rows.filter((r) => NT_IMPORTANT.includes(r.k) && r.pct >= 100).sort((a, b) => b.pct - a.pct).slice(0, 5)
+    .map((r) => ({ label: r.meta.label, pct: r.pct, kind: 'good', copy: r.leaderText, suggest: null }));
+  return { low, high, good };
+}
+
+let ntState = null;
+function renderNutrition() {
+  if (!NUTRITION_DB) { $('#ntJudge').innerHTML = '<div class="empty-note">栄養DBを読み込めませんでした</div>'; return; }
+  const meta = NT_META();
+  ntState = buildNutritionState(state.date);
+  const judge = buildNtJudgement(ntState);
+  $('#ntJudge').innerHTML = `
+    <div class="nt-score-row"><span class="nt-score">${judge.score}</span><span style="color:var(--muted,#888)">/100</span><span class="nt-score-label">${judge.label}</span>
+      <span style="margin-left:auto;font-size:11px;color:var(--muted,#999)">${fmtDateLabel(state.date)}${ntState.totals.review ? ` / 概算${ntState.totals.review}品` : ''}</span></div>
+    <div class="nt-parts">${judge.parts.map((p) => `<span>${p.label} ${p.score}</span>`).join('')}</div>
+    <ul class="nt-pri" style="padding:0;margin:0">${judge.priorities.map((p) => `<li><b>${escapeHtml(p.title)}</b>${escapeHtml(p.copy)}${p.suggestFood ? ` <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(p.suggestFood)}">追加する</a>` : ''}</li>`).join('')}</ul>`;
+
+  const ranking = buildNtRanking(ntState);
+  const sections = [
+    { title: '不足トップ', rows: ranking.low, empty: '大きな不足は目立ちません。' },
+    { title: '多すぎ注意', rows: ranking.high, empty: '塩分・飽和脂肪酸は目安内です。' },
+    { title: '満たせている栄養', rows: ranking.good, empty: 'まだ十分に満たせた栄養が少なめです。' }
+  ];
+  $('#ntRanking').innerHTML = sections.map((sec) => `
+    <div class="nt-rank-col"><div class="nt-kicker">${sec.title}</div>
+      ${sec.rows.length ? sec.rows.map((r) => `
+        <div class="nt-rank-row ${r.kind}"><span class="nm">${escapeHtml(r.label)}</span>
+          <span class="cp">${escapeHtml(r.copy)}${r.suggest ? `<br><a href="#" class="nt-suggest" data-nt-add="${escapeHtml(r.suggest.id)}">${escapeHtml(r.suggest.text)}</a>` : ''}</span>
+          <span class="pc">${r.pct}%</span></div>`).join('')
+      : `<div class="empty-note">${sec.empty}</div>`}
+    </div>`).join('');
+
+  const priority = ['energy', 'protein', 'fat', 'carb', 'fiber', 'salt', 'saturatedFat', 'Ca', 'Fe', 'Mg', 'K', 'Zn', 'vitD', 'vitC', 'vitA', 'vitE', 'vitB1', 'vitB2', 'vitB6', 'vitB12', 'folate', 'n3'];
+  const primary = priority.filter((k) => meta[k]);
+  const others = Object.keys(meta).filter((k) => !priority.includes(k));
+  const card = (k) => {
+    const m = meta[k];
+    const value = ntState.nutrients[k] || 0;
+    const pct = ntTargetPct(k, value);
+    const barPct = Math.min(100, Math.round((Math.min(pct, 150) / 150) * 100));
+    const st = ntStatus(k, pct, value);
+    const leaders = ntTopContributors(ntState.contributions[k]).slice(0, 1);
+    return `<div class="nt-card">
+      <div class="hd"><span class="nm">${m.label}</span><span class="vl">${ntFormat(k, value)} / ${ntFormat(k, ntTargetValue(k))}${m.unit}</span></div>
+      <div class="nt-bar"><i class="${st.kind}" style="width:${barPct}%"></i></div>
+      <div class="nt-st">${st.label} ${pct}%${leaders.length ? ` / ${escapeHtml(leaders[0].name)}` : ''}</div>
+    </div>`;
+  };
+  $('#ntGrid').innerHTML = primary.map(card).join('') +
+    (others.length ? `<details class="nt-more"><summary>その他の栄養素 ${others.length}項目</summary><div class="nt-more-grid">${others.map(card).join('')}</div></details>` : '');
+
+  const foods = Object.values(ntState.foodTotals).sort((a, b) => (b.nutrients.energy || 0) - (a.nutrients.energy || 0));
+  $('#ntFoods').innerHTML = foods.length ? foods.map((f) => `
+    <button class="nt-food-row" data-nt-food="${escapeHtml(f.name)}" type="button">
+      <span class="nm">${escapeHtml(f.name)}</span>
+      ${f.review ? '<span class="tags"><span class="tag est" style="font-size:10px;padding:2px 6px;border-radius:8px;background:rgba(228,162,58,.15);color:#a06a10">概算</span></span>' : ''}
+      <span class="kc">${fmtNum(f.nutrients.energy || 0)} kcal</span>
+    </button>`).join('')
+    : '<div class="empty-note">この日の記録・下書きがまだありません</div>';
+}
+
+function ntFoodStrengths(nutrients) {
+  const meta = NT_META();
+  return Object.keys(meta)
+    .filter((k) => k !== 'energy' && !NT_EXCESS_KEYS.includes(k))
+    .map((k) => ({ k, label: meta[k].label, unit: meta[k].unit, value: nutrients[k] || 0, pct: ntTargetValue(k) ? Math.round(((nutrients[k] || 0) / ntTargetValue(k)) * 100) : 0 }))
+    .filter((x) => x.value > 0 && x.pct >= 5)
+    .sort((a, b) => b.pct - a.pct);
+}
+function openFoodDetail(name) {
+  const f = ntState && ntState.foodTotals[name];
+  if (!f) return;
+  $('#fdTitle').textContent = f.name;
+  $('#fdSub').textContent = `この日の摂取: ${f.qtyText.join(' + ')}${f.review ? '（概算を含む）' : ''}`;
+  const n = f.nutrients;
+  $('#fdMacros').innerHTML = [
+    ['エネルギー', `${fmtNum(n.energy || 0)} kcal`], ['たんぱく質', `${(n.protein || 0).toFixed(1)} g`],
+    ['脂質', `${(n.fat || 0).toFixed(1)} g`], ['炭水化物', `${(n.carb || 0).toFixed(1)} g`]
+  ].map(([l, v]) => `<span>${l}</span><b>${v}</b>`).join('');
+  $('#fdStrengths').innerHTML = ntFoodStrengths(n).slice(0, 10).map((s) =>
+    `<div class="fd-strength"><span class="nm">${escapeHtml(s.label)}</span><span>${ntFormat(s.k, s.value)}${s.unit}</span><span class="pc">${s.pct}%</span></div>`
+  ).join('') || '<div class="empty-note">特徴的な栄養素はありません</div>';
+  const btn = $('#fdAddBtn');
+  const food = getFoodById(f.foodId);
+  btn.style.display = food ? '' : 'none';
+  btn.dataset.foodId = f.foodId || '';
+  $('#foodDetailBack').classList.add('show');
+}
+function ntAddSuggested(foodId) {
+  const food = getFoodById(foodId);
+  if (!food) { showToast('この食品はカタログにありません'); return; }
+  showView('meal');
+  const added = addFoodById(foodId);
+  if (added) showToast(`${added.name}を食事に追加しました（保存を忘れずに）`);
+}
+
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack'].forEach((id) => {
+  ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('show');
   });
@@ -3897,6 +4268,7 @@ function showView(name) {
   }
   if (name === 'workout') { state.exoValues = loadExoValues(exoById(state.exoId)); renderExoGrid(); renderExoCard(); renderWorkoutToday(); }
   if (name === 'body') renderBodyView();
+  if (name === 'nutrition') renderNutrition();
   window.scrollTo(0, 0);
 }
 
@@ -3911,6 +4283,7 @@ function setDate(dateStr) {
   if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderHydration(); }
   if (state.view === 'workout') renderWorkoutToday();
   if (state.view === 'body') renderBodyView();
+  if (state.view === 'nutrition') renderNutrition();
   renderHome();
 }
 function persistDraftSafe() {
@@ -4376,6 +4749,22 @@ $('#eufyCsvInput').addEventListener('change', async (e) => {
   if (file) await importEufyCsvFile(file);
 });
 $('#backupBtn').addEventListener('click', downloadBackup);
+
+// 栄養分析ビュー（SPEC-013）
+$('#view-nutrition').addEventListener('click', (e) => {
+  const add = e.target.closest('[data-nt-add]');
+  if (add) { e.preventDefault(); ntAddSuggested(add.dataset.ntAdd); return; }
+  const food = e.target.closest('[data-nt-food]');
+  if (food) openFoodDetail(food.dataset.ntFood);
+});
+$('#foodDetailBack').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) { $('#foodDetailBack').classList.remove('show'); return; }
+  if (e.target.closest('#fdAddBtn')) {
+    const id = $('#fdAddBtn').dataset.foodId;
+    $('#foodDetailBack').classList.remove('show');
+    if (id) ntAddSuggested(id);
+  }
+});
 // 疎通確認: 旧 doGet の代わりに、ログイン状態＋user_settings への軽い select で判定（SPEC-012 §5）
 $('#connCheckLink').addEventListener('click', async (e) => {
   e.preventDefault();
