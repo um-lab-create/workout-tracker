@@ -430,6 +430,24 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   animation: sheetUp .22s ease;
 }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
+/* シート共通規約（SPEC-019 Phase A） */
+.modal { position: relative; animation-duration: .26s; animation-timing-function: cubic-bezier(.2,.8,.3,1); }
+.sheet-x {
+  position: absolute; top: 6px; right: 8px; width: 44px; height: 44px; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 22px; background: transparent; color: var(--muted, #8a8378);
+  font-size: 24px; line-height: 1; font-weight: 400;
+}
+.modal .close-row { padding-top: 2px; padding-bottom: 10px; margin: -6px -8px 0; cursor: grab; }
+/* タップ44pt監査（SPEC-019 §4）: 見た目を変えずヒット領域だけ広げる */
+.review-chip, .del-btn, .stepper button, .rc-est, .rc-del, .log-del, .myfood-row .secondary-btn { position: relative; }
+.review-chip::after, .del-btn::after, .stepper button::after, .rc-est::after, .rc-del::after,
+.log-del::after, .myfood-row .secondary-btn::after {
+  content: ''; position: absolute; inset: -8px;
+}
+/* 保存ボタンの下端固定（シート内スクロール時も常に見える） */
+.sticky-save { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 14px -6px var(--bg, #fff8ef); }
+#toast.error { background: rgba(201, 52, 64, .95); }
 .modal h3 { margin: 4px 0 12px; font-size: 16px; }
 .modal .close-row { display: flex; justify-content: center; padding-bottom: 6px; }
 .modal .grip { width: 40px; height: 5px; border-radius: 3px; background: #e2d7c2; }
@@ -807,14 +825,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     </div>
     <input type="file" id="eufyCsvInput" accept=".csv,text/csv" style="display:none">
     <div class="sync-note" id="dataAdminNote">eufyLife アプリの CSV を選ぶと体組成を取り込みます（重複は自動スキップ）。バックアップ JSON は自分の全記録の写しです — 人に送ったり公開の場所に置いたりしないでください。</div>
-    <button class="primary-btn full" id="saveSettingsBtn">保存する</button>
     <div class="section-label" style="margin-top:16px">そのほかの画面</div>
     <div class="link-grid">
       <a href="health-import.html">ヘルスケア取込<span>Apple Health zip</span></a>
       <a href="index.html">ハブ<span>旧シート閲覧リンクなど</span></a>
     </div>
-    <div class="sync-note">旧ページ（workout/meal/day/body）は退役しました。栄養分析（35栄養素）と商品DB・独自食材・自作メニューの編集画面は SPEC-013 でこのアプリに移植予定です（登録済みデータは検索から従来どおり使えます）。</div>
     <div class="sync-note" id="connCheckNote">記録は Supabase に保存されます。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続OK ✓」と表示されればOK）。</div>
+    <button class="primary-btn full sticky-save" id="saveSettingsBtn">保存する</button>
   </div>
 </div>
 
@@ -939,8 +956,8 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="set-row"><span class="sl">炭水化物 g</span><input id="ffC" type="number" inputmode="decimal" min="0" step="0.1"></div>
     <div class="set-row"><span class="sl">食塩相当量 g（任意）</span><input id="ffSalt" type="number" inputmode="decimal" min="0" step="0.1"></div>
     <div class="set-row"><span class="sl">概算（あとで確定する）</span><input id="ffEstimate" type="checkbox" style="width:22px;height:22px"></div>
-    <button class="primary-btn full" id="ffSaveBtn">保存する</button>
-    <div class="sync-note">ミクロ栄養素は空でOK。ラベル撮影・バーコードでの自動入力は次の更新（SPEC-016）で入ります。</div>
+    <div class="sync-note">ミクロ栄養素は空でOK（八訂の食材は自動で全部入り）。</div>
+    <button class="primary-btn full sticky-save" id="ffSaveBtn">保存する</button>
   </div>
 </div>
 
@@ -969,7 +986,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <button class="secondary-btn full" id="rcFreeAddBtn" type="button">概算材料を追加</button>
     </div>
     <div class="sync-note" id="rcPreview" style="font-weight:800">1食分: −</div>
-    <button class="primary-btn full" id="rcSaveBtn">保存する（1食分として検索に出ます）</button>
+    <button class="primary-btn full sticky-save" id="rcSaveBtn">保存する（1食分として検索に出ます）</button>
   </div>
 </div>
 
@@ -1098,13 +1115,14 @@ function fmtDateLabel(dateStr) {
 function fmtNum(n) { return Math.round(n).toLocaleString('ja-JP'); }
 function fmtQty(v) { return Number((Math.round(v * 100) / 100).toFixed(2)).toString(); }
 let toastTimer = null;
-function showToast(msg) {
+function showToast(msg, kind) {
   const t = $('#toast');
   t.classList.remove('undo');
+  t.classList.toggle('error', kind === 'error');   // エラーは赤系で区別（SPEC-019 §4）
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), kind === 'error' ? 3200 : 2200);
 }
 function showUndoToast(message, undoLabel, undoFn, timeoutMs = 5000) {
   const t = $('#toast');
@@ -2101,7 +2119,7 @@ function queueWithToast(op, key, data, label, err) {
   window.HSSbQueue.enqueue(op, key, data);
   if (err && err.code === 'AUTH_REQUIRED') showToast(`${label}: 未ログインのため未送信に保存しました（ログイン後に自動送信）`);
   else if (!navigator.onLine) showToast(`${label}: オフラインのため未送信に保存しました（復帰後に自動送信）`);
-  else showToast(`${label}: 送信エラーのため未送信に保存しました（${err && err.message ? err.message : err}）`);
+  else showToast(`${label}: 送信エラーのため未送信に保存しました（${err && err.message ? err.message : err}）`, 'error');
   renderSyncStatus();
 }
 
@@ -2620,7 +2638,7 @@ async function copyAiPrompt() {
 
 function importAiResult() {
   const parsed = parseAiFoodResult($('#aiResultPaste').value);
-  if (parsed.error) { showToast(parsed.error); return; }
+  if (parsed.error) { showToast(parsed.error, 'error'); return; }
   if (parsed.name) $('#ffName').value = parsed.name;
   $('#ffBrand').value = parsed.brand || $('#ffBrand').value;
   if (foodFormState.kind === 'product') $('#ffBasis').value = parsed.basis;
@@ -3202,7 +3220,7 @@ async function syncFromServer(options = {}) {
     }
     return { status: 'ok', ...counts };
   } catch (err) {
-    if (manual) showToast(`同期エラー: ${String(err && err.message ? err.message : err)}`);
+    if (manual) showToast(`同期エラー: ${String(err && err.message ? err.message : err)}`, 'error');
     return { status: 'error', message: String(err && err.message ? err.message : err) };
   } finally {
     state.serverSyncing = false;
@@ -4279,6 +4297,67 @@ function ntAddSuggested(foodId) {
   if (added) showToast(`${added.name}を食事に追加しました（保存を忘れずに）`);
 }
 
+// ================================================================
+// シート共通基盤（SPEC-019 Phase A）
+// 全シートの閉じ方を3経路（背景タップ / グラバー下スワイプ / ×ボタン）に統一し、
+// 未保存の入力があるシートは閉じる前に確認する。
+// ================================================================
+const SHEET_DIRTY_CHECKS = {
+  recipeBack: () => Boolean((($('#rcName') && $('#rcName').value) || '').trim() || (recipeState.items && recipeState.items.length)),
+  foodFormBack: () => Boolean((($('#ffName') && $('#ffName').value) || '').trim() || ($('#ffKcal') && $('#ffKcal').value))
+};
+
+/** 未保存確認つきでシートを閉じる。閉じた(または元々閉じていた)ら true。 */
+function trySheetClose(backId) {
+  const back = document.getElementById(backId);
+  if (!back || !back.classList.contains('show')) return true;
+  const isDirty = SHEET_DIRTY_CHECKS[backId];
+  try {
+    if (isDirty && isDirty() && !window.confirm('入力内容を保存せずに閉じますか？')) return false;
+  } catch (e) { /* チェック失敗時は閉じる方を優先 */ }
+  back.classList.remove('show');
+  return true;
+}
+
+/** 全シートに ×ボタン・グラバー下スワイプ dismiss を後付けする（初期化時に1回）。 */
+function initSheetBehaviors() {
+  document.querySelectorAll('.modal-back').forEach((back) => {
+    const modal = back.querySelector('.modal');
+    if (!modal || modal.querySelector('.sheet-x')) return;
+    // ×ボタン（右上・44pt）
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'sheet-x';
+    x.setAttribute('aria-label', '閉じる');
+    x.textContent = '×';
+    x.addEventListener('click', (e) => { e.stopPropagation(); trySheetClose(back.id); });
+    modal.insertBefore(x, modal.firstChild);
+    // グラバー下スワイプ（touch追従 → 80px超えで閉じる）
+    const grip = modal.querySelector('.close-row');
+    if (!grip) return;
+    let startY = null;
+    let delta = 0;
+    grip.addEventListener('touchstart', (e) => {
+      startY = e.touches[0].clientY;
+      delta = 0;
+      modal.style.transition = 'none';
+    }, { passive: true });
+    grip.addEventListener('touchmove', (e) => {
+      if (startY == null) return;
+      delta = Math.max(0, e.touches[0].clientY - startY);
+      modal.style.transform = `translateY(${delta}px)`;
+    }, { passive: true });
+    grip.addEventListener('touchend', () => {
+      modal.style.transition = 'transform .2s ease';
+      modal.style.transform = '';
+      const shouldClose = delta > 80;
+      startY = null;
+      delta = 0;
+      if (shouldClose) trySheetClose(back.id);
+    });
+  });
+}
+
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
   ['unitBack', 'qtyBack', 'settingsBack', 'weeklyBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
@@ -4437,7 +4516,7 @@ async function handleLoginSubmit() {
     $('#loginPassword').value = '';
     // 画面の更新は onAuthStateChange の SIGNED_IN イベント側で行う
   } catch (err) {
-    showToast('ログインできませんでした。メールアドレス/パスワードを確認してください');
+    showToast('ログインできませんでした。メールアドレス/パスワードを確認してください', 'error');
   } finally {
     btn.disabled = false;
   }
@@ -4658,7 +4737,7 @@ async function importEufyCsvFile(file) {
     showToast(`eufy CSV: 追加${result.inserted}件・スキップ${result.skipped}件`);
   } catch (err) {
     note.textContent = `eufy取込 エラー: ${String(err && err.message ? err.message : err)}`;
-    showToast('eufy CSV の取込に失敗しました');
+    showToast('eufy CSV の取込に失敗しました', 'error');
   }
 }
 
@@ -4686,7 +4765,7 @@ async function downloadBackup() {
     showToast('バックアップJSONを書き出しました（iPhoneでは共有シートから「ファイルに保存」）');
   } catch (err) {
     note.textContent = `バックアップ エラー: ${String(err && err.message ? err.message : err)}`;
-    showToast('バックアップに失敗しました');
+    showToast('バックアップに失敗しました', 'error');
   } finally {
     btn.disabled = false;
   }
@@ -4809,7 +4888,7 @@ $('#connCheckLink').addEventListener('click', async (e) => {
     await sb.pingRead();
     showToast('接続OK ✓（Supabaseに接続できています）');
   } catch (err) {
-    showToast(`接続エラー: ${String(err && err.message ? err.message : err)}`);
+    showToast(`接続エラー: ${String(err && err.message ? err.message : err)}`, 'error');
   }
 });
 
@@ -4981,7 +5060,7 @@ $('#addFoodBack').addEventListener('click', (e) => {
   if (b.dataset.addKind === 'recipe') openRecipeBuilder();
   else openFoodForm(b.dataset.addKind);
 });
-$('#foodFormBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#foodFormBack').classList.remove('show'); });
+$('#foodFormBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) trySheetClose('foodFormBack'); });
 $('#ffBasis').addEventListener('change', syncFfUnitRow);
 $('#ffSaveBtn').addEventListener('click', submitFoodForm);
 $('#aiHelpToggle').addEventListener('click', (e) => {
@@ -4991,7 +5070,7 @@ $('#aiHelpToggle').addEventListener('click', (e) => {
 });
 $('#aiCopyPromptBtn').addEventListener('click', copyAiPrompt);
 $('#aiImportBtn').addEventListener('click', importAiResult);
-$('#recipeBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('#recipeBack').classList.remove('show'); });
+$('#recipeBack').addEventListener('click', (e) => { if (e.target === e.currentTarget) trySheetClose('recipeBack'); });
 let rcSearchTimer = null;
 $('#rcSearch').addEventListener('input', () => { clearTimeout(rcSearchTimer); rcSearchTimer = setTimeout(renderRcSearch, 120); });
 $('#rcServings').addEventListener('input', renderRecipePreview);
@@ -5119,6 +5198,7 @@ bindContinuousPress(document.body, '[data-body]', runBodyButton);
 buildCatalog();
 loadFoodUsage();
 registerSbOpHandlers();
+initSheetBehaviors();   // シート共通規約（×・スワイプdismiss・未保存確認。SPEC-019 Phase A）
 setDate(todayStr());
 loadMealFor(state.date, state.timing);
 showView('home');
