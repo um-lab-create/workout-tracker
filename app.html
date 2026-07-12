@@ -1508,6 +1508,18 @@ function buildCatalog() {
     foodLookup[f.id] = f;
   });
   allFoods = Object.values(foodLookup);
+  // 名寄せ（2026-07-13）: 埋め込み食品と八訂で**同名が31件**重複し、検索結果に2つ並んで紛らわしい。
+  // 埋め込み側は常用単位・表示名が整っているのでそちらを残し、八訂の同名を検索から隠す（非破壊: 行は消さず、
+  // 既存記録が参照している food は id で引けるため壊れない。使用実績がある八訂行は隠さない）。
+  const embeddedNames = new Set(
+    allFoods.filter((f) => f && !f.owner && !String(f.id).startsWith('hakutei-')).map((f) => f.name)
+  );
+  const usageForDup = loadFoodUsage();
+  allFoods.forEach((f) => {
+    if (!f || !String(f.id).startsWith('hakutei-')) return;
+    const used = normalizeFoodUsageEntry(usageForDup[f.id]).count;
+    f.duplicateOfEmbedded = embeddedNames.has(f.name) && !used;
+  });
   foodIndexMap = {};
   allFoods.forEach((f, i) => { foodIndexMap[f.id] = i; });
 }
@@ -2062,6 +2074,7 @@ function renderSearch() {
       const isHakutei = String(f.id).startsWith('hakutei-');
       const used = normalizeFoodUsageEntry(usage[f.id]).count;
       if (shortQuery && isHakutei && !used) return false;
+      if (f.duplicateOfEmbedded) return false;   // 名寄せ: 埋め込みと同名の八訂行は出さない
       // 状態バリアントの集約（SPEC-018）: 非代表（ゆで/冷凍/焼き等）は、
       // 使用実績があるか、クエリに状態語が含まれる時だけ出す
       if (isHakutei && f.primaryVariant === false && !used && !hakuteiVariantMatched(f, variants)) return false;
@@ -3975,6 +3988,7 @@ function suggestionPool() {
     if (!f || f.archived) return false;
     if (f.primaryVariant === false) return false;         // 状態バリアント（ゆで等）は代表のみ
     if (f.pendingReview) return false;                    // 概算は勧めない
+    if (f.duplicateOfEmbedded) return false;              // 名寄せ: 埋め込みと同名の八訂行は候補から外す
     return f.staple === true || (usage[f.id] && usage[f.id].count > 0);
   });
 }

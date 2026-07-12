@@ -270,5 +270,20 @@ ok('いつもの: 6割類似で常習と判定（核3品が共通・最新を採
   simTest.count >= 2 && simTest.date === '2026-07-10', JSON.stringify(simTest));
 ok('いつもの: 類似度が計算できる（2/4=50%）', simTest.sim === 50, JSON.stringify(simTest));
 
+// 15) 名寄せ（2026-07-13）: 埋め込みと同名の八訂行は検索・候補から隠す（非破壊・使用実績があれば残す）
+const dupTest = vm.runInContext(`(() => {
+  const emb = allFoods.find((f) => f.id === 'egg');                 // 埋め込みの「卵」
+  const hak = allFoods.filter((f) => String(f.id).startsWith('hakutei-') && f.name === '卵');
+  return {
+    hasEmbedded: Boolean(emb),
+    hakuteiTwins: hak.length,
+    twinsHidden: hak.every((f) => f.duplicateOfEmbedded === true),
+    embeddedVisible: emb ? emb.duplicateOfEmbedded !== true : false
+  };
+})()`, context);
+ok('名寄せ: 埋め込みと同名の八訂行に重複マークが付く',
+  !dupTest.hakuteiTwins || dupTest.twinsHidden, JSON.stringify(dupTest));
+ok('名寄せ: 埋め込み側は隠さない', dupTest.embeddedVisible, JSON.stringify(dupTest));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
