@@ -225,5 +225,50 @@ const mergeTest = vm.runInContext(`(() => {
 ok('同期カウント: 同一内容はunchanged', mergeTest.sameUnchanged === 1 && mergeTest.sameUpdated === 0, JSON.stringify(mergeTest));
 ok('同期カウント: 変更時のみupdated', mergeTest.changedUpdated === 1, '');
 
+// 14) 「いつもの」学習（記録継続の打ち手 2026-07-13）: 同曜日を優先し、2回以上の常習構成を採用
+const usualTest = vm.runInContext(`(() => {
+  // 2026-07-13 は月曜。過去の月曜の昼 = A構成×2 / 他曜日の昼 = B構成×3
+  const mk = (id, date, ids, kcal) => ({ id, date, timingKey: 'lunch', timing: '昼', synced: true, kcal,
+    items: ids.map((f) => ({ foodId: f, qty: 1, unit: 'g' })), structuredItems: [] });
+  localStorage.setItem('meal_recs_v3', JSON.stringify([
+    mk('r1', '2026-07-06', ['rice', 'egg'], 500),        // 月
+    mk('r2', '2026-06-29', ['rice', 'egg'], 510),        // 月
+    mk('r3', '2026-07-07', ['bread', 'milk'], 300),      // 火
+    mk('r4', '2026-07-08', ['bread', 'milk'], 300),      // 水
+    mk('r5', '2026-07-09', ['bread', 'milk'], 300)       // 木
+  ]));
+  const dow = usualMealFor('lunch', '2026-07-13');       // 月曜
+  const other = usualMealFor('lunch', '2026-07-14');     // 火曜（同曜日の常習が無い→全体の最頻）
+  const none = usualMealFor('dinner', '2026-07-13');     // 記録なし
+  localStorage.removeItem('meal_recs_v3');
+  return {
+    dowIds: dow ? dow.record.items.map((i) => i.foodId).sort().join(',') : null,
+    dowSame: dow ? dow.sameDow : null, dowCount: dow ? dow.count : 0,
+    otherIds: other ? other.record.items.map((i) => i.foodId).sort().join(',') : null,
+    none: none === null
+  };
+})()`, context);
+ok('いつもの: 同曜日の常習構成を優先（月曜の昼=rice+egg・2回）',
+  usualTest.dowIds === 'egg,rice' && usualTest.dowSame === true && usualTest.dowCount === 2, JSON.stringify(usualTest));
+ok('いつもの: 同曜日に常習が無ければ全体の最頻（bread+milk）', usualTest.otherIds === 'bread,milk');
+ok('いつもの: 記録が足りなければ null', usualTest.none === true);
+// 14b) 完全一致でなく「6割似ていれば同じ構成」とみなす（実測: 朝食は核3品+日替わり1〜2品）
+const simTest = vm.runInContext(`(() => {
+  const mk = (id, date, ids) => ({ id, date, timingKey: 'morning', timing: '朝', synced: true, kcal: 400,
+    items: ids.map((f) => ({ foodId: f, qty: 1, unit: 'g' })), structuredItems: [] });
+  localStorage.setItem('meal_recs_v3', JSON.stringify([
+    mk('a', '2026-07-10', ['bihidas', 'banana', 'soy-protein', 'bread']),
+    mk('b', '2026-07-09', ['bihidas', 'banana', 'soy-protein', 'mix-nuts', 'raisin']),
+    mk('c', '2026-07-08', ['bihidas', 'banana', 'soy-protein', 'mix-nuts'])
+  ]));
+  const u = usualMealFor('morning', '2026-07-13');
+  const sim = mealSimilarity([{foodId:'a'},{foodId:'b'},{foodId:'c'}], [{foodId:'a'},{foodId:'b'},{foodId:'d'}]);
+  localStorage.removeItem('meal_recs_v3');
+  return { count: u ? u.count : 0, date: u ? u.record.date : null, sim: Math.round(sim * 100) };
+})()`, context);
+ok('いつもの: 6割類似で常習と判定（核3品が共通・最新を採用）',
+  simTest.count >= 2 && simTest.date === '2026-07-10', JSON.stringify(simTest));
+ok('いつもの: 類似度が計算できる（2/4=50%）', simTest.sim === 50, JSON.stringify(simTest));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

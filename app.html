@@ -1238,9 +1238,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <div class="close-row"><div class="grip"></div></div>
     <h3>記録する</h3>
     <button class="kind-btn" data-record="meal">食事<small>朝・昼・夜・間食の記録</small></button>
+    <!-- 記録継続の打ち手: いま時間帯の「いつもの」を1タップで保存まで（2026-07-13） -->
+    <button class="kind-btn accent" data-record="usual" id="usualMealBtn" style="display:none">いつものを記録<small id="usualMealHint"></small></button>
     <button class="kind-btn" data-record="repeat" id="repeatMealBtn">前回と同じ食事<small id="repeatMealHint">直近の記録を今日に入れる</small></button>
     <button class="kind-btn" data-record="workout">筋トレ<small>種目・重量・回数</small></button>
-    <button class="kind-btn" data-record="body">からだ<small>体重・体脂肪率・調子</small></button>
+    <button class="kind-btn" data-record="body">からだ<small>体重・体脂肪率</small></button>
     <button class="kind-btn" data-record="water" id="recordWaterBtn" style="display:none">水分<small>飲んだ量をワンタップ</small></button>
   </div>
 </div>
@@ -1799,12 +1801,70 @@ function recentRecordsForTiming(limit) {
     .slice(0, limit);
 }
 
+// ---- 「いつもの◯◯」（記録継続の打ち手 2026-07-13）----
+// 実測: 食事記録が週2〜3日しか埋まらず分析もAI助言も精度が出ない（docs/status_review_2026-07-13 §2）。
+// 過去記録から「この曜日・この時間帯でいつも食べているセット」を学習し、1タップで投入できるようにする。
+function itemsSignature(items) {
+  return (items || []).map((it) => it.foodId).filter(Boolean).sort().join('|');
+}
+/** 2つの食事の構成の近さ（Jaccard係数）。実測: 朝食は「ビヒダス+バナナ+ソイ」が核で、
+ *  日によってナッツ/レーズン/食パンが入れ替わる → 完全一致では学習できないため類似度で判定する */
+function mealSimilarity(a, b) {
+  const sa = new Set((a || []).map((it) => it.foodId).filter(Boolean));
+  const sb = new Set((b || []).map((it) => it.foodId).filter(Boolean));
+  if (!sa.size || !sb.size) return 0;
+  let inter = 0;
+  sa.forEach((id) => { if (sb.has(id)) inter++; });
+  return inter / (sa.size + sb.size - inter);
+}
+/**
+ * 指定タイミングの「いつもの」を返す。同じ曜日の記録を優先し、
+ * 構成が6割以上似た記録が2回以上あればその最新を採用する。
+ * @returns {{record: object, count: number, sameDow: boolean}|null}
+ */
+function usualMealFor(timingKey, dateStr) {
+  const SIM = 0.6;
+  const dow = new Date(dateStr + 'T12:00:00').getDay();
+  const past = getRecords()
+    .filter((r) => r.timingKey === timingKey && r.date < dateStr && r.items && r.items.length)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, 20);
+  if (past.length < 2) return null;
+  const pick = (list, sameDow) => {
+    if (list.length < 2) return null;
+    // 1) いちばん多くの記録と似ている1件＝そのパターンの中心を選ぶ
+    let center = null;
+    list.forEach((r) => {
+      const support = list.filter((o) => o !== r && mealSimilarity(r.items, o.items) >= SIM).length;
+      if (support >= 1 && (!center || support > center.support
+        || (support === center.support && String(r.date) > String(center.record.date)))) {
+        center = { record: r, support };
+      }
+    });
+    if (!center) return null;
+    // 2) そのパターンに属する記録のうち「最新」を提案する（最近の食べ方に寄せる）
+    const cluster = list.filter((r) => r === center.record || mealSimilarity(center.record.items, r.items) >= SIM);
+    const latest = cluster.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+    return { record: latest, count: cluster.length, sameDow };
+  };
+  const dowRecords = past.filter((r) => new Date(r.date + 'T12:00:00').getDay() === dow);
+  return pick(dowRecords, true) || pick(past, false);
+}
+
 function renderQuickRow() {
   const chips = [];
+  // 「いつもの」（曜日パターン学習）を先頭に置く
+  const usual = usualMealFor(state.timing, state.date);
+  if (usual) {
+    const DOW = ['日', '月', '火', '水', '木', '金', '土'];
+    const dowIdx = new Date(state.date + 'T12:00:00').getDay();
+    const label = usual.sameDow ? `${DOW[dowIdx]}曜のいつも` : 'いつもの';
+    chips.push(`<button class="quick-chip accent" data-quick="usual"><span class="n">${label}</span><span class="d">${fmtNum(usual.record.kcal || 0)} kcal・${usual.record.items.length}品・${usual.count}回</span></button>`);
+  }
   // 直近の同タイミング記録を最大3件（先頭は「前回と同じ」）
   recentRecordsForTiming(3).forEach((r, i) => {
     const label = i === 0 ? '前回と同じ' : fmtDateLabel(r.date);
-    chips.push(`<button class="quick-chip ${i === 0 ? 'accent' : ''}" data-quick="record" data-rid="${escapeHtml(r.id)}"><span class="n">${label}</span><span class="d">${fmtNum(r.kcal || 0)} kcal・${(r.items || []).length}品</span></button>`);
+    chips.push(`<button class="quick-chip ${i === 0 && !usual ? 'accent' : ''}" data-quick="record" data-rid="${escapeHtml(r.id)}"><span class="n">${label}</span><span class="d">${fmtNum(r.kcal || 0)} kcal・${(r.items || []).length}品</span></button>`);
   });
   // プリセット
   const presets = loadPresets()[state.timing] || [];
@@ -3524,7 +3584,9 @@ async function syncFromServer(options = {}) {
       if (manual) { showToast('ログインすると同期できます'); openLoginSheet('login'); }
       return { skipped: true, reason: 'no-session' };
     }
-    const from = shiftDate(todayStr(), -13);
+    // 60日分を取得する（2026-07-13）。14日では ①「いつもの」の学習母集団が足りない
+    // ②継続ヒートマップ（8週=56日）が古い週まで空欄になる。meals は全期間で75件なので負荷は無視できる
+    const from = shiftDate(todayStr(), -59);
     const to = todayStr();
     const settingsRow = await sb.fetchUserSettings();
     if (settingsRow) {
@@ -4028,6 +4090,18 @@ function renderNextMove(totals, targets, perTiming) {
     move = { title: `たんぱく質 あと${Math.round(pRemain)}g`, sub,
       cta: plan ? '＋追加' : '記録する',
       action: plan ? `add:${plan.items[0].food.id}` : `meal:${slot || 'snack'}`, cls: '' };
+  }
+  // 記録漏れの穴埋め（2026-07-13: 週2〜3日しか埋まらない実態への打ち手）。
+  // 直近3日で「1食も記録が無い日」があれば、遡って埋める導線を出す
+  if (!move) {
+    for (let i = 1; i <= 3; i++) {
+      const d = shiftDate(todayStr(), -i);
+      if (!dayMealTotals(d)) {
+        move = { title: `${fmtDateLabel(d)} が未記録`, sub: 'いつもの内容なら1タップで埋まります',
+          cta: '埋める', action: `fill:${d}`, cls: 'warn' };
+        break;
+      }
+    }
   }
   if (!move && remain < -150) {
     move = { title: `目標を${fmtNum(-remain)}kcalオーバー`, sub: '次の食事で調整すれば大丈夫', cta: '分析を見る', action: 'nutrition', cls: 'warn' };
@@ -5044,8 +5118,35 @@ function openRecordMenu() {
   } else {
     btn.style.display = 'none';
   }
+  // 「いつものを記録」: いまの時間帯（無ければ次に来る食事）の常習セットを提示
+  const slot = currentMealSlot() || 'lunch';
+  const usual = usualMealFor(slot, todayStr());
+  const already = findRecord(todayStr(), slot);
+  const uBtn = $('#usualMealBtn');
+  if (usual && !already) {
+    uBtn.style.display = '';
+    uBtn.dataset.timing = slot;
+    $('#usualMealHint').textContent =
+      `${TIMINGS[slot].title}: ${fmtNum(usual.record.kcal || 0)}kcal・${usual.record.items.length}品（過去${usual.count}回の構成）`;
+  } else {
+    uBtn.style.display = 'none';
+  }
   $('#recordWaterBtn').style.display = showHydration() ? '' : 'none';
   $('#recordMenuBack').classList.add('show');
+}
+/** 「いつもの」を該当スロットに入れて食事シートを開く（保存は本人が確認して押す） */
+function openUsualMeal() {
+  const slot = $('#usualMealBtn').dataset.timing || currentMealSlot() || 'lunch';
+  const usual = usualMealFor(slot, todayStr());
+  if (!usual) { showToast('「いつもの」を学習できるだけの記録がまだありません'); return; }
+  setDate(todayStr());
+  state.timing = slot;
+  loadMealFor(state.date, state.timing);
+  state.items = restoreMealItems(usual.record.items, usual.record.structuredItems);
+  showView('meal');
+  renderItems();
+  persistDraft();
+  showToast(`いつもの${TIMINGS[slot].title}を入れました。確認して「記録する」`);
 }
 function repeatLastMeal() {
   const last = latestRepeatableMeal();
@@ -6044,6 +6145,7 @@ $('#recordMenuBack').addEventListener('click', (e) => {
   if (!b) return;
   $('#recordMenuBack').classList.remove('show');
   const kind = b.dataset.record;
+  if (kind === 'usual') { openUsualMeal(); return; }
   if (kind === 'repeat') { repeatLastMeal(); return; }
   if (kind === 'water') { showView('meal'); setTimeout(() => { const el = document.getElementById('hydrationCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }
   showView(kind);
@@ -6125,6 +6227,14 @@ $('#nextMoveCard').addEventListener('click', (e) => {
     state.timing = action.slice(5);
     loadMealFor(todayStr(), state.timing);
     showView('meal');
+  } else if (action.startsWith('fill:')) {
+    // 記録漏れの日へ移動し、その日のいちばん重い食事（昼）から埋め始める
+    const date = action.slice(5);
+    setDate(date);
+    state.timing = 'lunch';
+    loadMealFor(date, state.timing);
+    showView('meal');
+    showToast(`${fmtDateLabel(date)} を埋めます。「いつもの」で一気に入ります`);
   } else if (action.startsWith('add:')) {
     addSuggestedFoodFromCoach(action.slice(4));
   } else if (action === 'workout') {
@@ -6145,7 +6255,12 @@ $('#timingSeg').addEventListener('click', (e) => {
 $('#quickRow').addEventListener('click', (e) => {
   const chip = e.target.closest('[data-quick]');
   if (!chip) return;
-  if (chip.dataset.quick === 'record') {
+  if (chip.dataset.quick === 'usual') {
+    const usual = usualMealFor(state.timing, state.date);
+    if (!usual) return;
+    state.items = restoreMealItems(usual.record.items, usual.record.structuredItems);
+    showToast(`いつもの内容を入れました（過去${usual.count}回の構成）`);
+  } else if (chip.dataset.quick === 'record') {
     const past = getRecords().find((r) => r.id === chip.dataset.rid);
     if (!past) return;
     state.items = restoreMealItems(past.items, past.structuredItems);
