@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v42';
+const CACHE = 'cockpit-cache-v43';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 // 旧4ページ（workout/meal/day/body.html）は SPEC-012 Step6.5 で退役・削除済み
@@ -19,7 +19,7 @@ const CORE = [
   'nutrition-db.js', 'js/storage.js', 'js/nutrition-calc.js', 'js/food-catalog.js',
   'js/supabase-client.js',
   'manifest.webmanifest', 'manifest-app.webmanifest',
-  'icons/cockpit.svg', 'icons/cockpit-192.png', 'icons/cockpit-512.png', 'icons/apple-touch-icon.png'
+  'icons/sambo.svg', 'icons/sambo-192.png', 'icons/sambo-512.png', 'icons/apple-touch-icon.png'
 ];
 
 // 外部CDN（opaque レスポンスを no-cors で取得してキャッシュ）

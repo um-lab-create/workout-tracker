@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#fff8ef">
+<meta name="theme-color" content="#fff8ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191511" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Health Cockpit</title>
@@ -613,6 +614,175 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   font-size: 14.5px; font-weight: 700;
 }
 .unit-sheet-list button.cur { background: var(--accent-soft); color: var(--accent-deep); }
+
+/* ============================================================
+   Phase C: design-v2 適用（2026-07-13。原本 redesign/design-v2/theme-v2.css）
+   ============================================================ */
+/* ================================================================
+   ==== design-v2 (Claude Design 2026-07-05) ====
+   Health Cockpit ビジュアル刷新。app.html の <style> 末尾にそのまま貼る。
+   構成: 1)追加トークン 2)ハードコード色のトークン化上書き
+         3)質感・ブランド強化 4)状態デザイン言語 5)ダークモード 6)アクセシビリティ
+   制約遵守: HTML/JS 変更なし・外部アセットなし・絵文字なし・一画面主義を崩さない
+   ================================================================ */
+
+/* ---------- 1) 追加トークン（ライト既定値） ---------- */
+:root {
+  /* [fix] Phase C: 後付けCSSが var(--panel)/var(--glass) を参照していたが未定義で、
+     ダークモードでグラフカードが白く浮いていた。既存トークンに委譲する */
+  --panel: var(--card);
+  --glass: rgba(0, 0, 0, .06);
+  --bar-track: #f4ead9;
+  --seg-bg: #f6ecdc;
+  --frost: rgba(255, 248, 239, .92);
+  --tab-frost: rgba(255, 255, 255, .88);
+  --hero-a: #ffffff;
+  --hero-b: #fff3e2;
+  --dot-off: #ddd3c0;
+  --faint: #cdc4b0;
+  --grip: #e2d7c2;
+  --toast-bg: rgba(58, 53, 45, .93);
+  --toast-ink: #ffffff;
+  --scrim: rgba(58, 53, 45, .4);
+  --badge-blue-bg: #eef4ff;
+  --warn-ink: #c98a00;
+  --warn-bg: #fff3d6;
+  --tab-idle: #b9ae97;
+  /* 影は「暖色の環境光」: 二層で柔らかく */
+  --shadow: 0 2px 12px rgba(122, 92, 47, .08), 0 1px 3px rgba(122, 92, 47, .06);
+  --shadow-pop: 0 6px 20px rgba(122, 92, 47, .14), 0 2px 6px rgba(122, 92, 47, .08);
+  /* 状態デザイン言語（6状態） */
+  --st-done: var(--green);        /* 記録済み */
+  --st-draft: #e8b53a;            /* 下書き */
+  --st-unsent: var(--red);        /* 未送信 */
+  --st-review: #c98a00;           /* 要確認 */
+  --st-pending-calc: #9a7bd6;     /* 外食・未計算 */
+  --st-empty: var(--faint);       /* 空 */
+}
+
+/* ---------- 2) ハードコード色のトークン化上書き ---------- */
+.topbar { background: var(--frost); }
+.hero { background: linear-gradient(160deg, var(--hero-a) 55%, var(--hero-b) 100%); }
+.mb .bar, .water-track { background: var(--bar-track); }
+.seg { background: var(--seg-bg); }
+.train-chip .dot { background: var(--dot-off); }
+.meal-cell .kc.empty, .empty-note { color: var(--faint); }
+.del-btn, .log-del { color: var(--faint); }
+.coach-hint.warn { color: var(--warn-ink); background: var(--warn-bg); }
+.result-row .badge { background: var(--badge-blue-bg); }
+.tabbar { background: var(--tab-frost); }
+#toast { background: var(--toast-bg); color: var(--toast-ink); }
+.modal-back { background: var(--scrim); }
+.modal .grip { background: var(--grip); }
+.tab-btn { color: var(--tab-idle); }
+
+/* ---------- 3) 質感・ブランド強化 ---------- */
+/* スコアリング＝アプリの顔: 柔らかな発光と数字の存在感 */
+#ringArc { filter: drop-shadow(0 0 5px rgba(255, 138, 42, .30)); transition: stroke-dashoffset .8s cubic-bezier(.22, 1, .36, 1), stroke .4s ease; }
+.ring-score b { letter-spacing: -.03em; font-feature-settings: "tnum"; }
+.kcal-line b { letter-spacing: -.02em; }
+/* カードの品格: 押せるカードだけ沈む */
+.card { transition: box-shadow .18s ease; }
+button.card:active, .meal-cell:active, .quick-chip:active { box-shadow: var(--shadow-pop); }
+/* 主ボタン: 光の面を持つ */
+.primary-btn {
+  background: linear-gradient(160deg, #ffa14d 0%, var(--accent) 45%, var(--accent-deep) 100%);
+  box-shadow: 0 4px 16px rgba(255, 138, 42, .38), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.primary-btn.success { box-shadow: 0 4px 16px rgba(79, 189, 99, .38), inset 0 1px 0 rgba(255, 255, 255, .35); }
+/* ブランドロゴ */
+.brand .logo { box-shadow: 0 2px 6px rgba(240, 115, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .4); }
+/* 保存成功・達成のマイクロインタラクション */
+@keyframes dv2-pop { 0% { transform: scale(1); } 45% { transform: scale(1.06); } 100% { transform: scale(1); } }
+.primary-btn.success { animation: dv2-pop .32s cubic-bezier(.34, 1.56, .64, 1); }
+.ws.achieved { animation: dv2-pop .32s cubic-bezier(.34, 1.56, .64, 1); }
+/* 今週カード: 達成が「誇らしい」見え方 */
+.ws { transition: background .25s ease; }
+.ws.achieved {
+  background: linear-gradient(160deg, var(--green-soft) 0%, rgba(79, 189, 99, .22) 100%);
+  box-shadow: inset 0 0 0 1px rgba(79, 189, 99, .35);
+}
+.wd.today .dn { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 3px rgba(255, 138, 42, .15); }
+/* タブバー: アクティブをピル型で明確に */
+.tab-btn { transition: color .15s ease, background .15s ease; }
+.tab-btn.active { box-shadow: inset 0 0 0 1px rgba(240, 115, 0, .12); }
+
+/* ---------- 4) 状態デザイン言語 ---------- */
+.meal-cell.done .t { background: var(--green-soft); color: var(--st-done); }
+.meal-cell.draft .t { box-shadow: inset 0 0 0 2px var(--st-draft); }         /* 変更指示書#1: draft class 付与が必要 */
+.review-chip.on { background: var(--warn-bg); color: var(--st-review); }
+.unsent-chip.show, .status-card .val.warn { color: var(--st-unsent); }
+.quick-chip.accent { box-shadow: var(--shadow), inset 0 0 0 1px rgba(240, 115, 0, .18); }
+
+/* ---------- 5) ダークモード（暖色ダーク: 夜の記録が多い前提） ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass: rgba(241, 232, 216, .08);
+    --bg: #191511;
+    --card: #241e17;
+    --ink: #f1e8d8;
+    --muted: #a2977f;
+    --line: #332b1e;
+    --accent: #ff9440;
+    --accent-deep: #ffb066;
+    --accent-soft: rgba(255, 148, 64, .16);
+    --green: #5ecf74;
+    --green-soft: rgba(94, 207, 116, .16);
+    --red: #ff7b76;
+    --red-soft: rgba(255, 123, 118, .16);
+    --blue: #8ab8ff;
+    --shadow: 0 2px 12px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .3);
+    --shadow-pop: 0 6px 22px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .35);
+    --bar-track: #332b1e;
+    --seg-bg: #2b241a;
+    --frost: rgba(25, 21, 17, .9);
+    --tab-frost: rgba(30, 25, 19, .92);
+    --hero-a: #241e17;
+    --hero-b: #2f2517;
+    --dot-off: #4a4030;
+    --faint: #5c523f;
+    --grip: #4a4030;
+    --toast-bg: rgba(241, 232, 216, .96);
+    --toast-ink: #241e17;
+    --scrim: rgba(0, 0, 0, .58);
+    --badge-blue-bg: rgba(138, 184, 255, .16);
+    --warn-ink: #ffce6b;
+    --warn-bg: rgba(201, 138, 0, .2);
+    --tab-idle: #6e6350;
+    --st-draft: #d9ab3c;
+    --st-pending-calc: #b79aec;
+  }
+  .primary-btn { box-shadow: 0 4px 16px rgba(255, 148, 64, .3), inset 0 1px 0 rgba(255, 255, 255, .18); }
+  #ringArc { filter: drop-shadow(0 0 6px rgba(255, 148, 64, .35)); }
+  .brand .logo { box-shadow: 0 2px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .22); }
+}
+
+/* ---------- 6) アクセシビリティ ---------- */
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Phase C 追補: design-v2 納品後に追加した面のダーク対応 ---------- */
+@media (prefers-color-scheme: dark) {
+  /* グラフ（分析タブ）: 目盛・軸ラベルは黒固定だと沈むため反転させる */
+  .wk-chart-svg text { fill: rgba(241,232,216,.55) !important; }
+  .wk-chart-svg line { stroke: rgba(241,232,216,.22) !important; }
+  .nt-rank-bar .tick { background: rgba(241,232,216,.3); }
+  .hm-cell { background: rgba(241,232,216,.07); }
+  .wk-chip, .dm-cell, .bal-row .bb, .nt-bar, .nt-gauge .gbar { background: rgba(241,232,216,.08); }
+  .src-tag, .wt-session .pb { color: #241e17; }
+  .coach-card p.act { background: var(--accent-soft); }
+  .rec-verdict.bad { color: #ff9b93; background: rgba(255,123,118,.16); }
+  .rec-verdict.warn { color: var(--warn-ink); background: var(--warn-bg); }
+  .nm-part .role { background: var(--accent-soft); color: var(--accent-deep); }
+  .next-move .nm-cta { background: var(--accent-soft); }
+  .ff-micros span b, .wk-chart-card .tt, .nm-plan .ttl { color: var(--ink); }
+}
 </style>
 </head>
 <body>
@@ -3777,6 +3947,7 @@ function renderDiningOut(writeInputs = true) {
   const card = $('#diningCard');
   if (!card) return;
   card.classList.toggle('active', dining.enabled);
+  card.classList.toggle('pending-calc', dining.enabled);   // Phase C 変更指示書#3: 未計算=紫
   $('#diningToggleBtn').textContent = dining.enabled ? '外食中' : '外食した';
   if (writeInputs) {
     $('#diningRestaurant').value = dining.restaurantName;
@@ -4268,7 +4439,8 @@ function renderHome() {
     const kc = info.kcal > 0
       ? `<span class="kc">${fmtNum(info.kcal)}</span>`
       : '<span class="kc empty">＋</span>';
-    return `<button class="meal-cell ${done ? 'done' : ''}" data-meal-timing="${tk}">
+    // Phase C 変更指示書#1: 下書きのセルに draft クラス（状態言語「下書き=琥珀リング」）
+    return `<button class="meal-cell ${done ? 'done' : ''}${!done && info.draft ? ' draft' : ''}" data-meal-timing="${tk}">
       <span class="t">${TIMINGS[tk].label}</span>${kc}
       <span class="lbl">${done ? '記録済み' : (info.draft ? '下書き' : 'kcal')}</span>
     </button>`;
