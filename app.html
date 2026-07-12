@@ -841,6 +841,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     </div>
     <div id="ntDaily">
     <div class="card nt-judge" id="ntJudge"></div>
+    <div id="ntNextMeal"></div>
     <div class="section-label">栄養ランキング（不足・多すぎ・充足）</div>
     <div class="nt-ranking" id="ntRanking"></div>
     <div class="section-label">35栄養素の過不足</div>
@@ -1214,6 +1215,15 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   .rec-verdict.good { color:var(--green); background:var(--green-soft); }
   .rec-verdict.warn { color:#c98a00; background:#fff3d6; }
   .rec-verdict.bad { color:#c0392b; background:#ffe3e0; }
+  /* 次の1食の組み立て（SPEC-022 第3形態） */
+  .nm-plan { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-left:3px solid var(--accent,#ff8a2a); border-radius:14px; padding:11px 13px; margin-top:10px; }
+  .nm-plan.good { border-left-color:var(--green); }
+  .nm-plan .ttl { font-size:13px; font-weight:800; }
+  .nm-plan .sub { font-size:11px; color:var(--muted,#999); margin-top:2px; }
+  .nm-part { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line,rgba(0,0,0,.05)); font-size:12.5px; margin-top:4px; }
+  .nm-part .role { flex:none; font-size:10px; font-weight:900; color:var(--accent-deep,#b35c12); background:var(--accent-soft,#fff1e3); border-radius:6px; padding:2px 6px; }
+  .nm-part .nm { flex:1; min-width:0; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nm-part .gain { flex:none; font-size:10.5px; color:var(--muted,#999); font-variant-numeric:tabular-nums; }
 </style>
 
 <!-- 自分の食品（管理面 + 概算一覧・SPEC-014 §3-4/3-5） -->
@@ -4856,6 +4866,76 @@ function buildNtRanking(state) {
   return { low, high, good };
 }
 
+// ---- 候補提案の第3形態（SPEC-022 の残り）: 「次の食事でこう組み立てる」----
+// 1品・2品の組合せに続く3つ目の形態。残りのkcal/PFCから次の1食の設計図を出す。
+function nextUnrecordedSlot() {
+  const order = ['morning', 'lunch', 'dinner', 'snack'];
+  const h = new Date().getHours();
+  const start = h < 10 ? 0 : h < 14 ? 1 : h < 21 ? 2 : 3;
+  for (let i = start; i < order.length; i++) {
+    if (!findRecord(todayStr(), order[i])) return order[i];
+  }
+  return null;
+}
+/** 残りの栄養から次の1食の構成案（主菜・副菜・主食）を作る */
+function buildNextMealPlan(nt) {
+  if (state.date !== todayStr()) return null;   // 過去日を見ている時は出さない
+  const targets = { energy: ntTargetValue('energy'), protein: ntTargetValue('protein'), fat: ntTargetValue('fat'), carb: ntTargetValue('carb') };
+  const remain = {
+    energy: targets.energy - (nt.nutrients.energy || 0),
+    protein: targets.protein - (nt.totals.p || 0),
+    carb: targets.carb - (nt.totals.c || 0),
+    fat: targets.fat - (nt.totals.f || 0)
+  };
+  const slot = nextUnrecordedSlot();
+  if (!slot) return { done: true, remain };
+  if (remain.energy < 150) return { done: true, remain };
+  // 残りを次の1食にどれだけ割り当てるか（夜が最後なら全部・昼なら半分）
+  const share = slot === 'dinner' || slot === 'snack' ? 1 : 0.5;
+  const budget = {
+    energy: Math.round(remain.energy * share),
+    protein: Math.round(remain.protein * share),
+    carb: Math.round(remain.carb * share)
+  };
+  const parts = [];
+  const main = suggestFoodsFor('protein', { remainKcal: budget.energy, timing: slot, limit: 1 })[0];
+  if (main && budget.protein > 10) parts.push({ role: '主菜', s: main, gain: `P+${Math.round(main.value)}g` });
+  const side = suggestFoodsFor('fiber', { remainKcal: budget.energy, timing: slot, limit: 2 })
+    .find((c) => !main || c.food.id !== main.food.id);
+  if (side) parts.push({ role: '副菜', s: side, gain: `食物繊維+${side.value.toFixed(1)}g` });
+  if (budget.carb > 40) {
+    // 主食は穀類から選ぶ（炭水化物密度だけで選ぶとバナナ・レーズンが主食になってしまう）
+    const isGrain = (f) => f.category === '穀類' || /ご飯|白米|玄米|パン|麺|うどん|そば|パスタ|スパゲッティ|オートミール|もち/.test(f.name);
+    const carbs = suggestFoodsFor('carb', { remainKcal: budget.energy, timing: slot, limit: 12 })
+      .filter((c) => parts.every((p) => p.s.food.id !== c.food.id));
+    const staple = carbs.find((c) => isGrain(c.food)) || null;
+    if (staple) parts.push({ role: '主食', s: staple, gain: `C+${Math.round(staple.value)}g` });
+  }
+  return { done: false, slot, budget, parts, remain };
+}
+function renderNextMealPlan(nt) {
+  const el = $('#ntNextMeal');
+  if (!el) return;
+  const plan = buildNextMealPlan(nt);
+  if (!plan) { el.innerHTML = ''; return; }
+  if (plan.done) {
+    el.innerHTML = `<div class="nm-plan good"><div class="ttl">今日はこのまま締めてOK</div>
+      <div class="sub">残り ${fmtNum(Math.max(0, plan.remain.energy))}kcal。無理に足す必要はありません。</div></div>`;
+    return;
+  }
+  if (!plan.parts.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="nm-plan">
+    <div class="ttl">次の${TIMINGS[plan.slot].title}はこう組み立てる</div>
+    <div class="sub">この1食の目安 ${fmtNum(plan.budget.energy)}kcal / P${Math.max(0, plan.budget.protein)}g</div>
+    ${plan.parts.map((p) => `<div class="nm-part">
+      <span class="role">${p.role}</span>
+      <span class="nm">${escapeHtml(suggestionLabel(p.s))}</span>
+      <span class="gain">${escapeHtml(p.gain)}</span>
+      <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(p.s.food.id)}">追加</a>
+    </div>`).join('')}
+  </div>`;
+}
+
 let ntState = null;
 function renderNutrition() {
   if (!NUTRITION_DB) { $('#ntJudge').innerHTML = '<div class="empty-note">栄養DBを読み込めませんでした</div>'; return; }
@@ -4871,6 +4951,8 @@ function renderNutrition() {
       <div class="nt-gauge"><div class="gl"><span>${p.label}</span><b>${p.score}</b></div>
         <div class="gbar"><i style="width:${Math.max(3, Math.min(100, p.score))}%;background:${gaugeColor(p.score)}"></i></div></div>`).join('')}</div>
     <ul class="nt-pri" style="padding:0;margin:0">${judge.priorities.slice(0, 3).map((p) => `<li><b>${escapeHtml(p.title)}</b>${escapeHtml(p.copy)}${p.suggestFood ? ` <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(p.suggestFood)}">追加する</a>` : ''}</li>`).join('')}</ul>`;
+
+  renderNextMealPlan(ntState);   // 第3形態: 次の1食の組み立て（SPEC-022）
 
   const ranking = buildNtRanking(ntState);
   const sections = [
