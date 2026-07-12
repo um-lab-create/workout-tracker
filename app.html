@@ -733,6 +733,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
       <div class="empty-note" id="mealEmpty">下の検索か、上の「いつもの」から追加</div>
       <div class="items-foot" id="itemsFoot" style="display:none">
         <button class="usual-btn" id="saveUsualBtn">☆ 普段の食事に保存</button>
+        <!-- レシピ導線改善（2026-07-13: 使用0件だった。作り置きは「作った後に材料を入れ直す」のが面倒で
+             使われていなかった → 今入力している内容をそのまま作り置き化できるようにする） -->
+        <button class="usual-btn" id="toRecipeBtn">作り置きにする（何食分かに分ける）</button>
         <button class="danger-text" id="deleteMealBtn" type="button" style="display:none">この記録を削除</button>
       </div>
     </div>
@@ -1251,6 +1254,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
     <!-- 記録継続の打ち手: いま時間帯の「いつもの」を1タップで保存まで（2026-07-13） -->
     <button class="kind-btn accent" data-record="usual" id="usualMealBtn" style="display:none">いつものを記録<small id="usualMealHint"></small></button>
     <button class="kind-btn" data-record="repeat" id="repeatMealBtn">前回と同じ食事<small id="repeatMealHint">直近の記録を今日に入れる</small></button>
+    <button class="kind-btn" data-record="recipe">作り置きを登録<small>材料と食数を入れると1食分を自動計算</small></button>
     <button class="kind-btn" data-record="workout">筋トレ<small>種目・重量・回数</small></button>
     <button class="kind-btn" data-record="body">からだ<small>体重・体脂肪率</small></button>
     <button class="kind-btn" data-record="water" id="recordWaterBtn" style="display:none">水分<small>飲んだ量をワンタップ</small></button>
@@ -3118,11 +3122,25 @@ function submitFoodForm() {
 }
 
 // ---- レシピビルダー ----
-function openRecipeBuilder(food = null) {
+/**
+ * レシピ（作り置き）ビルダーを開く。
+ * @param {object|null} food 編集するレシピ
+ * @param {Array|null} prefillItems 今入力中の食事の品目をそのまま材料にする（導線改善 2026-07-13）
+ */
+function openRecipeBuilder(food = null, prefillItems = null) {
   recipeState = { editingId: food ? food.id : null, items: [] };
-  $('#recipeTitle').textContent = food ? 'レシピを編集' : 'レシピを作る';
+  if (!food && prefillItems && prefillItems.length) {
+    recipeState.items = prefillItems.map((it) => ({
+      free: Boolean(it.free), foodId: it.foodId || null, name: it.name,
+      qty: Number(it.qty) || 1, unit: it.unit || 'g',
+      pendingReview: Boolean(it.pendingReview),
+      estKcal: it.estKcal ?? null, estProteinG: it.estProteinG ?? null,
+      estFatG: it.estFatG ?? null, estCarbG: it.estCarbG ?? null
+    }));
+  }
+  $('#recipeTitle').textContent = food ? 'レシピを編集' : (prefillItems ? '作り置きにする' : 'レシピを作る');
   $('#rcName').value = food ? food.name : (state.pendingFoodName || '');
-  $('#rcServings').value = food && food.recipeServings ? food.recipeServings : 1;
+  $('#rcServings').value = food && food.recipeServings ? food.recipeServings : (prefillItems ? 2 : 1);
   $('#rcSearch').value = '';
   $('#rcSearchResults').innerHTML = '';
   $('#rcFreeArea').style.display = 'none';
@@ -3131,9 +3149,9 @@ function openRecipeBuilder(food = null) {
     const localItems = loadRecipeItemsLocal(food.id);
     if (localItems && localItems.length) {
       recipeState.items = localItems.map((it) => ({ ...it }));
-      renderRecipeItems();
     }
   }
+  renderRecipeItems();   // [fix] プリフィル/控えの有無に関わらず材料とプレビューを描く
   $('#recipeBack').classList.add('show');
   if (food && food.serverId) {
     // 既存レシピの材料をサーバーから復元（サーバーが正。取得できたらローカル控えも更新）
@@ -3231,6 +3249,17 @@ function submitRecipe() {
   $('#recipeBack').classList.remove('show');
   saveRecipeLocal({ food, items });
   state.pendingFoodName = '';
+  // 導線改善（2026-07-13）: 作り置きを登録したら、その場で「1食分を今の食事に入れる」まで繋ぐ。
+  // 旧実装は保存して終わりで、次に自分で検索し直す必要があり使われなかった。
+  if (state.view === 'meal' && !recipeState.editingId) {
+    const created = getFoodById(food.id);
+    if (created) {
+      state.items = [createMealItem(created, 1, created.unitLabel || '食')];
+      renderItems();
+      persistDraft();
+      showToast(`${servings}食分を登録し、1食分を入れました（${fmtNum(calc.macrosPerServing.kcal)}kcal）`);
+    }
+  }
   if (state.view === 'meal') renderSearch();
 }
 
@@ -6242,6 +6271,7 @@ $('#recordMenuBack').addEventListener('click', (e) => {
   $('#recordMenuBack').classList.remove('show');
   const kind = b.dataset.record;
   if (kind === 'usual') { openUsualMeal(); return; }
+  if (kind === 'recipe') { showView('meal'); setTimeout(() => openRecipeBuilder(), 250); return; }
   if (kind === 'repeat') { repeatLastMeal(); return; }
   if (kind === 'water') { showView('meal'); setTimeout(() => { const el = document.getElementById('hydrationCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }
   showView(kind);
@@ -6431,6 +6461,12 @@ function applyQtySheet() {
 $('#qtySheetOk').addEventListener('click', applyQtySheet);
 $('#qtySheetInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyQtySheet(); });
 $('#saveUsualBtn').addEventListener('click', saveCurrentAsUsual);
+$('#toRecipeBtn').addEventListener('click', () => {
+  if (!state.items.length) { showToast('先に材料（食べたもの）を入れてください'); return; }
+  // 今入力中の内容を材料としてレシピ（作り置き）を作る。何食分に分けるかはビルダーで指定
+  openRecipeBuilder(null, state.items);
+  showToast('何食分に分けるかを入れて保存すると、1食分が計算されます');
+});
 $('#deleteMealBtn').addEventListener('click', deleteCurrentMealRecord);
 $('#unitSheetList').addEventListener('click', (e) => {
   const b = e.target.closest('[data-unit]');
