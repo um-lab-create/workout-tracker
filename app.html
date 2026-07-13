@@ -1478,7 +1478,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     border-bottom: 1px solid var(--line);
   }
   .ctx-item:last-child { border-bottom: none; }
-  .ctx-item:active { background: var(--accent-soft); }
+  .ctx-item:active, .ctx-item.hl { background: var(--accent-soft); }   /* .hl = 指の下（スライド選択） */
   .ctx-item .tx { flex: 1; min-width: 0; }
   .ctx-item .t1 { display: block; font-size: 14px; font-weight: 700; }
   .ctx-item .t2 { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
@@ -1495,9 +1495,17 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     box-shadow: var(--shadow); font-size: 18px; font-weight: 900; color: var(--muted);
   }
   .kind-more:active { transform: scale(.96); }
-  /* iOS: 長押し時の標準コールアウト（テキスト選択・プレビュー）を抑止する。
-     ※ iOS Safari には振動APIが無いため触覚フィードバックは出せない（調査 2026-07-13） */
-  .kind-btn, .kind-more, .meal-cell { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* iOS: 長押し時のコピー吹き出し・虫眼鏡・テキスト拡大を根本から止める（2026-07-13 指摘②③）。
+     ボタン類とシート内は文字を選択させない。※ iOS Safari は振動API非対応のため触覚は出せない */
+  .kind-btn, .kind-more, .meal-cell, .ctx-menu, .ctx-item, .ctx-item *,
+  #recordMenuBack .modal, #recordMenuBack .modal * {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;              /* ダブルタップ拡大も抑止 */
+  }
+  .ctx-back { touch-action: none; }          /* メニュー表示中はスクロール・拡大させない */
 </style>
 
 <script src="nutrition-db.js"></script>
@@ -5721,22 +5729,75 @@ function openUsualMealFor(slot) {
   showToast(`いつもの${TIMINGS[slot].title}を入れました。確認して「記録する」`);
 }
 /** 長押し（500ms）でサブメニュー。iOSは3D Touch非対応・振動APIも無いため長押しで代替 */
+/**
+ * 長押し → メニュー表示 → **指を離さずスライドして選択**（iOS標準と同じ操作）。
+ * 2026-07-13 マネージャー指摘の3点を解消:
+ *   ①指を離さないと選べなかった → 長押し後は同じ指のドラッグで項目をハイライトし、離した所で決定
+ *   ②コピー用の吹き出し・虫眼鏡が出る → touchstart を preventDefault（passive:false）し、
+ *     CSS でも選択・コールアウトを禁止
+ *   ③拡大される → 上と同じ原因（テキスト選択の虫眼鏡）。選択自体を禁止して発生させない
+ */
+let ctxDragActive = false;
+function ctxHighlightAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const item = el && el.closest ? el.closest('.ctx-item') : null;
+  document.querySelectorAll('#ctxMenu .ctx-item').forEach((n) => n.classList.toggle('hl', n === item));
+  return item;
+}
 function bindLongPress(el, onLongPress) {
-  let timer = null, moved = false;
+  let timer = null, moved = false, startPt = null, opened = false;
+
+  const openNow = (target) => {
+    opened = true;
+    ctxDragActive = true;
+    onLongPress(target);
+    if (navigator.vibrate) navigator.vibrate(10);   // Android のみ（iOS Safari は振動API非対応）
+  };
   const start = (e) => {
-    moved = false;
+    const t = e.touches ? e.touches[0] : e;
+    moved = false; opened = false;
+    startPt = { x: t.clientX, y: t.clientY };
     const target = e.target;
-    timer = setTimeout(() => { if (!moved) onLongPress(target); }, 500);
+    timer = setTimeout(() => { if (!moved) openNow(target); }, 450);
+  };
+  const move = (e) => {
+    const t = e.touches ? e.touches[0] : e;
+    if (opened) {                                    // メニュー表示中: 指の下の項目をハイライト
+      ctxHighlightAt(t.clientX, t.clientY);
+      e.preventDefault();
+      return;
+    }
+    if (startPt && Math.hypot(t.clientX - startPt.x, t.clientY - startPt.y) > 10) {
+      moved = true;                                  // スクロール意図 → 長押しは中止
+      cancel();
+    }
+  };
+  const end = (e) => {
+    cancel();
+    if (!opened) return;
+    const t = (e.changedTouches && e.changedTouches[0]) || e;
+    const item = ctxHighlightAt(t.clientX, t.clientY);
+    opened = false; ctxDragActive = false;
+    if (item) {                                      // 指を離した位置の項目を実行（離さずスライド選択）
+      e.preventDefault();
+      const idx = Number(item.dataset.sub);
+      closeSubMenu();
+      const chosen = subMenuItems[idx];
+      if (chosen && chosen.run) chosen.run();
+    }
+    // 項目の外で離した場合はメニューを開いたまま（タップでも選べる）
   };
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
-  el.addEventListener('touchstart', start, { passive: true });
-  el.addEventListener('touchmove', () => { moved = true; cancel(); }, { passive: true });
-  el.addEventListener('touchend', cancel);
-  el.addEventListener('touchcancel', cancel);
+
+  el.addEventListener('touchstart', (e) => { start(e); }, { passive: true });
+  el.addEventListener('touchmove', move, { passive: false });
+  el.addEventListener('touchend', end);
+  el.addEventListener('touchcancel', () => { cancel(); opened = false; ctxDragActive = false; });
   el.addEventListener('contextmenu', (e) => { e.preventDefault(); onLongPress(e.target); });   // PC: 右クリック
-  // PC検証用: マウス長押しでも開く
+  // PC検証用（マウス長押し）
   el.addEventListener('mousedown', (e) => { if (e.button === 0) start(e); });
-  el.addEventListener('mouseup', cancel);
+  el.addEventListener('mousemove', move);
+  el.addEventListener('mouseup', end);
   el.addEventListener('mouseleave', cancel);
 }
 function setDate(dateStr) {
