@@ -1368,7 +1368,21 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .wk-chart-card .tt { font-size:11px; font-weight:900; color:var(--muted,#888); letter-spacing:.04em; }
   .wk-chart-card .legend { display:flex; gap:10px; font-size:10px; color:var(--muted,#999); margin-top:2px; }
   .wk-chart-card .legend i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:3px; vertical-align:-1px; }
-  .wk-chart-svg { width:100%; height:110px; display:block; margin-top:6px; }
+  .wk-chart-svg { width:100%; height:110px; display:block; margin-top:6px; touch-action:none; }
+  /* グラフのスクラブ（指で縦線・数値追従） */
+  .wk-chart-card { position:relative; }
+  .scrub-line { stroke:var(--accent,#ff8a2a); stroke-width:1.5; opacity:0; pointer-events:none; }
+  .wk-chart-svg.scrubbing .scrub-line { opacity:.85; }
+  .scrub-tip {
+    display:none; position:absolute; top:26px; z-index:2; pointer-events:none;
+    flex-direction:column; gap:2px; padding:6px 9px; border-radius:10px;
+    background:var(--card); box-shadow:0 6px 20px rgba(0,0,0,.18); border:1px solid var(--line);
+    font-size:11px; line-height:1.5; white-space:nowrap;
+  }
+  .scrub-tip > b { font-size:11px; font-weight:900; }
+  .scrub-tip span { display:flex; align-items:center; gap:5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .scrub-tip span b { color:var(--ink); font-weight:800; }
+  .scrub-tip i { width:7px; height:7px; border-radius:2px; flex:none; }
   .wk-head { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
   .wk-head .wl { font-weight:800; }
   .wk-head .bf { margin-left:auto; font-weight:900; font-variant-numeric:tabular-nums; }
@@ -5649,28 +5663,52 @@ function openRecordMenu() {
 //   ＋記録 = 大分類のみ（食事/筋トレ/からだ）。中分類はここに集約する。
 //   iOSの3D Touchは Web API が無く機種でも廃止済み → **長押し(500ms)** で代替し、
 //   長押しは隠れた操作なので「⋯」ボタンも併設して発見性を確保する。
-function mealShortcuts() {
+/**
+ * 食事のショートカット。slot を渡すとその時間帯（朝/昼/夜/間食）専用の内容になる。
+ * 2026-07-14: ホームの朝・昼・夜・間食セルを長押しすると、そのセルの時間帯に対して
+ * 「いつもの◯◯」「前回と同じ◯◯」を出す（マネージャー要望）。
+ */
+function mealShortcuts(slot) {
   const items = [];
-  const slot = currentMealSlot() || 'lunch';
-  const usual = usualMealFor(slot, todayStr());
-  if (usual && !findRecord(todayStr(), slot)) {
+  const tk = slot || currentMealSlot() || 'lunch';
+  const title = TIMINGS[tk].title;
+  const already = findRecord(todayStr(), tk);
+  const usual = usualMealFor(tk, todayStr());
+  if (usual && !already) {
     items.push({
-      key: 'usual', title: `いつもの${TIMINGS[slot].title}`,
+      key: 'usual', title: `いつもの${title}`,
       sub: `${fmtNum(usual.record.kcal || 0)}kcal・${usual.record.items.length}品（過去${usual.count}回の構成）`,
-      accent: true, run: () => openUsualMealFor(slot)
+      accent: true, run: () => openUsualMealFor(tk)
     });
   }
-  const last = latestRepeatableMeal();
-  if (last) {
+  // 「前回と同じ」= その時間帯の直近の記録（朝を長押しすれば前回の朝）
+  const lastSame = getRecords()
+    .filter((r) => r.timingKey === tk && r.date < todayStr() && r.items && r.items.length)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+  if (lastSame && !already) {
     items.push({
-      key: 'repeat', title: '前回と同じ食事',
-      sub: `${fmtDateLabel(last.date)} の${last.title || last.timing}（${fmtNum(last.kcal || 0)}kcal・${last.items.length}品）`,
-      run: repeatLastMeal
+      key: 'repeatSame', title: `前回と同じ${title}`,
+      sub: `${fmtDateLabel(lastSame.date)}（${fmtNum(lastSame.kcal || 0)}kcal・${lastSame.items.length}品）`,
+      run: () => {
+        setDate(todayStr());
+        state.timing = tk;
+        loadMealFor(state.date, tk);
+        state.items = restoreMealItems(lastSame.items, lastSame.structuredItems);
+        showView('meal');
+        renderItems();
+        persistDraft();
+        showToast(`${fmtDateLabel(lastSame.date)}の${title}を入れました。確認して「記録する」`);
+      }
     });
+  }
+  if (already) {
+    items.push({ key: 'edit', title: `${title}を編集`, sub: `記録済み（${fmtNum(already.kcal || 0)}kcal・${(already.items || []).length}品）`,
+      run: () => { state.timing = tk; loadMealFor(todayStr(), tk); showView('meal'); } });
   }
   items.push({ key: 'recipe', title: '作り置きを登録', sub: '材料と食数を入れると1食分を自動計算',
     run: () => { showView('meal'); setTimeout(() => openRecipeBuilder(), 250); } });
-  items.push({ key: 'blank', title: 'ゼロから記録', sub: '検索して1品ずつ入れる', run: () => showView('meal') });
+  items.push({ key: 'blank', title: already ? '別の食事を記録' : `${title}をゼロから記録`, sub: '検索して1品ずつ入れる',
+    run: () => { state.timing = tk; loadMealFor(todayStr(), tk); showView('meal'); } });
   return items;
 }
 function workoutShortcuts() {
@@ -5709,8 +5747,8 @@ let subMenuItems = [];
  * @param {string} kind 'meal' | 'workout'
  * @param {Element} anchor 押した要素（この直下・画面内に収まる位置へ出す）
  */
-function openSubMenu(kind, anchor) {
-  subMenuItems = kind === 'meal' ? mealShortcuts() : kind === 'workout' ? workoutShortcuts() : [];
+function openSubMenu(kind, anchor, slot) {
+  subMenuItems = kind === 'meal' ? mealShortcuts(slot) : kind === 'workout' ? workoutShortcuts() : [];
   if (!subMenuItems.length) { showView(kind); return; }
   const kj = kind === 'meal' ? '食' : '運';
   const menu = $('#ctxMenu');
@@ -6072,6 +6110,55 @@ function wkXLabel(weekStart) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 /** 直近8週の 体重×体脂肪率 の折れ線と、カロリー棒×たんぱく質折れ線 の2枚を描く */
+// ============================================================
+// グラフのスクラブ（2026-07-14 マネージャー要望）
+// 「チャート上を長押し/スライドすると縦線が指に追従し、その時点の数値が出る」
+// 体組成計アプリなどでおなじみの操作。全グラフ共通の仕組みとして1回だけ実装する。
+//
+// 使い方: カードを描いた後に attachScrub(cardEl, { W, padL, padR, points })
+//   points = [{ x: viewBox上のX, label: '7/8(火)', vals: [{name,text,color}] }]
+// ============================================================
+function attachScrub(card, meta) {
+  const svg = card.querySelector('svg');
+  if (!svg || !meta.points || meta.points.length < 2) return;
+  card.classList.add('scrubbable');
+  const tip = document.createElement('div');
+  tip.className = 'scrub-tip';
+  card.appendChild(tip);
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const line = document.createElementNS(ns, 'line');
+  line.setAttribute('class', 'scrub-line');
+  line.setAttribute('y1', '0');
+  line.setAttribute('y2', String(meta.H || 120));
+  svg.appendChild(line);
+
+  const show = (clientX) => {
+    const r = svg.getBoundingClientRect();
+    const vx = ((clientX - r.left) / r.width) * meta.W;      // 画面X → viewBox X
+    let best = meta.points[0];
+    meta.points.forEach((p) => { if (Math.abs(p.x - vx) < Math.abs(best.x - vx)) best = p; });
+    line.setAttribute('x1', String(best.x));
+    line.setAttribute('x2', String(best.x));
+    svg.classList.add('scrubbing');
+    tip.innerHTML = `<b>${escapeHtml(best.label)}</b>` +
+      best.vals.map((v) => `<span><i style="background:${v.color}"></i>${escapeHtml(v.name)} <b>${escapeHtml(v.text)}</b></span>`).join('');
+    // 吹き出しはカード内に収める（指の上あたり）
+    const px = (best.x / meta.W) * r.width;
+    tip.style.display = 'flex';
+    const tw = tip.offsetWidth;
+    tip.style.left = `${Math.round(Math.min(Math.max(px - tw / 2, 6), r.width - tw - 6))}px`;
+  };
+  const hide = () => { svg.classList.remove('scrubbing'); tip.style.display = 'none'; };
+
+  svg.addEventListener('touchstart', (e) => { show(e.touches[0].clientX); }, { passive: true });
+  svg.addEventListener('touchmove', (e) => { show(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+  svg.addEventListener('touchend', hide);
+  svg.addEventListener('touchcancel', hide);
+  svg.addEventListener('mousemove', (e) => show(e.clientX));
+  svg.addEventListener('mouseleave', hide);
+}
+
 function renderWeeklyCharts(rows) {
   const el = $('#weeklyCharts');
   if (!el) return;
@@ -6127,6 +6214,29 @@ function renderWeeklyCharts(rows) {
     </div>`;
   }
   el.innerHTML = html;
+
+  // スクラブ（指で縦線・数値追従）
+  const cards = el.querySelectorAll('.wk-chart-card');
+  let ci = 0;
+  if (bw.length >= 2 && cards[ci]) {
+    const n = bw.length;
+    attachScrub(cards[ci], { W, H, points: bw.map((w, i) => ({
+      x: xAt(i, n), label: wkWeekLabel(w.week_start),
+      vals: [
+        { name: '体重', text: `${wkDec1(w.weight_week_avg_kg)}kg`, color: 'var(--accent,#ff8a2a)' },
+        { name: '体脂肪率', text: `${wkDec1(w.body_fat_week_avg_pct)}%`, color: '#5b8def' }
+      ] })) });
+    ci++;
+  }
+  if (mk.length >= 2 && cards[ci]) {
+    const n = mk.length;
+    attachScrub(cards[ci], { W, H, points: mk.map((w, i) => ({
+      x: xAt(i, n), label: wkWeekLabel(w.week_start),
+      vals: [
+        { name: 'カロリー', text: `${wkInt(w.avg_kcal)}kcal`, color: 'rgba(255,138,42,.7)' },
+        { name: 'たんぱく質', text: `${wkInt(w.avg_protein_g)}g`, color: '#2eb872' }
+      ] })) });
+  }
 }
 
 /** コーチ助言（AIトレーナー v1）を最新週の分だけ専用カードで見せる。段落を保って読める形に。 */
@@ -6204,6 +6314,12 @@ function renderIntakeWeightChart() {
     <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${weightPath}${labels}</svg>
     <div class="sync-note" style="margin-top:2px">点線=目標kcal。線を下回る日が続くと体重が下がります（記録漏れの日は棒が出ません）。</div>
   </div>`;
+  attachScrub(el.querySelector('.wk-chart-card'), { W, H, points: series.map((s2, i) => ({
+    x: xAt(i), label: fmtDateLabel(s2.date),
+    vals: [
+      { name: '摂取', text: s2.kcal ? `${fmtNum(s2.kcal)}kcal` : '記録なし', color: 'rgba(255,138,42,.7)' },
+      { name: '体重', text: s2.weight ? `${s2.weight.toFixed(1)}kg` : '—', color: 'var(--green)' }
+    ] })) });
 }
 
 // ---- 睡眠と回復（Apple Health 由来。体調の手入力は廃止し、客観データで判定する）----
@@ -6309,6 +6425,12 @@ function renderRecoveryChart() {
     ${verdict ? `<div class="rec-verdict ${verdict.kind}">${escapeHtml(verdict.text)}</div>` : ''}
     <div class="sync-note" style="margin-top:2px">点線=7時間。赤い棒は睡眠不足の日。安静時心拍が上がり続ける時は疲労のサイン（Apple ヘルスケア由来）。</div>
   </div>`;
+  attachScrub(el.querySelector('.wk-chart-card'), { W, H, points: days.map((d, i) => ({
+    x: xAt(i), label: fmtDateLabel(d),
+    vals: [
+      { name: '睡眠', text: sleep[i] ? `${sleep[i].toFixed(1)}h` : '—', color: 'rgba(91,141,239,.8)' },
+      { name: '安静時心拍', text: rhr[i] ? `${Math.round(rhr[i])}bpm` : '—', color: '#e94e5b' }
+    ] })) });
 }
 
 // ---- U3-3: 継続ヒートマップ（記録の連続性を一目で。食事=濃さ / 筋トレ=枠） ----
@@ -6530,6 +6652,12 @@ function renderWorkoutBalance() {
       ? `<b>10日以上あいている部位: ${stale.join('・')}</b> — 次はここから`
       : '全部位を10日以内に触れています。いいバランスです'}</div>
   </div>`;
+  attachScrub(el.querySelector('.wk-chart-card'), { W, H, points: vols.map((v, i) => ({
+    x: xAt(i), label: `${wkXLabel(v.start)}の週`,
+    vals: [
+      { name: 'ボリューム', text: `${Math.round(v.vol).toLocaleString()}kg`, color: 'rgba(46,184,114,.7)' },
+      { name: '筋トレ', text: `${v.days}日`, color: 'var(--muted)' }
+    ] })) });
 }
 
 function renderWorkoutAnalysis() {
@@ -6627,6 +6755,15 @@ function renderWorkoutAnalysis() {
           <span class="vol">${cfg.volLabel} ${wtFmt(s.vol, 0)}${cfg.volUnit}</span></div>`).join('')}
     </div>
     <div class="sync-note">折れ線=${cfg.key === 'weight' ? 'その日の最大重量' : cfg.key === 'distance' ? '距離' : '回数'} / 薄い棒=${cfg.volLabel}。数字は各回の値です。</div>`;
+  if (n >= 2) {
+    attachScrub(area.querySelector('.wk-chart-card'), { W, H, points: recent.map((s2, i) => ({
+      x: xAt(i), label: fmtDateLabel(s2.date),
+      vals: [
+        { name: cfg.key === 'weight' ? '重量' : cfg.key === 'distance' ? '距離' : '回数',
+          text: `${wtFmt(s2.main, cfg.dec)}${cfg.unit}`, color: ex.color },
+        { name: cfg.volLabel, text: `${wtFmt(s2.vol, 0)}${cfg.volUnit}`, color: 'rgba(125,95,60,.5)' }
+      ] })) });
+  }
 }
 
 let ntSegment = 'daily';
@@ -6891,7 +7028,7 @@ document.querySelectorAll('#recordMenuBack [data-record="meal"], #recordMenuBack
 // ホームの食事セルも長押しで同じメニュー（押したセルの時間帯で「いつもの」を出す）
 bindLongPress($('#homeMealGrid'), (target) => {
   const cell = target && target.closest ? target.closest('[data-meal-timing]') : null;
-  openSubMenu('meal', cell || $('#homeMealGrid'));
+  openSubMenu('meal', cell || $('#homeMealGrid'), cell ? cell.dataset.mealTiming : null);
 });
 $('#eufyImportBtn').addEventListener('click', () => $('#eufyCsvInput').click());
 $('#eufyCsvInput').addEventListener('change', async (e) => {
