@@ -34,6 +34,13 @@ html, body {
   touch-action: manipulation;      /* ダブルタップ拡大の抑止 */
   overscroll-behavior-y: contain;
 }
+.tabbar, .tabbar *, .record-fab, .record-fab *, .topbar, .topbar * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-drag: none;
+  touch-action: manipulation;
+}
 input, textarea, select, [contenteditable="true"] {
   -webkit-user-select: text;
   user-select: text;
@@ -7255,6 +7262,18 @@ $('#saveBodyBtn').addEventListener('click', saveBody);
 bindContinuousPress($('#mealItems'), '[data-step]', (b) => stepItem(Number(b.dataset.i), Number(b.dataset.step)));
 bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton);
 bindContinuousPress(document.body, '[data-body]', runBodyButton);
+
+// タブバー・＋ボタンの上での「長押し→スライド」による文字選択（コピー/検索メニューの発生源）を潰す。
+// これらの領域はスクロールしないので touchmove を止めても副作用がない（タップは通常どおり効く）。
+['.tabbar', '.record-fab', '.topbar'].forEach((sel) => {
+  document.querySelectorAll(sel).forEach((el) => {
+    el.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+    el.addEventListener('touchstart', () => {
+      const s = window.getSelection();
+      if (s && !s.isCollapsed) s.removeAllRanges();
+    }, { passive: true });
+  });
+});
 
 // ---- タッチ挙動の統一（2026-07-13）----
 // iOS Safari は viewport の maximum-scale を無視することがあるため、ピンチ拡大は
