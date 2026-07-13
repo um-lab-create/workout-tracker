@@ -2,14 +2,14 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fff8ef" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#191511" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Health Cockpit</title>
 <link rel="manifest" href="manifest-app.webmanifest">
-<link rel="icon" href="icons/cockpit.svg" type="image/svg+xml">
+<link rel="icon" href="icons/sambo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
 /* ================================================================
@@ -19,6 +19,28 @@
      - データ契約は旧ページと完全互換（localStorageキー・Apps Script POST）。
      - 旧 index/day/meal/workout/body はそのまま併存（詳細画面として利用可）。
    ================================================================ */
+/* ================================================================
+   タッチ挙動の統一（2026-07-13 マネージャー指摘）
+   ホーム・タブ・分析など**アプリ全体**で:
+     - 長押しの「コピー」吹き出し・虫眼鏡（テキスト選択）を出さない
+     - ダブルタップ拡大・ピンチ拡大をしない（アプリらしい挙動に統一）
+   入力欄（input/textarea）だけは選択・コピーできるよう例外にする。
+   ================================================================ */
+html, body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;      /* ダブルタップ拡大の抑止 */
+  overscroll-behavior-y: contain;
+}
+input, textarea, select, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+  touch-action: auto;
+}
+
 :root {
   --bg: #fff8ef;
   --card: #ffffff;
@@ -1506,6 +1528,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     touch-action: manipulation;              /* ダブルタップ拡大も抑止 */
   }
   .ctx-back { touch-action: none; }          /* メニュー表示中はスクロール・拡大させない */
+  /* メニュー表示中は背景（ホーム・記録シート）を触れなくする。
+     長押しの指が背景に届いてテキスト選択→ルーペ が出るのを防ぐ（2026-07-13 指摘） */
+  body.ctx-open { overflow: hidden; }
+  body.ctx-open > *:not(.ctx-back) { pointer-events: none; }   /* 背景（ホーム・シート）を触れなくする */
+  body.ctx-open .ctx-back { pointer-events: auto; }
 </style>
 
 <script src="nutrition-db.js"></script>
@@ -5686,6 +5713,7 @@ function openSubMenu(kind, anchor) {
       <span class="tx"><span class="t1">${escapeHtml(it.title)}</span>${it.sub ? `<span class="t2">${escapeHtml(it.sub)}</span>` : ''}</span>
     </button>`).join('');
   $('#ctxBack').classList.add('show');
+  document.body.classList.add('ctx-open');
   // 位置決め: 押した要素の左下に出し、画面外なら上／内側へ寄せる
   const r = (anchor || document.body).getBoundingClientRect();
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
@@ -5697,7 +5725,11 @@ function openSubMenu(kind, anchor) {
   menu.style.top = `${Math.round(top)}px`;
   menu.style.transformOrigin = (top < r.top ? 'bottom left' : 'top left');
 }
-function closeSubMenu() { $('#ctxBack').classList.remove('show'); }
+function closeSubMenu() {
+  $('#ctxBack').classList.remove('show');
+  document.body.classList.remove('ctx-open');
+  document.querySelectorAll('#ctxMenu .ctx-item.hl').forEach((n) => n.classList.remove('hl'));
+}
 function repeatLastMeal() {
   const last = latestRepeatableMeal();
   if (!last) { showToast('繰り返せる食事の記録がまだありません'); return; }
@@ -7223,6 +7255,30 @@ $('#saveBodyBtn').addEventListener('click', saveBody);
 bindContinuousPress($('#mealItems'), '[data-step]', (b) => stepItem(Number(b.dataset.i), Number(b.dataset.step)));
 bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton);
 bindContinuousPress(document.body, '[data-body]', runBodyButton);
+
+// ---- タッチ挙動の統一（2026-07-13）----
+// iOS Safari は viewport の maximum-scale を無視することがあるため、ピンチ拡大は
+// gesture イベントを止めて抑止する（PWAをアプリらしい挙動にする）。
+document.addEventListener('touchmove', (e) => {
+  if (ctxDragActive || document.body.classList.contains('ctx-open')) e.preventDefault();
+}, { passive: false });
+// 長押しで背景のテキストが選択されるのを保険で解除（iOSのルーペ対策）
+document.addEventListener('selectionchange', () => {
+  if (document.body.classList.contains('ctx-open')) {
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) sel.removeAllRanges();
+  }
+});
+['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+  document.addEventListener(type, (e) => { e.preventDefault(); }, { passive: false });
+});
+// ダブルタップ拡大の保険（touch-action が効かない古い実装向け）
+let lastTapAt = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTapAt < 300 && !e.target.closest('input, textarea, select')) e.preventDefault();
+  lastTapAt = now;
+}, { passive: false });
 
 // ---------------- 初期化 ----------------
 buildCatalog();                 // まず埋め込みカタログで即描画
