@@ -1452,15 +1452,41 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 </div>
 
 <!-- ショートカット・サブメニュー（大分類の長押し/⋯ で開く。中分類はここに集約） -->
-<div class="modal-back" id="subMenuBack">
-  <div class="modal">
-    <div class="close-row"><div class="grip"></div></div>
-    <h3 id="subMenuTitle">ショートカット</h3>
-    <div id="subMenuList"></div>
-  </div>
+<!-- iOS標準のコンテキストメニュー相当（長押しした項目のそばにリストが浮かぶ。2026-07-13 マネージャー要望） -->
+<div class="ctx-back" id="ctxBack">
+  <div class="ctx-menu" id="ctxMenu" role="menu"></div>
 </div>
 
 <style>
+  /* ---- コンテキストメニュー（iOS風・長押しで項目のそばに出る） ---- */
+  .ctx-back {
+    position: fixed; inset: 0; z-index: 90; display: none;
+    background: rgba(0, 0, 0, .18); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .ctx-back.show { display: block; animation: ctx-fade .16s ease-out; }
+  @keyframes ctx-fade { from { opacity: 0; } to { opacity: 1; } }
+  .ctx-menu {
+    position: absolute; min-width: 230px; max-width: min(300px, calc(100vw - 24px));
+    background: var(--card); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .28), 0 2px 8px rgba(0, 0, 0, .16);
+    transform-origin: top left; animation: ctx-pop .18s cubic-bezier(.2, .9, .3, 1.1);
+  }
+  @keyframes ctx-pop { from { transform: scale(.86); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .ctx-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px;
+    padding: 9px 14px; text-align: left; background: transparent; border-radius: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ctx-item:last-child { border-bottom: none; }
+  .ctx-item:active { background: var(--accent-soft); }
+  .ctx-item .tx { flex: 1; min-width: 0; }
+  .ctx-item .t1 { display: block; font-size: 14px; font-weight: 700; }
+  .ctx-item .t2 { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .ctx-item.accent .t1 { color: var(--accent-deep); }
+  .ctx-item .kj {
+    flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+    font-size: 12px; font-weight: 900; background: var(--accent-soft); color: var(--accent-deep);
+  }
   /* 記録メニュー: 大分類の行 + ⋯（サブメニュー） */
   .kind-row { display: flex; gap: 6px; align-items: stretch; }
   .kind-row .kind-btn { flex: 1; }
@@ -5483,7 +5509,7 @@ function initSheetBehaviors() {
 
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack', 'recordMenuBack', 'subMenuBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
+  ['unitBack', 'qtyBack', 'settingsBack', 'recordMenuBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('show');
   });
@@ -5636,15 +5662,34 @@ function workoutShortcuts() {
   return items;
 }
 let subMenuItems = [];
-function openSubMenu(kind) {
+/**
+ * iOS標準のコンテキストメニュー相当。長押し（または ⋯）した要素のそばにリストを浮かせる。
+ * @param {string} kind 'meal' | 'workout'
+ * @param {Element} anchor 押した要素（この直下・画面内に収まる位置へ出す）
+ */
+function openSubMenu(kind, anchor) {
   subMenuItems = kind === 'meal' ? mealShortcuts() : kind === 'workout' ? workoutShortcuts() : [];
   if (!subMenuItems.length) { showView(kind); return; }
-  $('#subMenuTitle').textContent = kind === 'meal' ? '食事のショートカット' : '筋トレのショートカット';
-  $('#subMenuList').innerHTML = subMenuItems.map((it, i) =>
-    `<button class="kind-btn ${it.accent ? 'accent' : ''}" data-sub="${i}">${escapeHtml(it.title)}<small>${escapeHtml(it.sub)}</small></button>`).join('');
-  $('#recordMenuBack').classList.remove('show');
-  $('#subMenuBack').classList.add('show');
+  const kj = kind === 'meal' ? '食' : '運';
+  const menu = $('#ctxMenu');
+  menu.innerHTML = subMenuItems.map((it, i) =>
+    `<button class="ctx-item ${it.accent ? 'accent' : ''}" data-sub="${i}" role="menuitem">
+      <span class="kj">${kj}</span>
+      <span class="tx"><span class="t1">${escapeHtml(it.title)}</span>${it.sub ? `<span class="t2">${escapeHtml(it.sub)}</span>` : ''}</span>
+    </button>`).join('');
+  $('#ctxBack').classList.add('show');
+  // 位置決め: 押した要素の左下に出し、画面外なら上／内側へ寄せる
+  const r = (anchor || document.body).getBoundingClientRect();
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  const pad = 10;
+  let left = Math.min(Math.max(pad, r.left), window.innerWidth - mw - pad);
+  let top = r.bottom + 8;
+  if (top + mh > window.innerHeight - pad) top = Math.max(pad, r.top - mh - 8);
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+  menu.style.transformOrigin = (top < r.top ? 'bottom left' : 'top left');
 }
+function closeSubMenu() { $('#ctxBack').classList.remove('show'); }
 function repeatLastMeal() {
   const last = latestRepeatableMeal();
   if (!last) { showToast('繰り返せる食事の記録がまだありません'); return; }
@@ -5678,13 +5723,21 @@ function openUsualMealFor(slot) {
 /** 長押し（500ms）でサブメニュー。iOSは3D Touch非対応・振動APIも無いため長押しで代替 */
 function bindLongPress(el, onLongPress) {
   let timer = null, moved = false;
-  const start = () => { moved = false; timer = setTimeout(() => { if (!moved) onLongPress(); }, 500); };
+  const start = (e) => {
+    moved = false;
+    const target = e.target;
+    timer = setTimeout(() => { if (!moved) onLongPress(target); }, 500);
+  };
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   el.addEventListener('touchstart', start, { passive: true });
   el.addEventListener('touchmove', () => { moved = true; cancel(); }, { passive: true });
   el.addEventListener('touchend', cancel);
   el.addEventListener('touchcancel', cancel);
-  el.addEventListener('contextmenu', (e) => { e.preventDefault(); onLongPress(); });  // PC: 右クリック
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); onLongPress(e.target); });   // PC: 右クリック
+  // PC検証用: マウス長押しでも開く
+  el.addEventListener('mousedown', (e) => { if (e.button === 0) start(e); });
+  el.addEventListener('mouseup', cancel);
+  el.addEventListener('mouseleave', cancel);
 }
 function setDate(dateStr) {
   if (dateStr > todayStr()) { showToast('未来の日付には記録できません'); return; }
@@ -6714,7 +6767,7 @@ $('#recordFab').addEventListener('click', openRecordMenu);
 $('#recordMenuBack').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) { $('#recordMenuBack').classList.remove('show'); return; }
   const more = e.target.closest('[data-more]');
-  if (more) { openSubMenu(more.dataset.more); return; }        // ⋯ でショートカット
+  if (more) { openSubMenu(more.dataset.more, more); return; }   // ⋯ でメニュー（押した位置に出す）
   const b = e.target.closest('[data-record]');
   if (!b) return;
   $('#recordMenuBack').classList.remove('show');
@@ -6722,22 +6775,24 @@ $('#recordMenuBack').addEventListener('click', (e) => {
   if (kind === 'water') { showView('meal'); setTimeout(() => { const el = document.getElementById('hydrationCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }
   showView(kind);
 });
-// サブメニュー（ショートカット）
-$('#subMenuBack').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) { $('#subMenuBack').classList.remove('show'); return; }
+// コンテキストメニュー（iOS風・長押しした項目のそばに出る）
+$('#ctxBack').addEventListener('click', (e) => {
   const b = e.target.closest('[data-sub]');
-  if (!b) return;
-  $('#subMenuBack').classList.remove('show');
+  closeSubMenu();
+  if (!b) return;                                   // 背景タップ = 閉じるだけ
   const item = subMenuItems[Number(b.dataset.sub)];
   if (item && item.run) item.run();
 });
-// 大分類の長押し（500ms）でもサブメニューを開く（iOSは3D Touch非対応のため長押しで代替）
+window.addEventListener('scroll', () => { if ($('#ctxBack').classList.contains('show')) closeSubMenu(); }, true);
+// 大分類の長押し（500ms）と ⋯ でメニューを出す（iOSは3D Touch非対応のため長押しで代替）
 document.querySelectorAll('#recordMenuBack [data-record="meal"], #recordMenuBack [data-record="workout"]').forEach((el) => {
-  bindLongPress(el, () => openSubMenu(el.dataset.record));
+  bindLongPress(el, () => openSubMenu(el.dataset.record, el));
 });
-// ホームの食事セルも長押しで同じショートカット（一貫性）
-$('#homeMealGrid').addEventListener('contextmenu', (e) => { e.preventDefault(); openSubMenu('meal'); });
-bindLongPress($('#homeMealGrid'), () => openSubMenu('meal'));
+// ホームの食事セルも長押しで同じメニュー（押したセルの時間帯で「いつもの」を出す）
+bindLongPress($('#homeMealGrid'), (target) => {
+  const cell = target && target.closest ? target.closest('[data-meal-timing]') : null;
+  openSubMenu('meal', cell || $('#homeMealGrid'));
+});
 $('#eufyImportBtn').addEventListener('click', () => $('#eufyCsvInput').click());
 $('#eufyCsvInput').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
