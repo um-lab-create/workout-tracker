@@ -7259,6 +7259,18 @@ bindContinuousPress(document.body, '[data-body]', runBodyButton);
 // ---- タッチ挙動の統一（2026-07-13）----
 // iOS Safari は viewport の maximum-scale を無視することがあるため、ピンチ拡大は
 // gesture イベントを止めて抑止する（PWAをアプリらしい挙動にする）。
+// 長押しメニュー（コピー/検索/翻訳 等）を全面的に抑止する保険。
+// 入力欄の中だけは iOS 標準の編集メニュー（ペースト等）を残す（文字入力に必要なため）。
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  e.preventDefault();
+});
+// 画面のどこかで選択が始まったら即座に解除（iOSのルーペ・コピー吹き出しの発火源を断つ）
+document.addEventListener('selectstart', (e) => {
+  if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  e.preventDefault();
+});
+
 document.addEventListener('touchmove', (e) => {
   if (ctxDragActive || document.body.classList.contains('ctx-open')) e.preventDefault();
 }, { passive: false });
