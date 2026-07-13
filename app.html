@@ -941,6 +941,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       <button class="train-chip" id="trainToggle" type="button"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
     </div>
     <div class="exo-grid" id="exoGrid"></div>
+    <!-- 今日の目標（漸進的過負荷。2026-07-13: 全種目10回×3セットで4週間停滞していたため導入） -->
+    <div id="progressionCard"></div>
     <div class="card" style="margin-top:10px">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px" id="exoTitle"></div>
       <div id="exoFields"></div>
@@ -1384,6 +1386,17 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .bal-row .bb { flex:1; height:8px; border-radius:4px; background:var(--glass,rgba(0,0,0,.06)); overflow:hidden; }
   .bal-row .bb i { display:block; height:100%; border-radius:4px; }
   .bal-row .bv { flex:none; width:2em; text-align:right; font-weight:800; font-variant-numeric:tabular-nums; color:var(--muted,#888); }
+  .bal-row .bl2 { flex:none; width:4.2em; text-align:right; font-size:10px; font-weight:700; color:var(--muted,#999); }
+  .bal-row .bl2.warn { color:#e94e5b; }
+  /* 今日の目標（漸進的過負荷） */
+  .prog-card { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-left:3px solid var(--accent,#ff8a2a); border-radius:14px; padding:10px 13px; margin-top:10px; }
+  .prog-card .ph { display:flex; align-items:baseline; gap:8px; }
+  .prog-card .ph .tt { font-size:11px; font-weight:900; color:var(--accent-deep,#b35c12); letter-spacing:.04em; }
+  .prog-card .ph .last { margin-left:auto; font-size:10.5px; color:var(--muted,#999); }
+  .prog-card .pg { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .prog-card .pg b { font-size:19px; font-weight:900; }
+  .prog-card .pg .mini-chip { margin-left:auto; }
+  .prog-card .pw { font-size:11px; color:var(--muted,#999); margin-top:4px; }
   .rec-verdict { margin-top:8px; font-size:12px; font-weight:800; border-radius:10px; padding:7px 10px; }
   .rec-verdict.good { color:var(--green); background:var(--green-soft); }
   .rec-verdict.warn { color:#c98a00; background:#fff3d6; }
@@ -4600,8 +4613,63 @@ function renderExoGrid() {
     </button>`
   ).join('');
 }
+// ---- 漸進的過負荷の提案（ダブルプログレッション。2026-07-13）----
+// 実測: 全種目が「10回×3セット」で固定され、重量も4週間変化なし＝筋肥大の刺激が頭打ち。
+// ルール: 目標回数(12)未満なら「同じ重量で+2回」、12回に届いたら「重量を上げて10回に戻す」。
+const PROG_TARGET_REPS = 12;
+const PROG_BASE_REPS = 10;
+const PROG_STEP_KG = { leg: 5, chest: 2.5, back: 2.5, shoulder: 2.5, inner: 5, outer: 5 };
+/** @returns {{last: object, goal: {weight:number,reps:number,sets:number}, kind: 'reps'|'weight'|'first', daysAgo: number}|null} */
+function progressionFor(exoId) {
+  const exo = exoById(exoId);
+  if (!exo || !exo.fields.includes('weight')) return null;   // 有酸素・自重は対象外
+  const sessions = {};
+  workoutAllRows().filter((r) => r.exercise === exo.name && r.weight).forEach((r) => {
+    const s = sessions[r.date] || (sessions[r.date] = { date: r.date, weight: 0, reps: 0, sets: 0 });
+    if (r.weight > s.weight || (r.weight === s.weight && (r.reps || 0) > s.reps)) {
+      s.weight = r.weight; s.reps = r.reps || 0; s.sets = r.sets || 0;
+    }
+  });
+  const list = Object.values(sessions).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (!list.length) return null;
+  const last = list[list.length - 1];
+  const daysAgo = Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(last.date + 'T12:00:00')) / 86400000);
+  const sets = Math.max(3, last.sets || 3);
+  if (last.reps >= PROG_TARGET_REPS) {
+    const step = PROG_STEP_KG[exo.id] || 2.5;
+    return { last, daysAgo, kind: 'weight', goal: { weight: last.weight + step, reps: PROG_BASE_REPS, sets } };
+  }
+  return { last, daysAgo, kind: 'reps', goal: { weight: last.weight, reps: Math.min(PROG_TARGET_REPS, last.reps + 2), sets } };
+}
+function renderProgressionCard() {
+  const el = $('#progressionCard');
+  if (!el) return;
+  const p = progressionFor(state.exoId);
+  if (!p) { el.innerHTML = ''; return; }
+  const g = p.goal;
+  const why = p.kind === 'weight'
+    ? `前回${PROG_TARGET_REPS}回に到達 → 重量を上げる番です`
+    : `同じ重量で回数を伸ばす（${PROG_TARGET_REPS}回に届いたら重量アップ）`;
+  el.innerHTML = `<div class="prog-card">
+    <div class="ph"><span class="tt">今日の目標</span>
+      <span class="last">前回 ${p.last.weight}kg×${p.last.reps}回×${p.last.sets}set・${p.daysAgo}日前</span></div>
+    <div class="pg"><b>${g.weight}kg</b> × <b>${g.reps}回</b> × <b>${g.sets}set</b>
+      <button class="mini-chip" id="progApplyBtn" type="button">この値にする</button></div>
+    <div class="pw">${why}</div>
+  </div>`;
+  const btn = $('#progApplyBtn');
+  if (btn) btn.addEventListener('click', () => {
+    state.exoValues.weight = g.weight;
+    state.exoValues.reps = g.reps;
+    state.exoValues.sets = g.sets;
+    renderExoCard();
+    showToast(`目標をセットしました（${g.weight}kg×${g.reps}回×${g.sets}set）`);
+  });
+}
+
 function renderExoCard() {
   const exo = exoById(state.exoId);
+  renderProgressionCard();
   $('#exoTitle').textContent = exo.name;
   $('#exoFields').innerHTML = exo.fields.map((f) => {
     const meta = FIELD[f];
@@ -6138,36 +6206,88 @@ function wtFmt(v, dec) {
   return dec ? String(Math.round(n * 10) / 10).replace(/\.0$/, '') : String(Math.round(n));
 }
 // ---- U3-2: 部位バランス（今週の部位別セット数。偏りを見る） ----
+// [fix] 2026-07-13: アダクション/アブダクションを「脚」に含めると、レッグプレス（大腿四頭筋）が
+// 29日放置でも「脚 5日前」と表示され放置に気づけなかった → 内外転は別部位として分離する
 const BODY_PARTS = {
   'ショルダープレス': '肩', 'チェストプレス': '胸', 'ラットプルダウン': '背', 'レッグプレス': '脚',
-  'アダクション': '脚', 'アブダクション': '脚', 'アブベンチ': '腹', 'トレッドミル': '有酸素'
+  'アダクション': '内外', 'アブダクション': '内外', 'アブベンチ': '腹', 'トレッドミル': '有酸素'
 };
-const PART_COLORS = { 肩: '#ff9861', 胸: '#ff5f7f', 背: '#a889ff', 脚: '#42e79b', 腹: '#ffd15a', 有酸素: '#6ba7ff' };
+const PART_COLORS = { 肩: '#ff9861', 胸: '#ff5f7f', 背: '#a889ff', 脚: '#42e79b', 内外: '#58d8ff', 腹: '#ffd15a', 有酸素: '#6ba7ff' };
 function renderWorkoutBalance() {
   const el = $('#wtBalance');
   if (!el) return;
+  const all = workoutAllRows();
   const week = weekDatesOf(state.date);
-  const inWeek = workoutAllRows().filter((r) => week.includes(r.date));
+  const inWeek = all.filter((r) => week.includes(r.date));
   const sets = {};
   inWeek.forEach((r) => {
     const part = BODY_PARTS[r.exercise] || 'その他';
     if (part === '有酸素') return;   // 部位バランスは筋トレのみ
     sets[part] = (sets[part] || 0) + (Number(r.sets) || 1);
   });
-  const parts = ['肩', '胸', '背', '脚', '腹'];
+  // 部位ごとの「最後にやった日」（実測: 脚が4週間放置されていた）
+  const lastByPart = {};
+  all.forEach((r) => {
+    const part = BODY_PARTS[r.exercise];
+    if (!part || part === '有酸素') return;
+    if (!lastByPart[part] || r.date > lastByPart[part]) lastByPart[part] = r.date;
+  });
+  const daysAgo = (d) => (d ? Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(d + 'T12:00:00')) / 86400000) : null);
+  const parts = ['肩', '胸', '背', '脚', '内外', '腹'];
   const max = Math.max(...parts.map((p) => sets[p] || 0), 1);
-  const total = parts.reduce((a, p) => a + (sets[p] || 0), 0);
-  if (!total) { el.innerHTML = ''; return; }
-  const missing = parts.filter((p) => !sets[p]);
+  const stale = parts.filter((p) => { const n = daysAgo(lastByPart[p]); return n == null || n >= 10; });
+  if (!all.length) { el.innerHTML = ''; return; }
+
+  // 週間ボリューム（重量×回数×セット）の推移。停滞・低下を可視化する
+  const WEEKS = 8;
+  const monday = weekDatesOf(todayStr())[0];
+  const vols = [];
+  for (let i = WEEKS - 1; i >= 0; i--) {
+    const start = shiftDate(monday, -7 * i);
+    const days = Array.from({ length: 7 }, (_, k) => shiftDate(start, k));
+    const vol = all.filter((r) => days.includes(r.date) && STRENGTH_NAMES.includes(r.exercise))
+      .reduce((a, r) => a + (r.weight || 0) * (r.reps || 0) * (r.sets || 0), 0);
+    const dayCount = new Set(all.filter((r) => days.includes(r.date) && STRENGTH_NAMES.includes(r.exercise)).map((r) => r.date)).size;
+    vols.push({ start, vol, days: dayCount });
+  }
+  const vMax = Math.max(...vols.map((v) => v.vol), 1) * 1.15;
+  const W = 320, H = 100, padT = 12, padB = 18, padL = 18, padR = 18;
+  const n = vols.length;
+  const xAt = (i) => padL + (i / (n - 1)) * (W - padL - padR);
+  const barW = Math.min(24, ((W - padL - padR) / n) * 0.55);
+  const bars = vols.map((v, i) => {
+    const h = (v.vol / vMax) * (H - padT - padB);
+    const color = v.days >= 3 ? 'rgba(46,184,114,.6)' : v.days >= 2 ? 'rgba(255,138,42,.5)' : 'rgba(233,78,91,.4)';
+    return `<rect x="${(xAt(i) - barW / 2).toFixed(1)}" y="${(H - padB - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${color}"/>`;
+  }).join('');
+  const labels = vols.map((v, i) => `<text x="${xAt(i).toFixed(1)}" y="${H - 4}" font-size="8.5" fill="rgba(0,0,0,.45)" text-anchor="middle">${wkXLabel(v.start)}</text>`).join('');
+  const cur = vols[n - 1], prev = vols[n - 2];
+  const diffPct = prev && prev.vol ? Math.round(((cur.vol - prev.vol) / prev.vol) * 100) : null;
+
   el.innerHTML = `<div class="wk-chart-card">
-    <div class="tt">今週の部位バランス（セット数）</div>
-    <div class="bal-list">${parts.map((p) => `
-      <div class="bal-row"><span class="bp">${p}</span>
+    <div class="tt">週間ボリューム（重量×回数×セット・8週）</div>
+    <div class="legend">
+      <span>今週 <b>${Math.round(cur.vol).toLocaleString()}kg</b>${diffPct != null ? `（前週${diffPct > 0 ? '+' : ''}${diffPct}%）` : ''}</span>
+      <span><i style="background:rgba(46,184,114,.6)"></i>週3日以上</span>
+      <span><i style="background:rgba(233,78,91,.4)"></i>週1日</span>
+    </div>
+    <svg class="wk-chart-svg" style="height:100px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${labels}</svg>
+    <div class="sync-note" style="margin-top:2px">総ボリュームが伸びていれば成長中。重量が同じでも回数・セットで増やせます。</div>
+  </div>
+  <div class="wk-chart-card">
+    <div class="tt">部位バランス（今週のセット数 / 最後にやった日）</div>
+    <div class="bal-list">${parts.map((p) => {
+      const n2 = daysAgo(lastByPart[p]);
+      const ago = n2 == null ? '未実施' : n2 === 0 ? '今日' : `${n2}日前`;
+      const warn = n2 == null || n2 >= 10;
+      return `<div class="bal-row"><span class="bp">${p}</span>
         <span class="bb"><i style="width:${Math.round(((sets[p] || 0) / max) * 100)}%;background:${PART_COLORS[p]}"></i></span>
-        <span class="bv">${sets[p] || 0}</span></div>`).join('')}</div>
-    <div class="sync-note" style="margin-top:4px">${missing.length
-      ? `今週まだ触っていない部位: ${missing.join('・')}`
-      : '全部位に触れています。いいバランスです'}</div>
+        <span class="bv">${sets[p] || 0}</span>
+        <span class="bl2 ${warn ? 'warn' : ''}">${ago}</span></div>`;
+    }).join('')}</div>
+    <div class="sync-note" style="margin-top:4px">${stale.length
+      ? `<b>10日以上あいている部位: ${stale.join('・')}</b> — 次はここから`
+      : '全部位を10日以内に触れています。いいバランスです'}</div>
   </div>`;
 }
 
