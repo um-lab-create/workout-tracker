@@ -1671,7 +1671,7 @@ function buildCatalog() {
   });
   // 3) サーバーカタログ（foods。SPEC-014 以降の正）。埋め込み公式行は表示品質優先で温存し、
   //    serverId だけ引き継ぐ。それ以外（個人の食品・レシピ・将来の八訂）はサーバー側が上書き
-  const cache = lsGet(FOODS_CACHE_KEY, null);
+  const cache = loadFoodsCache();   // IndexedDB 由来のインメモリキャッシュ（E7対策）
   ((cache && cache.foods) || []).forEach((f) => {
     if (!f || !f.id || !f.name) return;
     if (foodLookup[f.id] && !f.owner) {
@@ -1693,6 +1693,11 @@ function buildCatalog() {
     if (!f || !String(f.id).startsWith('hakutei-')) return;
     const used = normalizeFoodUsageEntry(usageForDup[f.id]).count;
     f.duplicateOfEmbedded = embeddedNames.has(f.name) && !used;
+  });
+  // [fix] E8: 検索のたびに 2,779件分の haystack を作り直していて 38ms かかっていた
+  //（閾値30ms超）。カタログ構築時に1回だけ正規化して持たせる（検索は includes だけになる）
+  allFoods.forEach((f) => {
+    f._hay = normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
   });
   foodIndexMap = {};
   allFoods.forEach((f, i) => { foodIndexMap[f.id] = i; });
@@ -2252,7 +2257,7 @@ function renderSearch() {
       // 状態バリアントの集約（SPEC-018）: 非代表（ゆで/冷凍/焼き等）は、
       // 使用実績があるか、クエリに状態語が含まれる時だけ出す
       if (isHakutei && f.primaryVariant === false && !used && !hakuteiVariantMatched(f, variants)) return false;
-      const hay = normalizeForSearch([f.name, f.brand, f.kana, f.keywords && f.keywords.join(' ')].filter(Boolean).join(' '));
+      const hay = f._hay || normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
       return variants.some((vt) => vt.every((t) => hay.includes(t)));
     }).sort((a, b) => {
       const an = normalizeForSearch(a.name);
@@ -2857,26 +2862,88 @@ function catalogFoodToRow(food) {
   };
 }
 
-function loadFoodsCache() {
-  const cached = lsGet(FOODS_CACHE_KEY, null);
-  return (cached && Array.isArray(cached.foods)) ? cached : { fetchedAt: 0, foods: [] };
+// ============================================================
+// カタログキャッシュ（E7 容量問題の恒久対策 2026-07-13）
+//
+// 実測: 食品カタログ 2,779件のキャッシュだけで **4.2MB**、localStorage 合計 5.35MB。
+// iOS Safari の localStorage は約5MBが上限で、**iPhoneでは保存が黙って失敗する**危険があった
+// （PWAでカタログが更新されない = 定番マークや新食品が反映されない）。
+// → カタログだけ **IndexedDB**（容量制限が緩い）へ移す。他の資産（記録・下書き・キュー）は
+//   合計1MB程度なので localStorage のままでよい。
+//
+// 同期APIを保つため、インメモリ（foodsCacheMem）を正とし、IndexedDB へは非同期で書き戻す。
+// 起動時: 埋め込みだけでカタログを組む → IDB 読込完了後に再構築（体感の遅延なし）。
+// ============================================================
+const IDB_NAME = 'hs-foods';
+const IDB_STORE = 'cache';
+let foodsCacheMem = { fetchedAt: 0, foods: [] };
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
-// [fix] 旧バージョンのカタログキャッシュ（各2MB超）が残ると localStorage 容量超過で
-// 新キャッシュの保存が黙って失敗する。キー更新時は必ず旧版を掃除する（E7 容量予算にも効く）。
-const STALE_FOODS_CACHE_KEYS = ['hs:foods-cache:v1', 'hs:foods-cache:v2'];
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const r = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key);
+    r.onsuccess = () => resolve(r.result || null);
+    r.onerror = () => reject(r.error);
+  });
+}
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+/** 同期API（既存コードはこのまま使える）。正はインメモリ */
+function loadFoodsCache() {
+  return foodsCacheMem && Array.isArray(foodsCacheMem.foods) ? foodsCacheMem : { fetchedAt: 0, foods: [] };
+}
+// localStorage 側の旧カタログキャッシュ（各2〜4MB）は容量を圧迫するので全て掃除する
+const STALE_FOODS_CACHE_KEYS = ['hs:foods-cache:v1', 'hs:foods-cache:v2', 'hs:foods-cache:v3'];
 function purgeStaleFoodsCaches() {
   STALE_FOODS_CACHE_KEYS.forEach((k) => {
-    if (k !== FOODS_CACHE_KEY) { try { localStorage.removeItem(k); } catch (e) { /* noop */ } }
+    try { localStorage.removeItem(k); } catch (e) { /* noop */ }
   });
 }
 function saveFoodsCache(cache) {
-  purgeStaleFoodsCaches();
-  try {
-    lsSet(FOODS_CACHE_KEY, cache);
-  } catch (e) {
+  foodsCacheMem = cache;                                   // 同期的に反映（描画は即）
+  // 保存時は派生フィールド（_hay: 検索用の正規化文字列）を落とす（容量の無駄・再計算できる）
+  const slim = {
+    fetchedAt: cache.fetchedAt,
+    foods: (cache.foods || []).map((f) => {
+      if (!f || !f._hay) return f;
+      const { _hay, ...rest } = f;
+      return rest;
+    })
+  };
+  idbSet('foods', slim).catch(() => {
     showToast('カタログの保存に失敗しました（端末の空き容量不足）', 'error');
-    throw e;
-  }
+  });
+}
+/** 起動時に IndexedDB から読み込む。localStorage に旧キャッシュがあれば1回だけ移行する */
+async function initFoodsCache() {
+  try {
+    const legacy = lsGet(FOODS_CACHE_KEY, null);           // 旧 localStorage 版からの移行
+    if (legacy && Array.isArray(legacy.foods) && legacy.foods.length) {
+      foodsCacheMem = legacy;
+      await idbSet('foods', legacy);
+    } else {
+      const stored = await idbGet('foods');
+      if (stored && Array.isArray(stored.foods)) foodsCacheMem = stored;
+    }
+  } catch (e) { /* IDB不可の端末では埋め込みカタログのみで動く */ }
+  purgeStaleFoodsCaches();                                 // localStorage から4MBを解放
+  buildCatalog();
+  if (state.view === 'meal') renderSearch();
+  renderHome();
 }
 
 /** カタログキャッシュへ1件マージ（オフライン追加でも即・検索/記録に出すため）。 */
@@ -3381,7 +3448,7 @@ function renderRcSearch() {
   const hits = allFoods.filter((f) => {
     if (f.entryType === 'recipe') return false;
     if (String(f.id).startsWith('hakutei-') && f.primaryVariant === false && !hakuteiVariantMatched(f, variants)) return false;
-    const hay = normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
+    const hay = f._hay || normalizeForSearch([f.name, f.brand, f.kana, (f.keywords || []).join(' ')].filter(Boolean).join(' '));
     return variants.some((vt) => vt.every((t) => hay.includes(t)));
   }).slice(0, 6);
   box.innerHTML = hits.map((f) => `<button type="button" data-rc-add="${escapeHtml(f.id)}">${escapeHtml(f.name)}<span style="color:var(--muted,#999)">　${f.mode === 'perUnit' ? (f.unitLabel || '個') : '100g'}あたり ${fmtNum(f.mode === 'perUnit' ? (f.macrosPerUnit || {}).kcal || 0 : (f.macros || {}).kcal || 0)}kcal</span></button>`).join('')
@@ -6819,8 +6886,8 @@ bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton);
 bindContinuousPress(document.body, '[data-body]', runBodyButton);
 
 // ---------------- 初期化 ----------------
-purgeStaleFoodsCaches();   // 起動時に旧カタログキャッシュを掃除（容量超過の予防）
-buildCatalog();
+buildCatalog();                 // まず埋め込みカタログで即描画
+initFoodsCache();               // IndexedDB からカタログを読み込み、読めたら再構築（E7対策）
 loadFoodUsage();
 registerSbOpHandlers();
 initSheetBehaviors();   // シート共通規約（×・スワイプdismiss・未保存確認。SPEC-019 Phase A）
