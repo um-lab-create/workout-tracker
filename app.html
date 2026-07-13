@@ -1433,16 +1433,46 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   <div class="modal">
     <div class="close-row"><div class="grip"></div></div>
     <h3>記録する</h3>
-    <button class="kind-btn" data-record="meal">食事<small>朝・昼・夜・間食の記録</small></button>
-    <!-- 記録継続の打ち手: いま時間帯の「いつもの」を1タップで保存まで（2026-07-13） -->
-    <button class="kind-btn accent" data-record="usual" id="usualMealBtn" style="display:none">いつものを記録<small id="usualMealHint"></small></button>
-    <button class="kind-btn" data-record="repeat" id="repeatMealBtn">前回と同じ食事<small id="repeatMealHint">直近の記録を今日に入れる</small></button>
-    <button class="kind-btn" data-record="recipe">作り置きを登録<small>材料と食数を入れると1食分を自動計算</small></button>
-    <button class="kind-btn" data-record="workout">筋トレ<small>種目・重量・回数</small></button>
-    <button class="kind-btn" data-record="body">からだ<small>体重・体脂肪率</small></button>
+    <!-- 大分類だけを置く（2026-07-13 マネージャー指摘: 大分類と中分類が混在していた）。
+         中分類（いつもの/前回と同じ/作り置き）は 長押し または 右の「⋯」で開くサブメニューへ。 -->
+    <div class="kind-row">
+      <button class="kind-btn" data-record="meal">食事<small>朝・昼・夜・間食の記録</small></button>
+      <button class="kind-more" data-more="meal" aria-label="食事のショートカット">⋯</button>
+    </div>
+    <div class="kind-row">
+      <button class="kind-btn" data-record="workout">筋トレ<small>種目・重量・回数</small></button>
+      <button class="kind-more" data-more="workout" aria-label="筋トレのショートカット">⋯</button>
+    </div>
+    <div class="kind-row">
+      <button class="kind-btn" data-record="body">からだ<small>体重・体脂肪率</small></button>
+    </div>
     <button class="kind-btn" data-record="water" id="recordWaterBtn" style="display:none">水分<small>飲んだ量をワンタップ</small></button>
+    <div class="sync-note" style="margin-top:6px">長押し（または ⋯）でショートカット</div>
   </div>
 </div>
+
+<!-- ショートカット・サブメニュー（大分類の長押し/⋯ で開く。中分類はここに集約） -->
+<div class="modal-back" id="subMenuBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3 id="subMenuTitle">ショートカット</h3>
+    <div id="subMenuList"></div>
+  </div>
+</div>
+
+<style>
+  /* 記録メニュー: 大分類の行 + ⋯（サブメニュー） */
+  .kind-row { display: flex; gap: 6px; align-items: stretch; }
+  .kind-row .kind-btn { flex: 1; }
+  .kind-more {
+    flex: none; width: 48px; border-radius: 14px; background: var(--card);
+    box-shadow: var(--shadow); font-size: 18px; font-weight: 900; color: var(--muted);
+  }
+  .kind-more:active { transform: scale(.96); }
+  /* iOS: 長押し時の標準コールアウト（テキスト選択・プレビュー）を抑止する。
+     ※ iOS Safari には振動APIが無いため触覚フィードバックは出せない（調査 2026-07-13） */
+  .kind-btn, .kind-more, .meal-cell { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+</style>
 
 <script src="nutrition-db.js"></script>
 <script src="js/storage.js"></script>
@@ -5453,7 +5483,7 @@ function initSheetBehaviors() {
 
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack', 'recordMenuBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
+  ['unitBack', 'qtyBack', 'settingsBack', 'recordMenuBack', 'subMenuBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('show');
   });
@@ -5541,44 +5571,79 @@ function latestRepeatableMeal() {
     .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null;
 }
 function openRecordMenu() {
-  const last = latestRepeatableMeal();
-  const hint = $('#repeatMealHint');
-  const btn = $('#repeatMealBtn');
-  if (last) {
-    btn.style.display = '';
-    hint.textContent = `${fmtDateLabel(last.date)} の${last.title || last.timing}（${fmtNum(last.kcal || 0)}kcal・${last.items.length}品）を今日に`;
-  } else {
-    btn.style.display = 'none';
-  }
-  // 「いつものを記録」: いまの時間帯（無ければ次に来る食事）の常習セットを提示
-  const slot = currentMealSlot() || 'lunch';
-  const usual = usualMealFor(slot, todayStr());
-  const already = findRecord(todayStr(), slot);
-  const uBtn = $('#usualMealBtn');
-  if (usual && !already) {
-    uBtn.style.display = '';
-    uBtn.dataset.timing = slot;
-    $('#usualMealHint').textContent =
-      `${TIMINGS[slot].title}: ${fmtNum(usual.record.kcal || 0)}kcal・${usual.record.items.length}品（過去${usual.count}回の構成）`;
-  } else {
-    uBtn.style.display = 'none';
-  }
+  // 大分類だけを見せる（中分類はサブメニューへ移設。2026-07-13）
   $('#recordWaterBtn').style.display = showHydration() ? '' : 'none';
   $('#recordMenuBack').classList.add('show');
 }
-/** 「いつもの」を該当スロットに入れて食事シートを開く（保存は本人が確認して押す） */
-function openUsualMeal() {
-  const slot = $('#usualMealBtn').dataset.timing || currentMealSlot() || 'lunch';
+
+// ---- ショートカット・サブメニュー（大分類の長押し / ⋯）----
+// 設計（2026-07-13 マネージャー指摘「大分類と中分類が混在」）:
+//   ＋記録 = 大分類のみ（食事/筋トレ/からだ）。中分類はここに集約する。
+//   iOSの3D Touchは Web API が無く機種でも廃止済み → **長押し(500ms)** で代替し、
+//   長押しは隠れた操作なので「⋯」ボタンも併設して発見性を確保する。
+function mealShortcuts() {
+  const items = [];
+  const slot = currentMealSlot() || 'lunch';
   const usual = usualMealFor(slot, todayStr());
-  if (!usual) { showToast('「いつもの」を学習できるだけの記録がまだありません'); return; }
-  setDate(todayStr());
-  state.timing = slot;
-  loadMealFor(state.date, state.timing);
-  state.items = restoreMealItems(usual.record.items, usual.record.structuredItems);
-  showView('meal');
-  renderItems();
-  persistDraft();
-  showToast(`いつもの${TIMINGS[slot].title}を入れました。確認して「記録する」`);
+  if (usual && !findRecord(todayStr(), slot)) {
+    items.push({
+      key: 'usual', title: `いつもの${TIMINGS[slot].title}`,
+      sub: `${fmtNum(usual.record.kcal || 0)}kcal・${usual.record.items.length}品（過去${usual.count}回の構成）`,
+      accent: true, run: () => openUsualMealFor(slot)
+    });
+  }
+  const last = latestRepeatableMeal();
+  if (last) {
+    items.push({
+      key: 'repeat', title: '前回と同じ食事',
+      sub: `${fmtDateLabel(last.date)} の${last.title || last.timing}（${fmtNum(last.kcal || 0)}kcal・${last.items.length}品）`,
+      run: repeatLastMeal
+    });
+  }
+  items.push({ key: 'recipe', title: '作り置きを登録', sub: '材料と食数を入れると1食分を自動計算',
+    run: () => { showView('meal'); setTimeout(() => openRecipeBuilder(), 250); } });
+  items.push({ key: 'blank', title: 'ゼロから記録', sub: '検索して1品ずつ入れる', run: () => showView('meal') });
+  return items;
+}
+function workoutShortcuts() {
+  const items = [];
+  const p = progressionFor(state.exoId || 'chest');
+  if (p) {
+    items.push({
+      key: 'goal', title: '前回の続きから（今日の目標）',
+      sub: `${exoById(state.exoId || 'chest').name} ${p.goal.weight}kg×${p.goal.reps}回×${p.goal.sets}set`,
+      accent: true,
+      run: () => {
+        showView('workout');
+        setTimeout(() => {
+          state.exoValues.weight = p.goal.weight; state.exoValues.reps = p.goal.reps; state.exoValues.sets = p.goal.sets;
+          renderExoCard();
+          showToast('今日の目標をセットしました');
+        }, 250);
+      }
+    });
+  }
+  let training = false;
+  try { training = isTrainingDay(state.date); } catch (e) {}
+  items.push({
+    key: 'trainday', title: training ? '休養日に戻す' : '筋トレ日にする',
+    sub: training ? '炭水化物の目標を元に戻します' : `炭水化物の目標が +${(loadCarbCycle().carbDelta) || 0}g されます`,
+    run: () => {
+      try { setTrainingDay(state.date, !training); showToast(!training ? '筋トレ日にしました' : '休養日に戻しました'); } catch (e) {}
+      renderHome();
+    }
+  });
+  return items;
+}
+let subMenuItems = [];
+function openSubMenu(kind) {
+  subMenuItems = kind === 'meal' ? mealShortcuts() : kind === 'workout' ? workoutShortcuts() : [];
+  if (!subMenuItems.length) { showView(kind); return; }
+  $('#subMenuTitle').textContent = kind === 'meal' ? '食事のショートカット' : '筋トレのショートカット';
+  $('#subMenuList').innerHTML = subMenuItems.map((it, i) =>
+    `<button class="kind-btn ${it.accent ? 'accent' : ''}" data-sub="${i}">${escapeHtml(it.title)}<small>${escapeHtml(it.sub)}</small></button>`).join('');
+  $('#recordMenuBack').classList.remove('show');
+  $('#subMenuBack').classList.add('show');
 }
 function repeatLastMeal() {
   const last = latestRepeatableMeal();
@@ -5597,7 +5662,30 @@ function repeatLastMeal() {
   persistDraft();
   showToast(`${fmtDateLabel(last.date)}の内容を入れました。確認して「記録する」`);
 }
-
+/** 指定スロットの「いつもの」を入れて食事シートを開く */
+function openUsualMealFor(slot) {
+  const usual = usualMealFor(slot, todayStr());
+  if (!usual) { showToast('「いつもの」を学習できるだけの記録がまだありません'); return; }
+  setDate(todayStr());
+  state.timing = slot;
+  loadMealFor(state.date, state.timing);
+  state.items = restoreMealItems(usual.record.items, usual.record.structuredItems);
+  showView('meal');
+  renderItems();
+  persistDraft();
+  showToast(`いつもの${TIMINGS[slot].title}を入れました。確認して「記録する」`);
+}
+/** 長押し（500ms）でサブメニュー。iOSは3D Touch非対応・振動APIも無いため長押しで代替 */
+function bindLongPress(el, onLongPress) {
+  let timer = null, moved = false;
+  const start = () => { moved = false; timer = setTimeout(() => { if (!moved) onLongPress(); }, 500); };
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('touchmove', () => { moved = true; cancel(); }, { passive: true });
+  el.addEventListener('touchend', cancel);
+  el.addEventListener('touchcancel', cancel);
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); onLongPress(); });  // PC: 右クリック
+}
 function setDate(dateStr) {
   if (dateStr > todayStr()) { showToast('未来の日付には記録できません'); return; }
   persistDraftSafe();
@@ -6625,16 +6713,31 @@ $('#wtChartChips').addEventListener('click', (e) => {
 $('#recordFab').addEventListener('click', openRecordMenu);
 $('#recordMenuBack').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) { $('#recordMenuBack').classList.remove('show'); return; }
+  const more = e.target.closest('[data-more]');
+  if (more) { openSubMenu(more.dataset.more); return; }        // ⋯ でショートカット
   const b = e.target.closest('[data-record]');
   if (!b) return;
   $('#recordMenuBack').classList.remove('show');
   const kind = b.dataset.record;
-  if (kind === 'usual') { openUsualMeal(); return; }
-  if (kind === 'recipe') { showView('meal'); setTimeout(() => openRecipeBuilder(), 250); return; }
-  if (kind === 'repeat') { repeatLastMeal(); return; }
   if (kind === 'water') { showView('meal'); setTimeout(() => { const el = document.getElementById('hydrationCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 300); return; }
   showView(kind);
 });
+// サブメニュー（ショートカット）
+$('#subMenuBack').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) { $('#subMenuBack').classList.remove('show'); return; }
+  const b = e.target.closest('[data-sub]');
+  if (!b) return;
+  $('#subMenuBack').classList.remove('show');
+  const item = subMenuItems[Number(b.dataset.sub)];
+  if (item && item.run) item.run();
+});
+// 大分類の長押し（500ms）でもサブメニューを開く（iOSは3D Touch非対応のため長押しで代替）
+document.querySelectorAll('#recordMenuBack [data-record="meal"], #recordMenuBack [data-record="workout"]').forEach((el) => {
+  bindLongPress(el, () => openSubMenu(el.dataset.record));
+});
+// ホームの食事セルも長押しで同じショートカット（一貫性）
+$('#homeMealGrid').addEventListener('contextmenu', (e) => { e.preventDefault(); openSubMenu('meal'); });
+bindLongPress($('#homeMealGrid'), () => openSubMenu('meal'));
 $('#eufyImportBtn').addEventListener('click', () => $('#eufyCsvInput').click());
 $('#eufyCsvInput').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
