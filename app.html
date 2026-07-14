@@ -1342,6 +1342,14 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .nt-food-row .nm { flex:1; min-width:0; font-size:13px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-food-row .kc { flex:none; font-size:12px; color:var(--muted,#888); font-variant-numeric:tabular-nums; }
   .nt-food-row .tags { flex:none; display:flex; gap:4px; }
+  .rc-item .nm { display:flex; flex-direction:column; gap:1px; }
+  .rc-detail { font-size:10.5px; color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; }
+  .rc-unit { height:34px; border-radius:10px; background:var(--card); box-shadow:var(--shadow); font-size:12.5px; font-weight:700; padding:0 6px; min-width:64px; }
+  #rcPreview { display:flex; flex-direction:column; gap:2px; }
+  #rcPreview b { font-size:14px; }
+  #rcPreview small { font-size:10.5px; color:var(--muted); }
+  #rcPreview.warn { color:#c0392b; }
+  #rcPreview small.alert { color:#c0392b; font-weight:800; }
   .ff-micros { display:grid; grid-template-columns:repeat(2,1fr); gap:4px 10px; }
   .ff-micros span { font-size:11.5px; color:var(--muted,#888); display:flex; justify-content:space-between; gap:6px; }
   .ff-micros span b { color:var(--ink,#333); font-variant-numeric:tabular-nums; }
@@ -1818,6 +1826,14 @@ function buildCatalog() {
     if (!f || !String(f.id).startsWith('hakutei-')) return;
     const used = normalizeFoodUsageEntry(usageForDup[f.id]).count;
     f.duplicateOfEmbedded = embeddedNames.has(f.name) && !used;
+  });
+  // [fix] 2026-07-14: すべての per100g 食材に g 単位を用意する（レシピの秤量に必須）。
+  // 埋め込み食品（nutrition-db 由来）は ml しか持たない液体があるため、ここで一律に補う
+  allFoods.forEach((f) => {
+    if (!f || f.mode !== 'per100g' || !Array.isArray(f.units)) return;
+    if (f.units.some((u) => u && u.label === 'g')) return;
+    const ml = f.units.find((u) => u && u.label === 'ml');
+    f.units = f.units.concat([{ label: 'g', grams: ml ? ml.grams : 1, step: 10, defaultQty: 100 }]);
   });
   // [fix] E8: 検索のたびに 2,779件分の haystack を作り直していて 38ms かかっていた
   //（閾値30ms超）。カタログ構築時に1回だけ正規化して持たせる（検索は includes だけになる）
@@ -2867,7 +2883,13 @@ const UNIT_TEMPLATES = [
 ];
 /** g のみの食材に常用単位を足す（g は末尾に温存。既に人間向け単位があれば触らない） */
 function applyUnitTemplate(name, units) {
-  const list = Array.isArray(units) ? units : [];
+  let list = Array.isArray(units) ? units : [];
+  // [fix] 2026-07-14: どの食材でも g で入力できるようにする（レシピの秤量・微調整に必須）。
+  // ml しか無い液体（コーヒー・味噌汁など）にも g を足す（水分は ml≒g）
+  if (!list.some((u) => u && u.label === 'g')) {
+    const ml = list.find((u) => u && u.label === 'ml');
+    list = list.concat([{ label: 'g', grams: ml ? ml.grams : 1, step: 10, defaultQty: 100 }]);
+  }
   const hasHuman = list.some((u) => u && u.label !== 'g' && u.label !== 'ml');
   if (hasHuman || !name) return list;
   const hit = UNIT_TEMPLATES.find(([re]) => re.test(name));
@@ -3544,15 +3566,27 @@ function openRecipeBuilder(food = null, prefillItems = null) {
 function renderRecipeItems() {
   const wrap = $('#rcItems');
   $('#rcEmpty') && ($('#rcEmpty').style.display = recipeState.items.length ? 'none' : '');
-  wrap.innerHTML = recipeState.items.map((it, i) => `
-    <div class="rc-item">
-      <span class="nm">${escapeHtml(it.name)}${it.free ? '（概算）' : ''}</span>
+  wrap.innerHTML = recipeState.items.map((it, i) => {
+    const food = it.free ? null : getFoodById(it.foodId);
+    const units = food ? getUnitsForFood(food) : [];
+    const portion = food ? calcFoodPortion(food, it.qty, it.unit) : null;
+    // 実重量と kcal を必ず見せる（単位の取り違えに気づけるように。2026-07-14）
+    const detail = portion
+      ? `${portion.grams != null ? `${fmtNum(portion.grams)}g・` : ''}${fmtNum(portion.kcal)}kcal`
+      : `${fmtNum(it.estKcal || 0)}kcal`;
+    const unitSel = units.length > 1
+      ? `<select class="rc-unit" data-rc-unit="${i}">${units.map((u) =>
+          `<option value="${escapeHtml(u.label)}" ${u.label === it.unit ? 'selected' : ''}>${escapeHtml(u.label)}</option>`).join('')}</select>`
+      : `<span class="un">${escapeHtml(it.unit || '')}</span>`;
+    return `<div class="rc-item">
+      <span class="nm">${escapeHtml(it.name)}${it.free ? '（概算）' : ''}<small class="rc-detail">${detail}</small></span>
       ${it.free
         ? `<span class="un">${fmtNum(it.estKcal || 0)}kcal</span>`
-        : `<input type="number" inputmode="decimal" min="0" step="0.1" value="${fmtQty(it.qty)}" data-rc-qty="${i}"><span class="un">${escapeHtml(it.unit || '')}</span>`}
+        : `<input type="number" inputmode="decimal" min="0" step="1" value="${fmtQty(it.qty)}" data-rc-qty="${i}">${unitSel}`}
       <button class="rc-est ${it.pendingReview || it.free ? 'on' : ''}" data-rc-est="${i}" type="button">概算</button>
       <button class="rc-del" data-rc-del="${i}" type="button">✕</button>
-    </div>`).join('') + (recipeState.items.length ? '' : '');
+    </div>`;
+  }).join('');
   renderRecipePreview();
 }
 
@@ -3560,9 +3594,17 @@ function renderRecipePreview() {
   const servings = Math.max(1, Number($('#rcServings').value) || 1);
   const r = computeRecipeNutrition(recipeState.items, servings);
   const m = r.macrosPerServing;
-  $('#rcPreview').textContent = recipeState.items.length
-    ? `1食分: ${fmtNum(m.kcal)} kcal　P${m.p} / F${m.f} / C${m.c}${recipeState.items.some((i) => i.pendingReview || i.free) ? '（概算含む）' : ''}`
-    : '1食分: −';
+  const el = $('#rcPreview');
+  if (!recipeState.items.length) { el.textContent = '1食分: −'; el.classList.remove('warn'); return; }
+  const totalKcal = m.kcal * servings;
+  const totalG = r.totalGrams || 0;
+  el.innerHTML = `<b>1食分: ${fmtNum(m.kcal)} kcal</b>　P${m.p} / F${m.f} / C${m.c}`
+    + `<small>全体 ${fmtNum(totalKcal)}kcal・${fmtNum(totalG)}g を ${servings}食に分割`
+    + `${recipeState.items.some((i) => i.pendingReview || i.free) ? '（概算含む）' : ''}</small>`;
+  // 桁違いの入力（単位の取り違え）を検知して警告する
+  const weird = m.kcal > 1500 || totalG > 6000;
+  el.classList.toggle('warn', weird);
+  if (weird) el.innerHTML += '<small class="alert">数値が大きすぎます。単位（g / 個 / 膳）を確認してください</small>';
 }
 
 function renderRcSearch() {
@@ -7291,8 +7333,13 @@ $('#rcSearchResults').addEventListener('click', (e) => {
   if (!b) return;
   const food = getFoodById(b.dataset.rcAdd);
   if (!food) return;
-  const unit = getDefaultUnit(food);
-  recipeState.items.push({ foodId: food.id, name: food.name, qty: unit.defaultQty || 1, unit: unit.label, pendingReview: false, free: false });
+  // [fix] 2026-07-14: 既定を g にする。人間向け単位（100g / 房 / 膳）が既定だと
+  // 「600」と打った時に 600×100g = 60,000g のような桁違いの事故が起きる（照り焼き弁当の実例）
+  const units = getUnitsForFood(food);
+  const gUnit = units.find((u) => u.label === 'g') || units.find((u) => u.label === 'ml');
+  const unit = gUnit || getDefaultUnit(food);
+  const qty = gUnit ? 100 : (unit.defaultQty || 1);
+  recipeState.items.push({ foodId: food.id, name: food.name, qty, unit: unit.label, pendingReview: false, free: false });
   $('#rcSearch').value = '';
   $('#rcSearchResults').innerHTML = '';
   renderRecipeItems();
@@ -7311,7 +7358,13 @@ $('#rcItems').addEventListener('input', (e) => {
   const qty = e.target.closest('[data-rc-qty]');
   if (!qty) return;
   const it = recipeState.items[Number(qty.dataset.rcQty)];
-  if (it) { it.qty = Number(qty.value) || 0; renderRecipePreview(); }
+  if (it) { it.qty = Number(qty.value) || 0; renderRecipeItems(); }
+});
+$('#rcItems').addEventListener('change', (e) => {
+  const sel = e.target.closest('[data-rc-unit]');
+  if (!sel) return;
+  const it = recipeState.items[Number(sel.dataset.rcUnit)];
+  if (it) { it.unit = sel.value; renderRecipeItems(); }
 });
 $('#rcFreeLink').addEventListener('click', (e) => { e.preventDefault(); $('#rcFreeArea').style.display = ''; });
 $('#rcFreeAddBtn').addEventListener('click', () => {
