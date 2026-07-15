@@ -1055,6 +1055,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <div class="sync-note">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
     </div>
     <div id="ntWeekly" style="display:none">
+      <div id="weeklyStatus"></div>
       <div id="weeklyCoach"></div>
       <div id="weeklyCharts"></div>
       <div id="intakeWeightChart"></div>
@@ -1406,6 +1407,19 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .wk-chip .v small { font-size:9px; color:var(--muted,#999); font-weight:600; }
   .wk-details summary { font-size:12px; font-weight:800; color:var(--muted,#888); padding:8px 4px; cursor:pointer; }
   /* コーチ助言（AIトレーナー v1・SPEC-021） */
+  .wstatus-card { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-radius:14px; padding:11px 14px; margin-bottom:10px; }
+  .wstatus-card .ch { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
+  .wstatus-card .ch .tt { font-size:11px; font-weight:900; color:var(--muted,#888); letter-spacing:.04em; }
+  .wstatus-card .ch .wk { margin-left:auto; font-size:10.5px; color:var(--muted,#999); }
+  .ws-row { display:flex; align-items:center; gap:8px; margin:5px 0; font-size:12.5px; }
+  .ws-row .wl { flex:none; width:5em; font-weight:700; }
+  .ws-row .wbar { flex:1; height:8px; border-radius:4px; background:var(--glass,rgba(0,0,0,.06)); overflow:hidden; }
+  .ws-row .wbar i { display:block; height:100%; border-radius:4px; background:var(--accent,#ff8a2a); }
+  .ws-row.good .wbar i { background:var(--green); }
+  .ws-row.warn .wbar i { background:#e4a23a; }
+  .ws-row .wv { flex:none; width:4.5em; text-align:right; font-weight:800; font-variant-numeric:tabular-nums; color:var(--muted,#888); }
+  .ws-note { font-size:11px; color:var(--muted,#999); margin-top:7px; line-height:1.5; }
+  .ws-note b { color:#c0392b; }
   .coach-card { background:var(--panel,#fff); border:1px solid var(--line,rgba(0,0,0,.08)); border-left:3px solid var(--accent,#ff8a2a); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
   .coach-card .ch { display:flex; align-items:baseline; gap:8px; margin-bottom:6px; }
   .coach-card .ch .tt { font-size:11px; font-weight:900; color:var(--accent-deep,#b35c12); letter-spacing:.04em; }
@@ -4371,10 +4385,13 @@ function isPfcAchieved(dateStr) {
   });
 }
 function strengthDatesSet() {
-  const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  // [fix] 2026-07-15: ローカル履歴だけだと iPhone で記録した筋トレ日が反映されず「0日」になる。
+  // workoutAllRows（サーバー+未送信ローカル）を使う。定義前でも動くよう関数存在チェック。
   const set = {};
-  history.forEach((h) => {
-    if (h && h['日付'] && STRENGTH_NAMES.includes(h['種目'])) set[h['日付']] = true;
+  const rows = (typeof workoutAllRows === 'function') ? workoutAllRows()
+    : (lsGet(LS_KEYS.WT_HISTORY, []) || []).map((h) => ({ date: h && h['日付'], exercise: h && h['種目'] }));
+  rows.forEach((r) => {
+    if (r && r.date && STRENGTH_NAMES.includes(r.exercise)) set[r.date] = true;
   });
   return set;
 }
@@ -6282,6 +6299,44 @@ function renderWeeklyCharts(rows) {
 }
 
 /** コーチ助言（AIトレーナー v1）を最新週の分だけ専用カードで見せる。段落を保って読める形に。 */
+// ---- 今週の記録状況（2026-07-15: 記録が飛び飛びな実態を一目で示す）----
+// 北極星3指標（筋トレ週3・PFC達成週5・記録の継続）に対して、今週いまどこにいるかを
+// アプリ自身が示す。コーチ助言は手動だが、これは毎回自動で最新化される。
+function renderWeeklyStatus() {
+  const el = $('#weeklyStatus');
+  if (!el) return;
+  const week = weekDatesOf(todayStr());
+  const today = todayStr();
+  const elapsed = week.filter((d) => d <= today).length;       // 今週の経過日数
+  const strength = strengthDatesSet();
+  const wkTrain = week.filter((d) => strength[d]).length;
+  const mealDays = week.filter((d) => d <= today && dayMealTotals(d)).length;
+  const pfcDays = week.filter((d) => d <= today && isPfcAchieved(d)).length;
+  // 体組成の鮮度（タニタ/eufy/手入力の最新日）
+  const bodyLatest = (bodyServerRows()[0] ? bodyRowJst(bodyServerRows()[0]).date : null)
+    || ((lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0] || {}).date;
+  const bodyAgo = bodyLatest ? Math.round((Date.parse(today + 'T12:00:00') - Date.parse(bodyLatest + 'T12:00:00')) / 86400000) : null;
+
+  const bar = (label, cur, goal, unit, warnAgo) => {
+    const pct = Math.min(100, Math.round((cur / goal) * 100));
+    const done = cur >= goal;
+    const cls = done ? 'good' : (warnAgo != null && warnAgo >= 4) ? 'warn' : '';
+    return `<div class="ws-row ${cls}">
+      <span class="wl">${label}</span>
+      <span class="wbar"><i style="width:${pct}%"></i></span>
+      <span class="wv">${cur}${unit ? `/${goal}${unit}` : `/${goal}`}</span></div>`;
+  };
+  el.innerHTML = `<div class="wstatus-card">
+    <div class="ch"><span class="tt">今週の状況</span><span class="wk">${wkWeekLabel(week[0])}・${elapsed}/7日経過</span></div>
+    ${bar('筋トレ', wkTrain, 3, '日')}
+    ${bar('食事の記録', mealDays, elapsed, '日')}
+    ${bar('PFC達成', pfcDays, 5, '日')}
+    <div class="ws-note">${bodyAgo == null ? '体組成の記録がありません'
+      : bodyAgo >= 4 ? `<b>体組成が${bodyAgo}日前から未更新</b>。タニタで測って「体組成同期して」を`
+      : `体組成は${bodyAgo === 0 ? '今日' : bodyAgo + '日前'}に更新済み`}</div>
+  </div>`;
+}
+
 function renderCoachCard(rows) {
   const el = $('#weeklyCoach');
   if (!el) return;
@@ -6511,6 +6566,7 @@ function renderStreakHeatmap() {
 
 function renderWeeklyReview(rows) {
   const list = $('#weeklyList');
+  renderWeeklyStatus();   // 今週の状況はローカル記録から出せる（サーバー週次が無くても表示）
   if (!rows || !rows.length) {
     $('#weeklyCharts').innerHTML = '';
     $('#weeklyCoach').innerHTML = '';
