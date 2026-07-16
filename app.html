@@ -52,7 +52,7 @@ input, textarea, select, [contenteditable="true"] {
   --bg: #fff8ef;
   --card: #ffffff;
   --ink: #3a352d;
-  --muted: #9b917e;
+  --muted: #857a66;   /* 明所での可読性のため 4.5:1 付近まで濃く（2026-07-16 監査 8-1） */
   --line: #f0e4d0;
   --accent: #ff8a2a;
   --accent-deep: #f07300;
@@ -137,6 +137,12 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 }
 .ring-score b { font-size: 26px; line-height: 1; }
 .ring-score span { font-size: 9.5px; color: var(--muted); letter-spacing: .05em; }
+/* スコア内訳ポップ（監査 2-1） */
+.score-pop { margin-top: 8px; animation: fadeUp .18s ease; }
+.score-pop .sp-head { font-size: 12.5px; font-weight: 800; margin-bottom: 6px; }
+.score-pop .sp-head b { font-size: 16px; color: var(--accent-deep); }
+.score-pop .sp-pri { font-size: 12px; margin-top: 6px; color: var(--ink); }
+.score-pop .sp-pri b { color: var(--accent-deep); }
 .hero-right { flex: 1; min-width: 0; }
 .kcal-line { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
 .kcal-line b { font-size: 27px; line-height: 1.1; letter-spacing: -.01em; }
@@ -332,6 +338,11 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 }
 .del-btn { width: 32px; height: 32px; border-radius: 10px; color: #d0c5ae; font-size: 16px; display: grid; place-items: center; flex: none; }
 .del-btn:active { background: var(--red-soft); color: var(--red); }
+/* iPhone幅では品目行を2段組に: 上段=品名フル幅 / 下段=操作（名前の途切れとPFC折返し対策。監査 3-1） */
+@media (max-width: 430px) {
+  .item-row { flex-wrap: wrap; row-gap: 2px; justify-content: flex-end; }
+  .item-main { flex: 1 1 100%; }
+}
 .empty-note { text-align: center; color: #cdc4b0; font-size: 12.5px; padding: 16px 0; }
 
 /* ---------- 検索 ---------- */
@@ -409,6 +420,18 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .exo-chip .sn { font-size: 9.5px; color: var(--muted); font-weight: 700; }
 .exo-chip.active { border-color: var(--accent); }
 .exo-chip.active .sn { color: var(--accent-deep); }
+/* 空き日数バッジと「今日のおすすめ」行（監査 6-1） */
+.exo-chip { position: relative; }
+.exo-chip .gap {
+  position: absolute; top: 3px; right: 3px; font-size: 8.5px; font-weight: 800;
+  color: var(--warn-ink, #c98a00); background: var(--warn-bg, #fff3d6);
+  padding: 1px 4px; border-radius: 7px;
+}
+.exo-reco {
+  display: block; width: 100%; text-align: left; margin: 0 0 8px; padding: 10px 12px;
+  border-radius: 14px; background: var(--warn-bg, #fff3d6); color: var(--warn-ink, #c98a00);
+  font-size: 12.5px; font-weight: 700; border: none;
+}
 .field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; }
 .field-row .fl { font-size: 13px; font-weight: 700; color: var(--muted); }
 .field-row .stepper button { width: 40px; height: 40px; }
@@ -676,7 +699,7 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   --badge-blue-bg: #eef4ff;
   --warn-ink: #c98a00;
   --warn-bg: #fff3d6;
-  --tab-idle: #b9ae97;
+  --tab-idle: #9a8f77;
   /* 影は「暖色の環境光」: 二層で柔らかく */
   --shadow: 0 2px 12px rgba(122, 92, 47, .08), 0 1px 3px rgba(122, 92, 47, .06);
   --shadow-pop: 0 6px 20px rgba(122, 92, 47, .14), 0 2px 6px rgba(122, 92, 47, .08);
@@ -750,7 +773,7 @@ button.card:active, .meal-cell:active, .quick-chip:active { box-shadow: var(--sh
     --bg: #191511;
     --card: #241e17;
     --ink: #f1e8d8;
-    --muted: #a2977f;
+    --muted: #b3a88f;   /* ダークも同様に一段明るく（監査 8-1） */
     --line: #332b1e;
     --accent: #ff9440;
     --accent-deep: #ffb066;
@@ -777,7 +800,7 @@ button.card:active, .meal-cell:active, .quick-chip:active { box-shadow: var(--sh
     --badge-blue-bg: rgba(138, 184, 255, .16);
     --warn-ink: #ffce6b;
     --warn-bg: rgba(201, 138, 0, .2);
-    --tab-idle: #6e6350;
+    --tab-idle: #8d8168;
     --st-draft: #d9ab3c;
     --st-pending-calc: #b79aec;
   }
@@ -834,7 +857,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   <!-- ============ ホーム ============ -->
   <section class="view" id="view-home">
     <div class="card hero">
-      <div class="ring-wrap">
+      <div class="ring-wrap" id="scoreRingWrap" role="button" aria-label="スコアの内訳を見る">
         <svg width="92" height="92" viewBox="0 0 92 92">
           <circle cx="46" cy="46" r="40" fill="none" stroke="#f4ead9" stroke-width="9"/>
           <circle id="ringArc" cx="46" cy="46" r="40" fill="none" stroke="var(--green)" stroke-width="9"
@@ -852,6 +875,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
         </div>
       </div>
     </div>
+    <!-- スコアの内訳（リングをタップでその場に開く。数字への納得感=監査 2-1） -->
+    <div class="card score-pop" id="scorePop" hidden></div>
     <!-- 次の一手（Phase D-1: コーチ一言+筋トレ日ボタンを統合した行動カード） -->
     <button class="card next-move" id="nextMoveCard" type="button">
       <span class="nm-body">
@@ -969,6 +994,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <div class="train-row">
       <button class="train-chip" id="trainToggle" type="button"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
     </div>
+    <!-- 今日のおすすめ部位（間隔が空いた部位を記録の入口で示す。監査 6-1） -->
+    <div id="exoReco"></div>
     <div class="exo-grid" id="exoGrid"></div>
     <!-- 今日の目標（漸進的過負荷。2026-07-13: 全種目10回×3セットで4週間停滞していたため導入） -->
     <div id="progressionCard"></div>
@@ -1201,9 +1228,13 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .add-food-cta { display:block; width:100%; margin-top:8px; padding:11px; border:1.5px dashed var(--accent,#ff8a2a); border-radius:14px; background:transparent; color:var(--accent,#ff8a2a); font-weight:800; font-size:13.5px; }
   .kind-btn { display:block; width:100%; text-align:left; padding:13px 14px; margin-bottom:8px; border:1px solid var(--line,rgba(0,0,0,.1)); border-radius:14px; background:var(--panel,#fff); font-size:14px; font-weight:800; }
   .kind-btn small { display:block; font-weight:500; font-size:11.5px; color:var(--muted,#888); margin-top:2px; }
-  .rc-item { display:flex; align-items:center; gap:6px; padding:7px 0; border-bottom:1px solid var(--line,rgba(0,0,0,.06)); font-size:13px; }
-  .rc-item .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .rc-item input { width:52px; text-align:right; padding:4px; border:1px solid var(--line,rgba(0,0,0,.12)); border-radius:8px; }
+  /* 材料行は2段組（上段=材料名+実重量kcal / 下段=数量・単位・操作）。
+     1行に詰めると390pxで数量inputと単位selectが見切れる（監査 7-1） */
+  .rc-item { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:4px 6px; padding:7px 0; border-bottom:1px solid var(--line,rgba(0,0,0,.06)); font-size:13px; }
+  .rc-item .nm { flex:1 1 100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* 背景・文字色を明示（ダークモードだと ink=クリーム色が白背景に載ってほぼ見えなかった） */
+  .rc-item input { width:64px; min-width:64px; text-align:right; padding:6px 4px; border:1px solid var(--line,rgba(0,0,0,.12)); border-radius:8px; font-size:14px; font-weight:700; background:var(--card,#fff); color:var(--ink,#333); }
+  .rc-item input::-webkit-inner-spin-button, .rc-item input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   .rc-item .un { color:var(--muted,#888); min-width:2em; }
   .rc-est { padding:3px 8px; border-radius:10px; border:1px solid var(--line,rgba(0,0,0,.12)); background:transparent; font-size:11px; color:var(--muted,#888); }
   .rc-est.on { background:rgba(228,162,58,.15); border-color:#e4a23a; color:#a06a10; font-weight:700; }
@@ -1290,7 +1321,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       <button class="secondary-btn full" id="rcFreeAddBtn" type="button">概算材料を追加</button>
     </div>
     <div class="sync-note" id="rcPreview" style="font-weight:800">1食分: −</div>
-    <button class="primary-btn full sticky-save" id="rcSaveBtn">保存する（1食分として検索に出ます）</button>
+    <div class="sync-note">保存すると「1食分」として検索に出ます</div>
+    <button class="primary-btn full sticky-save" id="rcSaveBtn">保存する</button>
   </div>
 </div>
 
@@ -1615,14 +1647,20 @@ function shiftDate(dateStr, days) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function fmtDateLabel(dateStr) {
+  // 「今日 7/16(木)」だと390pxのトップバーで2行に折り返す（監査 2-2）。
+  // 今日かどうかは date-label の is-today 色で伝える（プレフィックスは付けない）。
   const d = new Date(`${dateStr}T12:00:00`);
-  const base = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
-  if (dateStr === todayStr()) return `今日 ${base}`;
-  if (dateStr === shiftDate(todayStr(), -1)) return `昨日 ${base}`;
-  return base;
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 function fmtNum(n) { return Math.round(n).toLocaleString('ja-JP'); }
 function fmtQty(v) { return Number((Math.round(v * 100) / 100).toFixed(2)).toString(); }
+// [fix] 「1」+「100g」が「1100g」に見える連結を防ぐ（監査 1-1）。
+// 数字で始まる単位（100g 等）は qty=1 なら単位だけ、それ以外は「2×100g」と区切る。
+function portionLabel(qty, unit) {
+  const u = String(unit || '');
+  if (/^\d/.test(u)) return Number(qty) === 1 ? u : `${fmtQty(qty)}×${u}`;
+  return `${fmtQty(qty)}${u}`;
+}
 let toastTimer = null;
 function showToast(msg, kind) {
   const t = $('#toast');
@@ -2255,7 +2293,7 @@ function renderItems() {
         <div class="item-name">${escapeHtml(it.name)}</div>
         <div class="item-kcal">${fmtNum(it.kcal)} kcal　P${it.p.toFixed(1)} F${it.f.toFixed(1)} C${it.c.toFixed(1)}</div>
       </div>
-      <button class="review-chip ${it.pendingReview ? 'on' : ''}" data-review="${i}">${it.pendingReview ? '要確認' : '確認'}</button>
+      ${it.pendingReview ? `<button class="review-chip on" data-review="${i}">概算</button>` : ''}
       <div class="stepper">
         <button data-step="-1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>−</button>
         <span class="qty-box">${qtyHtml}${unitHtml}</span>
@@ -2441,14 +2479,14 @@ function renderSearch() {
     if (!q) {
       return `<button class="usage-chip" data-add="${escapeHtml(f.id)}">
         <span class="rn">${escapeHtml(f.name)}</span>
-        <span class="rk">${fmtQty(preferred.qty)}${escapeHtml(preferred.unit)}・${fmtNum(kcal)}kcal</span>
+        <span class="rk">${escapeHtml(portionLabel(preferred.qty, preferred.unit))}・${fmtNum(kcal)}kcal</span>
       </button>`;
     }
     const catTag = f.category && f.category !== '共通' ? `<span class="cat-tag">${escapeHtml(f.category)}</span>` : '';
     return `<button class="result-row" data-add="${escapeHtml(f.id)}">
       <span class="rn">${escapeHtml(f.name)}</span>
       ${isProduct ? '<span class="badge">商品</span>' : ''}${catTag}
-      <span class="rk">${fmtQty(preferred.qty)}${escapeHtml(preferred.unit)}・${fmtNum(kcal)}kcal</span>
+      <span class="rk">${escapeHtml(portionLabel(preferred.qty, preferred.unit))}・${fmtNum(kcal)}kcal</span>
       <span class="add">＋</span>
     </button>`;
   }).join('');
@@ -2509,14 +2547,14 @@ function openUnitSheet(i) {
   unitSheetIndex = i;
   $('#unitSheetTitle').textContent = `${food.name} の単位`;
   $('#unitSheetList').innerHTML = getUnitsForFood(food).map((u) =>
-    `<button data-unit="${escapeHtml(u.label)}" class="${u.label === it.unit ? 'cur' : ''}">${escapeHtml(u.label)}（${fmtQty(u.defaultQty || 1)}${escapeHtml(u.label)}〜）</button>`
+    `<button data-unit="${escapeHtml(u.label)}" class="${u.label === it.unit ? 'cur' : ''}">${escapeHtml(u.label)}（${escapeHtml(portionLabel(u.defaultQty || 1, u.label))}〜）</button>`
   ).join('');
   $('#unitBack').classList.add('show');
 }
 
 // ---------------- 食事保存（旧 meal.html と同一契約） ----------------
 function summarizeItems(items) {
-  return items.map((it) => `${it.name} ${fmtQty(it.qty)}${it.unit}`).join(' / ');
+  return items.map((it) => `${it.name} ${portionLabel(it.qty, it.unit)}`).join(' / ');
 }
 let isSavingMeal = false;
 async function saveMeal() {
@@ -2580,7 +2618,16 @@ async function saveMeal() {
     writeResult = { status: 'confirmed' };
     markMealSynced(record.id, true);
     flashSuccess(btn, '✓ 記録しました');
-    showToast(`${timing.title}: ${writeStatusText(writeResult)}`);
+    // 記録→結果の即時ループ: 今日の分なら保存後スコアを添える（監査 2-4）
+    let scoreNote = '';
+    try {
+      if (record.date === todayStr()) {
+        const t = computeDayIntake(record.date);
+        const s = t.totals.energy > 0 ? unifiedDailyScore(record.date, t.totals, activeTargets()) : null;
+        if (s) scoreNote = `　今日のスコア ${s.score}`;
+      }
+    } catch (e) {}
+    showToast(`${timing.title}: ${writeStatusText(writeResult)}${scoreNote}`);
   } catch (err) {
     writeResult = { status: 'queued' };
     queueWithToast('meal_save', `meal_save:${record.date}:${record.timingKey}`,
@@ -4451,7 +4498,7 @@ function suggestionPortion(food) {
   return { unit: { label }, qty, portion: calcFoodPortion(food, qty, label) };
 }
 function suggestionLabel(s) {
-  return `${s.food.name} ${fmtQty(s.qty)}${s.unit.label}`;
+  return `${s.food.name} ${portionLabel(s.qty, s.unit.label)}`;
 }
 /** その1回量に含まれる栄養素量（マクロは portion から・微量は栄養エントリを g/個 で按分） */
 function nutrientInPortion(food, portion, qty, key) {
@@ -4625,6 +4672,18 @@ function addSuggestedFoodFromCoach(foodId) {
   if (added) showToast(`${added.name}を追加しました。よければ記録してください`);
 }
 
+// ホームリング・保存トースト・内訳ポップで同じスコアを使う（別計算だと数字が食い違う。監査 2-1）。
+// 微量栄養素込みの分析スコアを正とし、栄養DB未ロード時だけ簡易スコアにフォールバックする。
+function unifiedDailyScore(dateStr, totals, targets) {
+  if (typeof NUTRITION_DB !== 'undefined' && NUTRITION_DB && typeof buildNutritionState === 'function') {
+    try {
+      const j = buildNtJudgement(buildNutritionState(dateStr));
+      if (j && j.parts.length) return { score: j.score, kind: j.score >= 80 ? 'good' : j.score >= 60 ? 'mid' : 'low' };
+    } catch (e) {}
+  }
+  return (totals && typeof computeDailyScore === 'function') ? computeDailyScore(totals, targets, {}) : null;
+}
+
 function renderHome() {
   const targets = activeTargets();
   const { totals, perTiming } = computeDayIntake(state.date);
@@ -4632,8 +4691,8 @@ function renderHome() {
   // スコアリング
   let score = null;
   const hasAny = totals.energy > 0;
-  if (hasAny && typeof computeDailyScore === 'function') {
-    score = computeDailyScore(totals, targets, {});
+  if (hasAny) {
+    score = unifiedDailyScore(state.date, totals, targets);
   }
   const arc = $('#ringArc');
   const C = 251.3;
@@ -4718,12 +4777,20 @@ function renderHome() {
   const latest = bodyRecs[0];
   const serverLatest = (typeof bodyServerRows === 'function' ? bodyServerRows() : [])[0] || null;
   const serverDate = serverLatest ? bodyRowJst(serverLatest).date : '';
+  // 古い測定値が「今日の値」の顔をしないよう、4日以上前は日付を注意色で見せる（監査 2-3）
+  const bodySub = (fatText, dateStr) => {
+    const ago = Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(dateStr + 'T12:00:00')) / 86400000);
+    const dateHtml = ago >= 4
+      ? `<span style="color:var(--warn-ink,#c98a00);font-weight:700">${fmtDateLabel(dateStr)}（${ago}日前）</span>`
+      : fmtDateLabel(dateStr);
+    return `体脂肪 ${fatText}%・${dateHtml}`;
+  };
   if (serverLatest && serverLatest.weight_kg != null && (!latest || serverDate >= String(latest.date))) {
     $('#homeBodyBig').textContent = `${Number(serverLatest.weight_kg).toFixed(1)} kg`;
-    $('#homeBodySub').textContent = `体脂肪 ${serverLatest.body_fat_pct != null ? Number(serverLatest.body_fat_pct).toFixed(1) : '–'}%・${fmtDateLabel(serverDate)}`;
+    $('#homeBodySub').innerHTML = bodySub(serverLatest.body_fat_pct != null ? Number(serverLatest.body_fat_pct).toFixed(1) : '–', serverDate);
   } else if (latest) {
     $('#homeBodyBig').textContent = `${latest.weight || '–'} kg`;
-    $('#homeBodySub').textContent = `体脂肪 ${latest.fat || '–'}%・${fmtDateLabel(latest.date)}`;
+    $('#homeBodySub').innerHTML = bodySub(String(latest.fat || '–').replace(/[<>&"]/g, ''), String(latest.date));
   } else {
     $('#homeBodyBig').textContent = '未記録';
     $('#homeBodySub').textContent = 'タップして記録';
@@ -4732,6 +4799,31 @@ function renderHome() {
   // Phase D-2: 今日の運動・からだが両方済みならこの段はトレンドに役割を譲って非表示
   const bodyDoneToday = serverDate === todayStr() || (latest && String(latest.date) === todayStr());
   const workoutDoneToday = Boolean(todayLogs.length || draftCount);
+}
+
+// スコアの内訳ポップ（分析タブの判定ロジックを流用してその場に出す。監査 2-1）
+function toggleScorePop() {
+  const el = $('#scorePop');
+  if (!el) return;
+  if (!el.hidden) { el.hidden = true; return; }
+  if (typeof NUTRITION_DB === 'undefined' || !NUTRITION_DB || typeof buildNutritionState !== 'function') {
+    showToast('栄養データを読み込み中です'); return;
+  }
+  const judge = buildNtJudgement(buildNutritionState(state.date));
+  if (!judge.parts.length) {
+    el.innerHTML = '<div class="sync-note">食事を1件記録するとスコアの内訳が出ます</div>';
+    el.hidden = false; return;
+  }
+  const gaugeColor = (s) => (s >= 80 ? '#2eb872' : s >= 50 ? '#e4a23a' : '#e94e5b');
+  const top = judge.priorities[0];
+  el.innerHTML = `
+    <div class="sp-head">スコアの内訳 <b>${judge.score}</b>/100（${judge.label}）</div>
+    <div class="nt-gauges">${judge.parts.map((p) => `
+      <div class="nt-gauge"><div class="gl"><span>${p.label}</span><b>${p.score}</b></div>
+        <div class="gbar"><i style="width:${Math.max(3, Math.min(100, p.score))}%;background:${gaugeColor(p.score)}"></i></div></div>`).join('')}</div>
+    ${top ? `<div class="sp-pri"><b>${escapeHtml(top.title)}</b> ${escapeHtml(top.copy)}</div>` : ''}
+    <div class="sync-note" style="margin-top:4px">くわしくは「分析」タブへ</div>`;
+  el.hidden = false;
 }
 
 // ---------------- 運動ビュー（旧 workout.html と同一契約） ----------------
@@ -4780,12 +4872,48 @@ function loadExoValues(exo) {
   return values;
 }
 
+/** 各種目の「最後にやってから何日か」（未実施は null） */
+function exoDaysAgoMap() {
+  const lastDate = {};
+  workoutAllRows().forEach((r) => {
+    const exo = EXERCISES.find((e) => e.name === r.exercise);
+    if (exo && (!lastDate[exo.id] || r.date > lastDate[exo.id])) lastDate[exo.id] = r.date;
+  });
+  const map = {};
+  EXERCISES.forEach((e) => {
+    map[e.id] = lastDate[e.id]
+      ? Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(lastDate[e.id] + 'T12:00:00')) / 86400000)
+      : null;
+  });
+  return map;
+}
 function renderExoGrid() {
-  $('#exoGrid').innerHTML = EXERCISES.map((e) =>
-    `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}">
-      <span class="kj" style="background:${e.color}">${e.kanji}</span><span class="sn">${e.short}</span>
-    </button>`
-  ).join('');
+  // 間隔が空いた部位を入口で見せる（コーチの「レッグプレス31日空き」を行動に接続。監査 6-1）
+  const agoMap = exoDaysAgoMap();
+  $('#exoGrid').innerHTML = EXERCISES.map((e) => {
+    const ago = agoMap[e.id];
+    const gap = (ago != null && ago >= 10) ? `<span class="gap">${ago}日</span>` : '';
+    return `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}">
+      <span class="kj" style="background:${e.color}">${e.kanji}</span><span class="sn">${e.short}</span>${gap}
+    </button>`;
+  }).join('');
+  const recoEl = $('#exoReco');
+  if (recoEl) {
+    // 筋トレ種目（重量あり）のうち最も空いているものを1つだけおすすめする
+    const cand = EXERCISES.filter((e) => e.fields.includes('weight') && agoMap[e.id] != null && agoMap[e.id] >= 10)
+      .sort((a, b) => agoMap[b.id] - agoMap[a.id])[0];
+    recoEl.innerHTML = (cand && cand.id !== state.exoId)
+      ? `<button class="exo-reco" type="button" data-exo-reco="${cand.id}">今日のおすすめ: <b>${cand.kanji} ${cand.name}</b>（${agoMap[cand.id]}日ぶり）→</button>`
+      : '';
+    const btn = recoEl.querySelector('[data-exo-reco]');
+    if (btn) btn.addEventListener('click', () => {
+      state.exoId = btn.dataset.exoReco;
+      lsSet(LS_KEYS.WT_SELECTED, state.exoId);
+      state.exoValues = loadExoValues(exoById(state.exoId));
+      renderExoGrid(); renderExoCard();
+      haptic(6);
+    });
+  }
 }
 // ---- 漸進的過負荷の提案（ダブルプログレッション。2026-07-13）----
 // 実測: 全種目が「10回×3セット」で固定され、重量も4週間変化なし＝筋肥大の刺激が頭打ち。
@@ -5280,7 +5408,7 @@ function buildNutritionState(dateStr) {
       totals.review += s.pendingReview ? 1 : 0;
       if (!foodTotals[name]) foodTotals[name] = { name, foodId: s.foodId, nutrients: NUTRITION_DB ? NUTRITION_DB.blankNutrients() : {}, qtyText: [], review: false };
       Object.keys(nutrients).forEach((k) => { foodTotals[name].nutrients[k] += Number(n[k]) || 0; });
-      foodTotals[name].qtyText.push(`${fmtQty(s.qty)}${s.unit || ''}`);
+      foodTotals[name].qtyText.push(portionLabel(s.qty, s.unit || ''));
       foodTotals[name].review = foodTotals[name].review || Boolean(s.pendingReview);
     });
   });
@@ -5312,7 +5440,7 @@ function ntFoodValue(food, key) {
   return (food.per100g[key] || 0) * grams / 100;
 }
 function ntFoodUnitLabel(food) {
-  if (food && food.suggestUnit) return `${fmtQty(food.suggestQty || 1)}${food.suggestUnit}`;  // U2: 提案量
+  if (food && food.suggestUnit) return portionLabel(food.suggestQty || 1, food.suggestUnit);  // U2: 提案量
   if (food && food.mode === 'perUnit') return `1${food.unitLabel || '個'}`;
   const key = Object.keys(food.units || {}).find((k) => k !== 'g' && k !== 'ml') || Object.keys(food.units || {})[0];
   if (!key) return '1食分';
@@ -5372,10 +5500,14 @@ function buildNtRanking(state) {
     .map((k) => {
       const value = state.nutrients[k] || 0;
       const pct = ntTargetPct(k, value);
-      const leaders = ntTopContributors(state.contributions[k]).slice(0, 2);
+      // 寄与ほぼゼロの食品を「主な食品」として並べない（「ミックスナッツ 0g」問題。監査 1-3）。
+      // 目標の5%未満の寄与は出さず、栄養素自体がほぼ摂れていない時は候補提案だけに絞る。
+      const minShare = (ntTargetValue(k) || 0) * 0.05;
+      const leaders = pct < 10 ? []
+        : ntTopContributors(state.contributions[k]).filter((i) => i.value >= minShare).slice(0, 2);
       const leaderText = leaders.length
         ? `主な食品: ${leaders.map((i) => `${i.name} ${ntFormat(k, i.value)}${meta[k].unit}`).join('、')}`
-        : '主な食品: まだ記録なし';
+        : '摂取源がまだほぼありません';
       return { k, meta: meta[k], value, pct, leaderText };
     });
   const low = rows.filter((r) => NT_IMPORTANT.includes(r.k) && r.pct < 100).sort((a, b) => a.pct - b.pct).slice(0, 5)
@@ -5450,7 +5582,7 @@ function renderNextMealPlan(nt) {
   if (!plan.parts.length) { el.innerHTML = ''; return; }
   el.innerHTML = `<div class="nm-plan">
     <div class="ttl">次の${TIMINGS[plan.slot].title}はこう組み立てる</div>
-    <div class="sub">この1食の目安 ${fmtNum(plan.budget.energy)}kcal / P${Math.max(0, plan.budget.protein)}g</div>
+    <div class="sub">この1食の目安 ${fmtNum(plan.budget.energy)}kcal${plan.budget.protein > 0 ? ` / P${plan.budget.protein}g` : '（たんぱく質は目標達成済み ✓）'}</div>
     ${plan.parts.map((p) => `<div class="nm-part">
       <span class="role">${p.role}</span>
       <span class="nm">${escapeHtml(suggestionLabel(p.s))}</span>
@@ -5947,6 +6079,7 @@ function setDate(dateStr) {
   lbl.textContent = fmtDateLabel(dateStr);
   lbl.classList.toggle('is-today', dateStr === todayStr());
   $('#dateNext').classList.toggle('disabled', dateStr === todayStr());
+  if ($('#scorePop')) $('#scorePop').hidden = true;   // 内訳ポップは日付が変わったら閉じる
   if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderHydration(); }
   if (state.view === 'workout') renderWorkoutToday();
   if (state.view === 'body') renderBodyView();
@@ -6335,7 +6468,7 @@ function renderWeeklyStatus() {
     ${bar('食事の記録', mealDays, elapsed, '日')}
     ${bar('PFC達成', pfcDays, 5, '日')}
     <div class="ws-note">${bodyAgo == null ? '体組成の記録がありません'
-      : bodyAgo >= 4 ? `<b>体組成が${bodyAgo}日前から未更新</b>。タニタで測って「体組成同期して」を`
+      : bodyAgo >= 4 ? `<b>体組成が${bodyAgo}日前から未更新</b>。タニタで測ってください（測定は取込で反映されます）`
       : `体組成は${bodyAgo === 0 ? '今日' : bodyAgo + '日前'}に更新済み`}</div>
   </div>`;
 }
@@ -6403,12 +6536,16 @@ function renderIntakeWeightChart() {
   }
   const labels = series.map((s, i) => (i % 3 === 0 || i === n - 1)
     ? `<text x="${xAt(i).toFixed(1)}" y="${H - 4}" font-size="8.5" fill="rgba(0,0,0,.45)" text-anchor="middle">${wkXLabel(s.date)}</text>` : '').join('');
-  const avgKcal = kcals.length ? Math.round(kcals.reduce((a, s) => a + s.kcal, 0) / kcals.length) : 0;
+  // [fix] 平均は「3食そろった日」だけで出す（間食1件だけの日が混ざると実態より大幅に低く出る。監査 1-2）
+  const fullDays = series.filter((s) => ['morning', 'lunch', 'dinner'].every((tk) => findRecord(s.date, tk)));
+  const avgBase = fullDays.length ? fullDays : kcals;
+  const avgKcal = avgBase.length ? Math.round(avgBase.reduce((a, s) => a + s.kcal, 0) / avgBase.length) : 0;
+  const avgNote = fullDays.length ? `3食記録の${fullDays.length}日平均` : `記録${kcals.length}日平均`;
   const wDiff = weights.length >= 2 ? weights[weights.length - 1].weight - weights[0].weight : null;
   el.innerHTML = `<div class="wk-chart-card">
     <div class="tt">摂取カロリー × 体重（14日）</div>
     <div class="legend">
-      <span><i style="background:rgba(255,138,42,.5)"></i>摂取 平均${avgKcal}kcal${target ? `（目標${Math.round(target)}）` : ''}</span>
+      <span><i style="background:rgba(255,138,42,.5)"></i>摂取 ${avgNote} ${avgKcal}kcal${target ? `（目標${Math.round(target)}）` : ''}</span>
       <span><i style="background:var(--green)"></i>体重${wDiff != null ? ` ${wDiff > 0 ? '+' : ''}${wDiff.toFixed(1)}kg` : ''}</span>
     </div>
     <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${weightPath}${labels}</svg>
@@ -6515,6 +6652,11 @@ function renderRecoveryChart() {
     ? (sleep.filter(Boolean).reduce((a, b) => a + b, 0) / sleep.filter(Boolean).length) : null;
   const lastRhr = [...rhr].reverse().find(Boolean);
   const verdict = recoveryVerdict(byMetric);
+  // 取込が古い時は体組成と同様に明示する（睡眠だけ無言で止まっていた非対称の解消。監査 4-2）
+  const latestOn = Object.values(byMetric).flatMap((m) => Object.keys(m)).sort().pop() || null;
+  const dataAgo = latestOn ? Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(latestOn + 'T12:00:00')) / 86400000) : null;
+  const staleNote = (dataAgo != null && dataAgo >= 5)
+    ? `<div class="sync-note" style="margin-top:2px;color:var(--warn-ink,#c98a00)"><b>最終取込 ${fmtDateLabel(latestOn)}（${dataAgo}日前）</b>。ヘルスケア取込（設定 → その他の画面）で更新されます。</div>` : '';
   el.innerHTML = `<div class="wk-chart-card">
     <div class="tt">睡眠と回復（14日）</div>
     <div class="legend">
@@ -6523,6 +6665,7 @@ function renderRecoveryChart() {
     </div>
     <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${rhrPath}${labels}</svg>
     ${verdict ? `<div class="rec-verdict ${verdict.kind}">${escapeHtml(verdict.text)}</div>` : ''}
+    ${staleNote}
     <div class="sync-note" style="margin-top:2px">点線=7時間。赤い棒は睡眠不足の日。安静時心拍が上がり続ける時は疲労のサイン（Apple ヘルスケア由来）。</div>
   </div>`;
   attachScrub(el.querySelector('.wk-chart-card'), { W, H, points: days.map((d, i) => ({
@@ -7216,6 +7359,7 @@ $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
 $('#homeBodyCard').addEventListener('click', () => showView('body'));
 $('#homeWaterCard').addEventListener('click', () => showView('meal'));
 $('#homeSyncCard').addEventListener('click', retryPending);
+$('#scoreRingWrap') && $('#scoreRingWrap').addEventListener('click', toggleScorePop);
 $('#nextMoveCard').addEventListener('click', (e) => {
   const action = e.currentTarget.dataset.nmAction || '';
   if (action.startsWith('meal:')) {
@@ -7291,10 +7435,16 @@ $('#mealItems').addEventListener('click', (e) => {
   }
   const review = e.target.closest('[data-review]');
   if (review) {
+    // 「概算」バッジは概算品にだけ出す。タップ=確認済みにする（戻すはUndoトースト。監査 3-2）
     const i = Number(review.dataset.review);
-    if (state.items[i]) {
-      state.items[i].pendingReview = !state.items[i].pendingReview;
+    const item = state.items[i];
+    if (item && item.pendingReview) {
+      item.pendingReview = false;
       renderItems(); persistDraft(); haptic(6);
+      showUndoToast('概算マークを外しました', '戻す', () => {
+        item.pendingReview = true;
+        renderItems(); persistDraft();
+      });
     }
     return;
   }
