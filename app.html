@@ -4690,10 +4690,13 @@ function renderHome() {
     const kc = info.kcal > 0
       ? `<span class="kc">${fmtNum(info.kcal)}</span>`
       : '<span class="kc empty">＋</span>';
+    // 未記録セルに「いつもの候補あり」を示す（タップで自動プリフィル。2026-07-16）
+    const hasUsual = !done && !info.draft && state.date === todayStr()
+      && (() => { const u = usualMealFor(tk, state.date); return u && u.count >= 3; })();
     // Phase C 変更指示書#1: 下書きのセルに draft クラス（状態言語「下書き=琥珀リング」）
     return `<button class="meal-cell ${done ? 'done' : ''}${!done && info.draft ? ' draft' : ''}" data-meal-timing="${tk}">
       <span class="t">${TIMINGS[tk].label}</span>${kc}
-      <span class="lbl">${done ? '記録済み' : (info.draft ? '下書き' : 'kcal')}</span>
+      <span class="lbl">${done ? '記録済み' : (info.draft ? '下書き' : (hasUsual ? 'いつもの候補' : 'kcal'))}</span>
     </button>`;
   }).join('');
 
@@ -7191,8 +7194,22 @@ $('#trainToggle').addEventListener('click', () => {
 $('#homeMealGrid').addEventListener('click', (e) => {
   const cell = e.target.closest('[data-meal-timing]');
   if (!cell) return;
-  state.timing = cell.dataset.mealTiming;
-  loadMealFor(state.date, state.timing);
+  const tk = cell.dataset.mealTiming;
+  state.timing = tk;
+  loadMealFor(state.date, tk);
+  // 記録の摩擦を下げる（2026-07-16）: 未記録セルをタップし、その時間帯の「いつもの」が
+  // 3回以上の強い常習で、かつ下書きも空なら、自動でプリフィルする（保存はしない＝確認だけ）。
+  // 朝食（毎回ほぼ同じ6品）を1つずつ入れる手間を無くす。
+  const recorded = findRecord(state.date, tk);
+  if (!recorded && !state.items.length && !hasMeaningfulDraft(state.date, tk)) {
+    const usual = usualMealFor(tk, state.date);
+    if (usual && usual.count >= 3) {
+      state.items = restoreMealItems(usual.record.items, usual.record.structuredItems);
+      renderItems();
+      persistDraft();
+      showToast(`いつもの${TIMINGS[tk].title}を下書きに入れました。変更して「記録する」`);
+    }
+  }
   showView('meal');
 });
 $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
