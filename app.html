@@ -6974,6 +6974,13 @@ function renderWorkoutAnalysis() {
   const last = sessions[sessions.length - 1];
   const prev = sessions[sessions.length - 2];
   const diff = prev ? last.main - prev.main : 0;
+  // [fix] 6-2: 前回比0は「±0（維持）」+ progressionFor の次の一手を1行添える（null=有酸素・自重は現状のまま）
+  const prog = (prev && diff === 0 && ex.id) ? progressionFor(ex.id) : null;
+  const nextStep = prog
+    ? (prog.kind === 'reps'
+        ? `あと${Math.max(1, PROG_TARGET_REPS - prog.last.reps)}回で重量アップ`
+        : `次回 ${prog.goal.weight}kg に上げる番`)
+    : '';
   const chip = (k, v, unit) => `<div class="wk-chip"><span class="k">${k}</span><span class="v">${v}${unit ? `<small> ${unit}</small>` : ''}</span></div>`;
   const sessionLine = (s) => {
     const bits = [`${wtFmt(s.main, cfg.dec)}${cfg.unit}`];
@@ -6990,8 +6997,9 @@ function renderWorkoutAnalysis() {
       <div class="wt-pb-row">
         ${chip('自己ベスト', `${wtFmt(pbMain, cfg.dec)}`, `${cfg.unit}${pbSession ? `・${wkXLabel(pbSession.date)}` : ''}`)}
         ${chip('前回', sessionLine(last), '')}
-        ${chip('前回比', prev ? `${diff > 0 ? '+' : ''}${wtFmt(diff, cfg.dec)}` : '–', cfg.unit)}
+        ${chip('前回比', prev ? (prog ? '±0' : `${diff > 0 ? '+' : ''}${wtFmt(diff, cfg.dec)}`) : '–', prog ? `${cfg.unit}（維持）` : cfg.unit)}
       </div>
+      ${nextStep ? `<div class="sync-note">次の一手: ${nextStep}</div>` : ''}
     </div>
     <div class="nt-rank-col">
       <div class="nt-kicker">直近のセッション</div>
