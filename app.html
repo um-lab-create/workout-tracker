@@ -423,15 +423,17 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 /* 空き日数バッジと「今日のおすすめ」行（監査 6-1） */
 .exo-chip { position: relative; }
 .exo-chip .gap {
-  position: absolute; top: 3px; right: 3px; font-size: 8.5px; font-weight: 800;
+  position: absolute; top: 2px; right: 2px; font-size: 10px; font-weight: 800;
   color: var(--warn-ink, #c98a00); background: var(--warn-bg, #fff3d6);
-  padding: 1px 4px; border-radius: 7px;
+  padding: 2px 5px; border-radius: 8px;
 }
 .exo-reco {
-  display: block; width: 100%; text-align: left; margin: 0 0 8px; padding: 10px 12px;
-  border-radius: 14px; background: var(--warn-bg, #fff3d6); color: var(--warn-ink, #c98a00);
-  font-size: 12.5px; font-weight: 700; border: none;
+  display: block; width: 100%; text-align: left; margin: 0 0 8px; padding: 12px 14px;
+  border-radius: 14px; background: var(--warn-bg, #fff3d6); color: var(--ink);
+  font-size: 13.5px; font-weight: 700; border: none;
+  box-shadow: inset 0 0 0 1.5px var(--warn-ink, #c98a00);
 }
+.exo-reco b { color: var(--warn-ink, #c98a00); font-weight: 800; }
 .field-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; }
 .field-row .fl { font-size: 13px; font-weight: 700; color: var(--muted); }
 .field-row .stepper button { width: 40px; height: 40px; }
@@ -1376,7 +1378,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .nt-food-row .kc { flex:none; font-size:12px; color:var(--muted,#888); font-variant-numeric:tabular-nums; }
   .nt-food-row .tags { flex:none; display:flex; gap:4px; }
   .rc-item .nm { display:flex; flex-direction:column; gap:1px; }
-  .rc-detail { font-size:10.5px; color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; }
+  /* 実重量・kcal は取り違え検知の要なので本文並みに見せる（実機指摘 2026-07-17: まだ見づらい） */
+  .rc-detail { font-size:12.5px; color:var(--ink); opacity:.85; font-weight:700; font-variant-numeric:tabular-nums; }
   .rc-unit { height:34px; border-radius:10px; background:var(--card); box-shadow:var(--shadow); font-size:12.5px; font-weight:700; padding:0 6px; min-width:64px; }
   #rcPreview { display:flex; flex-direction:column; gap:2px; }
   #rcPreview b { font-size:14px; }
@@ -7581,13 +7584,27 @@ $('#rcItems').addEventListener('input', (e) => {
   const qty = e.target.closest('[data-rc-qty]');
   if (!qty) return;
   const it = recipeState.items[Number(qty.dataset.rcQty)];
-  if (it) { it.qty = Number(qty.value) || 0; renderRecipeItems(); }
+  if (!it) return;
+  it.qty = Number(qty.value) || 0;
+  // [fix] 入力のたびに全再描画すると input が作り直され、1文字打つごとに
+  // キーボードが閉じる（実機指摘 2026-07-17）。入力中はその行の実重量・kcal と
+  // 下のプレビューだけを書き換え、行の作り直しは change（確定時）に寄せる。
+  const food = it.free ? null : getFoodById(it.foodId);
+  const detailEl = qty.closest('.rc-item') && qty.closest('.rc-item').querySelector('.rc-detail');
+  if (food && detailEl) {
+    const portion = calcFoodPortion(food, it.qty, it.unit);
+    detailEl.textContent = `${portion.grams != null ? `${fmtNum(portion.grams)}g・` : ''}${fmtNum(portion.kcal)}kcal`;
+  }
+  renderRecipePreview();
 });
 $('#rcItems').addEventListener('change', (e) => {
   const sel = e.target.closest('[data-rc-unit]');
-  if (!sel) return;
-  const it = recipeState.items[Number(sel.dataset.rcUnit)];
-  if (it) { it.unit = sel.value; renderRecipeItems(); }
+  if (sel) {
+    const it = recipeState.items[Number(sel.dataset.rcUnit)];
+    if (it) { it.unit = sel.value; renderRecipeItems(); }
+    return;
+  }
+  if (e.target.closest('[data-rc-qty]')) renderRecipeItems();   // 数量の確定時に表示を正規化
 });
 $('#rcFreeLink').addEventListener('click', (e) => { e.preventDefault(); $('#rcFreeArea').style.display = ''; });
 $('#rcFreeAddBtn').addEventListener('click', () => {
