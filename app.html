@@ -1125,7 +1125,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   <div class="modal">
     <div class="close-row"><div class="grip"></div></div>
     <h3>設定</h3>
-    <div class="section-label" style="margin-top:0">アカウント（Supabase ログイン）</div>
+    <div class="section-label" style="margin-top:0">アカウント（Supabase）</div>
     <div class="set-row"><span class="sl">状態</span><span id="acctStatusLabel" style="font-weight:800;font-size:13px">未ログイン</span></div>
     <div class="action-row">
       <button class="secondary-btn" id="acctLoginBtn" type="button">ログイン</button>
@@ -1148,14 +1148,14 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     </div>
     <div class="section-label" style="margin-top:12px">データ管理（月1回の習慣: eufy取込 → バックアップ）</div>
     <div class="action-row">
-      <button class="secondary-btn" id="eufyImportBtn" type="button">eufy CSV 取込</button>
+      <button class="secondary-btn" id="eufyImportBtn" type="button">体組成計の取込</button>
       <button class="secondary-btn" id="backupBtn" type="button">バックアップを保存</button>
     </div>
     <input type="file" id="eufyCsvInput" accept=".csv,text/csv" style="display:none">
     <div class="sync-note" id="dataAdminNote">eufyLife アプリの CSV を選ぶと体組成を取り込みます（重複は自動スキップ）。バックアップ JSON は自分の全記録の写しです — 人に送ったり公開の場所に置いたりしないでください。</div>
     <div class="section-label" style="margin-top:16px">そのほかの画面</div>
     <div class="link-grid">
-      <a href="health-import.html">ヘルスケア取込<span>Apple Health zip</span></a>
+      <a href="health-import.html">ヘルスケアの取込<span>Apple Health zip</span></a>
       <a href="index.html">ハブ<span>旧シート閲覧リンクなど</span></a>
     </div>
     <div class="sync-note" id="connCheckNote">記録は Supabase に保存されます。接続確認は<a href="#" id="connCheckLink">こちら</a>（「接続OK ✓」と表示されればOK）。</div>
