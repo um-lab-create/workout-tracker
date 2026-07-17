@@ -2977,6 +2977,7 @@ function serverFoodToCatalog(row) {
     owner: row.owner || null,
     kind: row.kind || 'ingredient',
     name: row.name,
+    shortName: meta.shortName || '',                  // 候補表示用の短縮名（長い商品名の折返し対策。監査 4-4）
     brand: row.brand || '',
     kana: row.kana || '',
     category: meta.category || '共通',
@@ -5484,7 +5485,7 @@ function buildNtJudgement(state) {
       const food = ntBestFood(x.k);
       priorities.push({
         title: `${x.meta.label}が不足（${x.pct}%）`,
-        copy: food ? `候補: ${food.name} ${ntFoodUnitLabel(food)}` : '候補食品はDB拡充待ち',
+        copy: food ? `候補: ${food.shortName || food.name} ${ntFoodUnitLabel(food)}` : '候補食品はDB拡充待ち',
         suggestFood: food ? food.id : null
       });
     });
@@ -5519,7 +5520,7 @@ function buildNtRanking(state) {
   const low = rows.filter((r) => NT_IMPORTANT.includes(r.k) && r.pct < 100).sort((a, b) => a.pct - b.pct).slice(0, 5)
     .map((r) => {
       const food = ntBestFood(r.k);
-      return { label: r.meta.label, pct: r.pct, kind: 'low', copy: r.leaderText, suggest: food ? { id: food.id, text: `候補: ${food.name} ${ntFoodUnitLabel(food)}` } : null };
+      return { label: r.meta.label, pct: r.pct, kind: 'low', copy: r.leaderText, suggest: food ? { id: food.id, text: `候補: ${food.shortName || food.name} ${ntFoodUnitLabel(food)}` } : null };
     });
   const high = rows.filter((r) => NT_EXCESS_KEYS.includes(r.k) && r.pct > 100).sort((a, b) => b.pct - a.pct).slice(0, 3)
     .map((r) => ({ label: r.meta.label, pct: r.pct, kind: 'high', copy: `${r.leaderText} / 次は薄味・低脂質寄り`, suggest: null }));
