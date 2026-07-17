@@ -1132,6 +1132,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     </div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
     <div class="set-row"><span class="sl">水分記録を表示（既定OFF）</span><input id="setShowHydration" type="checkbox" style="width:22px;height:22px"></div>
+    <div class="set-row"><span class="sl">外食メモを表示（既定OFF）</span><input id="setShowDining" type="checkbox" style="width:22px;height:22px"></div>
     <div class="section-label" style="margin-top:12px">目標</div>
     <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
     <div class="set-row"><span class="sl">P たんぱく質 g</span><input id="setTargetProtein" type="number" inputmode="numeric" min="0" max="400" step="1"></div>
@@ -4251,6 +4252,19 @@ function renderDiningOut(writeInputs = true) {
     $('#diningMapUrl').value = dining.googleMapUrl;
     $('#diningText').value = dining.diningText;
   }
+  applyDiningVisibility();
+}
+// 外食行も水分と同じくオプション（既定OFF・監査3-4）。保存ロジック・payload・★7の扱いは不変。
+const SHOW_DINING_KEY = 'hs:show-dining:v1';
+function showDining() { return Boolean(lsGet(SHOW_DINING_KEY, false)); }
+/** 外食行の表示判定。既に外食データが入っている記録/下書きはトグルOFFでも隠さない（不可視化防止） */
+function applyDiningVisibility() {
+  const card = $('#diningCard');
+  if (!card) return;
+  const dining = normalizeDiningOut(state.diningOut);
+  // enabled は店名/メモ入力でも true になる（normalizeDiningOut）。URLのみの下書きも隠さない
+  const hasData = dining.enabled || Boolean(dining.googleMapUrl);
+  card.style.display = (showDining() || hasData) ? '' : 'none';
 }
 // 水分記録はオプション（既定OFF・SPEC-014 / 設計書 §5）。データ・同期コードは温存。
 const SHOW_HYDRATION_KEY = 'hs:show-hydration:v1';
@@ -6131,6 +6145,7 @@ function setTiming(tk) {
 // ---------------- 設定モーダル ----------------
 function openSettings() {
   $('#setShowHydration').checked = showHydration();
+  $('#setShowDining').checked = showDining();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
   const targets = baseTargets();
   $('#setTargetEnergy').value = Math.round(targets.energy);
@@ -6144,6 +6159,8 @@ function openSettings() {
 async function saveSettings() {
   lsSet(SHOW_HYDRATION_KEY, $('#setShowHydration').checked);
   applyHydrationVisibility();
+  lsSet(SHOW_DINING_KEY, $('#setShowDining').checked);
+  applyDiningVisibility();
   try {
     const cfg = loadCarbCycle();
     cfg.carbDelta = Number($('#setCarbDelta').value) || 50;
