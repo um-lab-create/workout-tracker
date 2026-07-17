@@ -958,10 +958,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       <div id="mealItems"></div>
       <div class="empty-note" id="mealEmpty">下の検索か、上の「いつもの」から追加</div>
       <div class="items-foot" id="itemsFoot" style="display:none">
-        <button class="usual-btn" id="saveUsualBtn">☆ 普段の食事に保存</button>
-        <!-- レシピ導線改善（2026-07-13: 使用0件だった。作り置きは「作った後に材料を入れ直す」のが面倒で
-             使われていなかった → 今入力している内容をそのまま作り置き化できるようにする） -->
-        <button class="usual-btn" id="toRecipeBtn">作り置きにする（何食分かに分ける）</button>
+        <!-- 監査3-3（2026-07-16）: 「☆普段の食事に保存」「作り置きにする」の常時2行が
+             ノイズだったため「⋯」メニュー（既存のctxメニュー基盤）へ畳んだ。削除ボタンは畳まない -->
+        <button class="usual-btn" id="mealMoreBtn" type="button" aria-label="その他の操作（普段の食事に保存・作り置きにする）">⋯</button>
         <button class="danger-text" id="deleteMealBtn" type="button" style="display:none">この記録を削除</button>
       </div>
     </div>
@@ -5908,6 +5907,30 @@ function mealShortcuts(slot) {
     run: () => { state.timing = tk; loadMealFor(todayStr(), tk); showView('meal'); } });
   return items;
 }
+/**
+ * 食事シート内の「⋯」メニュー（監査3-3）。
+ * 旧 saveUsualBtn / toRecipeBtn の2テキストボタンを畳んだもの。ロジックは旧ボタンの
+ * clickハンドラをそのまま移設（呼び出し口だけメニュー経由に変更）。
+ */
+function mealSheetShortcuts() {
+  return [
+    {
+      key: 'saveUsual', title: '☆ 普段の食事に保存',
+      sub: '今の品目を「いつもの」候補として登録',
+      run: saveCurrentAsUsual
+    },
+    {
+      key: 'toRecipe', title: '作り置きにする',
+      sub: '何食分かに分けると1食分を自動計算',
+      run: () => {
+        if (!state.items.length) { showToast('先に材料（食べたもの）を入れてください'); return; }
+        // 今入力中の内容を材料としてレシピ（作り置き）を作る。何食分に分けるかはビルダーで指定
+        openRecipeBuilder(null, state.items);
+        showToast('何食分に分けるかを入れて保存すると、1食分が計算されます');
+      }
+    }
+  ];
+}
 function workoutShortcuts() {
   const items = [];
   const p = progressionFor(state.exoId || 'chest');
@@ -5945,9 +5968,11 @@ let subMenuItems = [];
  * @param {Element} anchor 押した要素（この直下・画面内に収まる位置へ出す）
  */
 function openSubMenu(kind, anchor, slot) {
-  subMenuItems = kind === 'meal' ? mealShortcuts(slot) : kind === 'workout' ? workoutShortcuts() : [];
+  subMenuItems = kind === 'meal' ? mealShortcuts(slot)
+    : kind === 'workout' ? workoutShortcuts()
+    : kind === 'mealSheet' ? mealSheetShortcuts() : [];   // mealSheet = 食事シート内「⋯」（監査3-3）
   if (!subMenuItems.length) { showView(kind); return; }
-  const kj = kind === 'meal' ? '食' : '運';
+  const kj = kind === 'workout' ? '運' : '食';
   const menu = $('#ctxMenu');
   menu.innerHTML = subMenuItems.map((it, i) =>
     `<button class="ctx-item ${it.accent ? 'accent' : ''}" data-sub="${i}" role="menuitem">
@@ -7482,13 +7507,8 @@ function applyQtySheet() {
 
 $('#qtySheetOk').addEventListener('click', applyQtySheet);
 $('#qtySheetInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyQtySheet(); });
-$('#saveUsualBtn').addEventListener('click', saveCurrentAsUsual);
-$('#toRecipeBtn').addEventListener('click', () => {
-  if (!state.items.length) { showToast('先に材料（食べたもの）を入れてください'); return; }
-  // 今入力中の内容を材料としてレシピ（作り置き）を作る。何食分に分けるかはビルダーで指定
-  openRecipeBuilder(null, state.items);
-  showToast('何食分に分けるかを入れて保存すると、1食分が計算されます');
-});
+// 監査3-3: 保存系2ボタンは「⋯」メニューへ（項目定義は mealSheetShortcuts）
+$('#mealMoreBtn').addEventListener('click', (e) => openSubMenu('mealSheet', e.currentTarget));
 $('#deleteMealBtn').addEventListener('click', deleteCurrentMealRecord);
 $('#unitSheetList').addEventListener('click', (e) => {
   const b = e.target.closest('[data-unit]');
