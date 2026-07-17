@@ -1472,7 +1472,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .hm-wrap { display:flex; gap:6px; margin-top:8px; }
   .hm-dow { display:grid; grid-template-rows:repeat(7,1fr); gap:3px; font-size:8.5px; color:var(--muted,#999); font-weight:700; }
   .hm-dow span { display:flex; align-items:center; height:14px; }
+  .hm-main { flex:1; }
   .hm-grid { display:flex; gap:3px; flex:1; }
+  .hm-months { display:flex; gap:3px; margin-top:3px; }
+  .hm-months span { flex:1; font-size:8.5px; color:var(--muted,#999); font-weight:700; white-space:nowrap; }
   .hm-col { display:grid; grid-template-rows:repeat(7,1fr); gap:3px; flex:1; }
   .hm-cell { display:block; height:14px; border-radius:3px; background:rgba(125,95,60,.08); }
   .hm-cell.l1 { background:rgba(46,184,114,.25); }
@@ -2974,6 +2977,7 @@ function serverFoodToCatalog(row) {
     owner: row.owner || null,
     kind: row.kind || 'ingredient',
     name: row.name,
+    shortName: meta.shortName || '',                  // 候補表示用の短縮名（長い商品名の折返し対策。監査 4-4）
     brand: row.brand || '',
     kana: row.kana || '',
     category: meta.category || '共通',
@@ -5494,7 +5498,7 @@ function buildNtJudgement(state) {
       const food = ntBestFood(x.k);
       priorities.push({
         title: `${x.meta.label}が不足（${x.pct}%）`,
-        copy: food ? `候補: ${food.name} ${ntFoodUnitLabel(food)}` : '候補食品はDB拡充待ち',
+        copy: food ? `候補: ${food.shortName || food.name} ${ntFoodUnitLabel(food)}` : '候補食品はDB拡充待ち',
         suggestFood: food ? food.id : null
       });
     });
@@ -5529,7 +5533,7 @@ function buildNtRanking(state) {
   const low = rows.filter((r) => NT_IMPORTANT.includes(r.k) && r.pct < 100).sort((a, b) => a.pct - b.pct).slice(0, 5)
     .map((r) => {
       const food = ntBestFood(r.k);
-      return { label: r.meta.label, pct: r.pct, kind: 'low', copy: r.leaderText, suggest: food ? { id: food.id, text: `候補: ${food.name} ${ntFoodUnitLabel(food)}` } : null };
+      return { label: r.meta.label, pct: r.pct, kind: 'low', copy: r.leaderText, suggest: food ? { id: food.id, text: `候補: ${food.shortName || food.name} ${ntFoodUnitLabel(food)}` } : null };
     });
   const high = rows.filter((r) => NT_EXCESS_KEYS.includes(r.k) && r.pct > 100).sort((a, b) => b.pct - a.pct).slice(0, 3)
     .map((r) => ({ label: r.meta.label, pct: r.pct, kind: 'high', copy: `${r.leaderText} / 次は薄味・低脂質寄り`, suggest: null }));
@@ -6399,6 +6403,16 @@ function attachScrub(card, meta) {
   svg.addEventListener('mouseleave', hide);
 }
 
+// [fix] 主要系列の最小・最大の2目盛りを右端に淡色で置く共通ヘルパー（スクラブせず値が読めるように。監査 4-1）
+// 色は既存軸ラベルと同系（ダークは .wk-chart-svg text の !important 反転が効く）
+function wkYTicks(minV, maxV, yAt, fmt, W = 320) {
+  if (!Number.isFinite(minV) || !Number.isFinite(maxV)) return '';
+  const f = fmt || ((v) => String(Math.round(v)));
+  const ticks = minV === maxV ? [maxV] : [maxV, minV];
+  return ticks.map((v) =>
+    `<text x="${W - 2}" y="${(yAt(v) + 2.5).toFixed(1)}" font-size="8" fill="rgba(0,0,0,.35)" text-anchor="end">${f(v)}</text>`).join('');
+}
+
 function renderWeeklyCharts(rows) {
   const el = $('#weeklyCharts');
   if (!el) return;
@@ -6426,10 +6440,12 @@ function renderWeeklyCharts(rows) {
     const wPts = bw.map((w, i) => [xAt(i, n), yW(Number(w.weight_week_avg_kg))]);
     const fPts = bw.map((w, i) => [xAt(i, n), yF(Number(w.body_fat_week_avg_pct))]);
     const last = bw[n - 1];
+    const wVals = bw.map((w) => Number(w.weight_week_avg_kg));
+    const wTicks = wkYTicks(Math.min(...wVals), Math.max(...wVals), yW, (v) => `${v.toFixed(1)}kg`, W);
     html += `<div class="wk-chart-card">
       <div class="tt">体重 × 体脂肪率（週平均）</div>
       <div class="legend"><span><i style="background:var(--accent,#ff8a2a)"></i>体重 ${wkDec1(last.weight_week_avg_kg)}kg</span><span><i style="background:#5b8def"></i>体脂肪率 ${wkDec1(last.body_fat_week_avg_pct)}%</span></div>
-      <svg class="wk-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${line(wPts, 'var(--accent, #ff8a2a)')}${line(fPts, '#5b8def')}${xLabels(bw, n)}</svg>
+      <svg class="wk-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${line(wPts, 'var(--accent, #ff8a2a)')}${line(fPts, '#5b8def')}${wTicks}${xLabels(bw, n)}</svg>
     </div>`;
   }
 
@@ -6447,10 +6463,13 @@ function renderWeeklyCharts(rows) {
     const yP = withP.length >= 2 ? yScale(withP.map((w) => Number(w.avg_protein_g))) : null;
     const pPts = yP ? withP.map((w) => [xAt(mk.indexOf(w), n), yP(Number(w.avg_protein_g))]) : [];
     const last = mk[n - 1];
+    const kVals = mk.map((w) => Number(w.avg_kcal));
+    const yK = (v) => H - padB - (v / kcalMax) * (H - padT - padB);
+    const kTicks = wkYTicks(Math.min(...kVals), Math.max(...kVals), yK, (v) => `${Math.round(v)}`, W);
     html += `<div class="wk-chart-card">
       <div class="tt">摂取カロリー × たんぱく質（週平均）</div>
       <div class="legend"><span><i style="background:rgba(255,138,42,.5)"></i>カロリー ${wkInt(last.avg_kcal)}kcal</span><span><i style="background:#2eb872"></i>たんぱく質 ${wkInt(last.avg_protein_g)}g</span></div>
-      <svg class="wk-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${pPts.length ? line(pPts, '#2eb872') : ''}${xLabels(mk, n)}</svg>
+      <svg class="wk-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${pPts.length ? line(pPts, '#2eb872') : ''}${kTicks}${xLabels(mk, n)}</svg>
     </div>`;
   }
   el.innerHTML = html;
@@ -6587,13 +6606,18 @@ function renderIntakeWeightChart() {
   const avgKcal = avgBase.length ? Math.round(avgBase.reduce((a, s) => a + s.kcal, 0) / avgBase.length) : 0;
   const avgNote = fullDays.length ? `3食記録の${fullDays.length}日平均` : `記録${kcals.length}日平均`;
   const wDiff = weights.length >= 2 ? weights[weights.length - 1].weight - weights[0].weight : null;
+  // 主要系列（摂取kcal）の最小・最大目盛り（監査 4-1）
+  const yK = (v) => H - padB - (v / kcalMax) * (H - padT - padB);
+  const kTicks = wkYTicks(
+    Math.min(...kcals.map((s) => s.kcal)), Math.max(...kcals.map((s) => s.kcal)),
+    yK, (v) => `${Math.round(v)}`, W);
   el.innerHTML = `<div class="wk-chart-card">
     <div class="tt">摂取カロリー × 体重（14日）</div>
     <div class="legend">
       <span><i style="background:rgba(255,138,42,.5)"></i>摂取 ${avgNote} ${avgKcal}kcal${target ? `（目標${Math.round(target)}）` : ''}</span>
       <span><i style="background:var(--green)"></i>体重${wDiff != null ? ` ${wDiff > 0 ? '+' : ''}${wDiff.toFixed(1)}kg` : ''}</span>
     </div>
-    <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${weightPath}${labels}</svg>
+    <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${weightPath}${kTicks}${labels}</svg>
     <div class="sync-note" style="margin-top:2px">点線=目標kcal。線を下回る日が続くと体重が下がります（記録漏れの日は棒が出ません）。</div>
   </div>`;
   attachScrub(el.querySelector('.wk-chart-card'), { W, H, points: series.map((s2, i) => ({
@@ -6693,6 +6717,11 @@ function renderRecoveryChart() {
   }
   const labels = days.map((d, i) => (i % 3 === 0 || i === n - 1)
     ? `<text x="${xAt(i).toFixed(1)}" y="${H - 4}" font-size="8.5" fill="rgba(0,0,0,.45)" text-anchor="middle">${wkXLabel(d)}</text>` : '').join('');
+  // 主要系列（睡眠h）の最小・最大目盛り（監査 4-1）
+  const ySleep = (v) => H - padB - (v / sleepMax) * (H - padT - padB);
+  const sleepTicks = wkYTicks(
+    Math.min(...sleep.filter(Boolean)), Math.max(...sleep.filter(Boolean)),
+    ySleep, (v) => `${v.toFixed(1)}h`, W);
   const avgSleep = sleep.filter(Boolean).length
     ? (sleep.filter(Boolean).reduce((a, b) => a + b, 0) / sleep.filter(Boolean).length) : null;
   const lastRhr = [...rhr].reverse().find(Boolean);
@@ -6708,7 +6737,7 @@ function renderRecoveryChart() {
       <span><i style="background:rgba(91,141,239,.6)"></i>睡眠${avgSleep ? ` 平均${avgSleep.toFixed(1)}h` : ''}</span>
       <span><i style="background:#e94e5b"></i>安静時心拍${lastRhr ? ` ${Math.round(lastRhr)}bpm` : ''}</span>
     </div>
-    <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${rhrPath}${labels}</svg>
+    <svg class="wk-chart-svg" style="height:120px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${targetLine}${rhrPath}${sleepTicks}${labels}</svg>
     ${verdict ? `<div class="rec-verdict ${verdict.kind}">${escapeHtml(verdict.text)}</div>` : ''}
     ${staleNote}
     <div class="sync-note" style="margin-top:2px">点線=7時間。赤い棒は睡眠不足の日。安静時心拍が上がり続ける時は疲労のサイン（Apple ヘルスケア由来）。</div>
@@ -6748,10 +6777,16 @@ function renderStreakHeatmap() {
   const DOW = ['月', '火', '水', '木', '金', '土', '日'];
   const cells = cols.map((week) => `<div class="hm-col">${week.map((c) =>
     `<i class="hm-cell l${c.level}${c.workout ? ' wk' : ''}${c.future ? ' fu' : ''}" title="${c.date}"></i>`).join('')}</div>`).join('');
+  // [fix] 月替わりの列にだけ月ラベルを置く（時間軸の手がかり。先頭列は基準として常に表示。監査 4-3）
+  const months = cols.map((week, i) => {
+    const m = Number(week[0].date.slice(5, 7));
+    const prev = i > 0 ? Number(cols[i - 1][0].date.slice(5, 7)) : null;
+    return `<span>${(i === 0 || m !== prev) ? `${m}月` : ''}</span>`;
+  }).join('');
   el.innerHTML = `<div class="wk-chart-card">
     <div class="tt">記録の継続（8週間）</div>
     <div class="legend"><span>濃いほど摂取が目標に近い日</span><span><i style="background:transparent;box-shadow:inset 0 0 0 1.5px var(--accent,#ff8a2a)"></i>枠=筋トレ日</span></div>
-    <div class="hm-wrap"><div class="hm-dow">${DOW.map((d) => `<span>${d}</span>`).join('')}</div><div class="hm-grid">${cells}</div></div>
+    <div class="hm-wrap"><div class="hm-dow">${DOW.map((d) => `<span>${d}</span>`).join('')}</div><div class="hm-main"><div class="hm-grid">${cells}</div><div class="hm-months">${months}</div></div></div>
   </div>`;
 }
 
