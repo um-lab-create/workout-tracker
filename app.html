@@ -2427,6 +2427,16 @@ function renderTotals() {
   $('#saveMealBtn').textContent = state.editingRecordId ? '更新する' : '記録する';
 }
 
+// [fix] 3-5（監査 2026-07-16）: 八訂のマイナー部位・希少食材辞書（内臓・希少部位の語）。
+// 使用実績・前方一致・所有区分がすべて同点の八訂行どうしの最終タイブレークでのみ使い、
+// 豚子宮・豚肝臓などを一般部位（ロース・ばら・もも等）より後ろへ回す。除外はしない。
+// 使用実績（usage count）が付いた行は従来どおり上位に出る。
+// 誤爆ガード: 「皮つき/皮なし/皮むき」「すじこ」「耳を除いたもの」は一般食品なので除外。
+const MINOR_PART_RE = /子宮|肝臓|じん臓|腎臓|心臓|脾臓|舌|横隔膜|軟骨|脳|胃|腸|豚足|とさか|尾|耳(?!を除)|すじ(?!こ)|皮(?![つな付無む])|白子|血液|ちれ|内臓|はらわた/;
+function isMinorPartName(name) {
+  return MINOR_PART_RE.test(String(name || ''));
+}
+
 function renderSearch() {
   const q = $('#foodSearch').value.trim();
   const box = $('#searchResults');
@@ -2473,6 +2483,12 @@ function renderSearch() {
       const aHaku = String(a.id).startsWith('hakutei-') ? 1 : 0;
       const bHaku = String(b.id).startsWith('hakutei-') ? 1 : 0;
       if (aHaku !== bHaku) return aHaku - bHaku;
+      // [fix] 3-5: 同点の八訂行どうしは、マイナー部位（内臓・希少部位）を一般部位の後ろへ回す
+      if (aHaku && bHaku) {
+        const aMinor = isMinorPartName(a.name) ? 1 : 0;
+        const bMinor = isMinorPartName(b.name) ? 1 : 0;
+        if (aMinor !== bMinor) return aMinor - bMinor;
+      }
       if (a.name.length !== b.name.length) return a.name.length - b.name.length;  // プレーン（短い名前）優先
       return foodCatalogIndex(a.id) - foodCatalogIndex(b.id);
     }).slice(0, 10);
