@@ -2580,12 +2580,20 @@ function summarizeItems(items) {
   return items.map((it) => `${it.name} ${portionLabel(it.qty, it.unit)}`).join(' / ');
 }
 let isSavingMeal = false;
+// ★7（監査#7）: URL・座標は「いかなる形でも」Supabase に書かない。移行契約 §7-2 と同じ
+// パターンをフロント保存経路にも適用し、検出時は黙って削らず保存をブロックして知らせる。
+const URLISH_RE = /(https?:\/\/|goo\.gl|maps\.|www\.|plus\s?code|[-+]?\d{1,3}\.\d{3,}\s*,\s*[-+]?\d{1,3}\.\d{3,})/i;
+function hasUrlLike(text) { return URLISH_RE.test(String(text || '')); }
 async function saveMeal() {
   if (isSavingMeal) return;
   syncDiningFromInputs();
   const note = $('#mealNote').value.trim();
   const dining = normalizeDiningOut(state.diningOut);
   if (!state.items.length && !note && !dining.enabled) { showToast('食事内容を入れてください'); return; }
+  if ([note, dining.restaurantName, dining.diningText].some(hasUrlLike)) {
+    showToast('URLや座標はメモに保存できません（プライバシールール）。お店の名前など文字で書いてください', 'error');
+    return;
+  }
   isSavingMeal = true;
   const btn = $('#saveMealBtn');
   btn.disabled = true;
@@ -2595,7 +2603,9 @@ async function saveMeal() {
   const saved = findRecord(state.date, state.timing);
   const memoParts = [];
   if (state.items.length) memoParts.push(summarizeItems(state.items));
-  if (dining.enabled) memoParts.push(`外食: ${[dining.restaurantName, dining.diningText].filter(Boolean).join(' / ') || '未計算'}`);
+  // ★7（監査#2 2026-07-18）: 店名・内容は meal_dining_context 側にのみ残す。
+  // meals.memo は AI 週次助言の許可入力面のため、ここには事実フラグだけを書く。
+  if (dining.enabled) memoParts.push('外食: あり');
   if (note) memoParts.push(`メモ: ${note}`);
 
   const record = {
@@ -2790,7 +2800,7 @@ function queueWithToast(op, key, data, label, err) {
   window.HSSbQueue.enqueue(op, key, data);
   if (err && err.code === 'AUTH_REQUIRED') showToast(`${label}: 未ログインのため未送信に保存しました（ログイン後に自動送信）`);
   else if (!navigator.onLine) showToast(`${label}: オフラインのため未送信に保存しました（復帰後に自動送信）`);
-  else showToast(`${label}: 送信エラーのため未送信に保存しました（${err && err.message ? err.message : err}）`, 'error');
+  else { console.warn('送信エラー詳細:', err); showToast(`${label}: サーバーに接続できませんでした。未送信に保存しました（自動で再送します）`, 'error'); }
   renderSyncStatus();
 }
 
@@ -4129,8 +4139,10 @@ async function syncFromServer(options = {}) {
     // ②継続ヒートマップ（8週=56日）が古い週まで空欄になる。meals は全期間で75件なので負荷は無視できる
     const from = shiftDate(todayStr(), -59);
     const to = todayStr();
+    // 未送信キューにあるものは server→local で上書きしない（監査#10/#33: オフライン編集の巻き戻り防止）
+    const queuedKeys = new Set((window.HSSbQueue && window.HSSbQueue.load ? window.HSSbQueue.load() : []).map((e) => e && e.key));
     const settingsRow = await sb.fetchUserSettings();
-    if (settingsRow) {
+    if (settingsRow && !queuedKeys.has('settings_save')) {
       lsSet(LS_KEYS.NUTRITION_TARGETS, userSettingsToTargets(settingsRow));
       if (settingsRow.show_hydration != null) {
         lsSet(SHOW_HYDRATION_KEY, Boolean(settingsRow.show_hydration));
@@ -4150,6 +4162,7 @@ async function syncFromServer(options = {}) {
           const timing = t.timing || 'morning';
           const list = Array.isArray(presets[timing]) ? presets[timing] : [];
           const preset = { id: t.legacy_key || t.id, name: t.name, items: t.items || [] };
+          if (queuedKeys.has(`template_save:${preset.id}`)) return;   // 未送信のローカル編集を優先（監査#33）
           const idx = list.findIndex((p) => p && p.id === preset.id);
           if (idx >= 0) list[idx] = { ...list[idx], ...preset }; else list.push(preset);
           presets[timing] = list;
@@ -4204,6 +4217,8 @@ function maybeRefreshAfterResume() {
     renderHome();
   }
   state.lastActiveToday = currentToday;
+  // オンライン中の一時エラーで積まれた未送信は online イベントが来ないため、復帰時にも流す（監査#28）
+  flushSbQueueAndRender();
 
   if (state.view === 'meal') {
     const auto = autoTiming();
@@ -4329,6 +4344,10 @@ function addHydration(ml, label) {
   rec.entries.push({ ml: Number(ml) || 0, label: label || '水分', at: Date.now() });
   rec.synced = false;
   saveHydration(state.date, rec);
+  // 水分には保存ボタンが無いため、追加のたびキューに積んで自動送信する（監査#29。
+  // ハンドラは localStorage の最新合計から (user_id,logged_on) upsert = 冪等・再送安全）
+  window.HSSbQueue.enqueue('hydration_save', `hydration_save:${state.date}`, { date: state.date });
+  flushSbQueueAndRender();
   renderHydration();
   renderHome();
   showToast(`${label || '水分'} ${ml}ml を追加しました`);
@@ -4377,6 +4396,8 @@ function renderSyncStatus() {
 }
 async function retryPending() {
   await flushSbQueueAndRender();
+  // 筋トレの「追加」済み・未送信の下書き（監査#6: これを送らないと未送信カウントが減らず壊れて見える）
+  if ((state.workoutDrafts || []).length) { try { await sendWorkoutDrafts(); } catch (e) {} }
   // キューに乗っていない未同期食事（旧バージョンからの引き継ぎ分など）
   const unsynced = getRecords().filter((r) => r && r.synced === false);
   for (const rec of unsynced) {
