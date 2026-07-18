@@ -559,7 +559,10 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     { name: 'hydration', order: ['logged_on'] },
     { name: 'weekly_notes', order: ['week_start'] },
     { name: 'user_settings', order: ['user_id'] },
-    { name: 'foods', order: ['id'] }
+    { name: 'foods', order: ['id'] },
+    // 監査#3（2026-07-18）: この2テーブルが漏れており「完全な写し」になっていなかった
+    { name: 'meal_templates', order: ['legacy_key'] },
+    { name: 'recipe_items', order: ['recipe_food_id', 'sort_order'] }
   ];
 
   /** PostgREST の1000行制限を超えても全件取れるよう range() でページングする。 */
