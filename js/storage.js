@@ -99,8 +99,24 @@ function storageSet(key, value) { lsSet(key, value); }
 // ----------------------------------------------------------------
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('sw.js').catch(function (err) {
+    // 監査#15: 「完全再起動×2」の不確実運用を緩和する。
+    // (1) 復帰のたびに update() を叩いて iOS PWA でも更新を早く検知する
+    // (2) SW が入れ替わったら一度だけ知らせる（初回インストールでは出さない）
+    var hadController = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') { try { reg.update(); } catch (e) {} }
+      });
+    }).catch(function (err) {
       console.warn('[sw] 登録失敗:', err);
+    });
+    var notified = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadController || notified) return;
+      notified = true;
+      if (typeof window.showToast === 'function') {
+        window.showToast('新しいバージョンに更新しました。表示が変な時はアプリを再起動してください');
+      }
     });
   });
 }

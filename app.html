@@ -1023,7 +1023,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
         <span class="bl">体重</span>
         <div class="stepper">
           <button data-body="weight" data-d="-0.1">−</button>
-          <span class="fv"><span id="bodyWeight">–</span><small> kg</small></span>
+          <span class="fv" data-body-edit="weight" style="text-decoration:underline dotted;text-underline-offset:3px"><span id="bodyWeight">–</span><small> kg</small></span>
           <button data-body="weight" data-d="0.1">＋</button>
         </div>
       </div>
@@ -1031,7 +1031,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
         <span class="bl">体脂肪率</span>
         <div class="stepper">
           <button data-body="fat" data-d="-0.1">−</button>
-          <span class="fv"><span id="bodyFat">–</span><small> %</small></span>
+          <span class="fv" data-body-edit="fat" style="text-decoration:underline dotted;text-underline-offset:3px"><span id="bodyFat">–</span><small> %</small></span>
           <button data-body="fat" data-d="0.1">＋</button>
         </div>
       </div>
@@ -3931,7 +3931,8 @@ function serverRowsToAppRecords(rows) {
       timing,
       timingKey,
       title: (TIMINGS[timingKey] && TIMINGS[timingKey].title) || timing,
-      note: '',
+      // 監査#9: 旧実装は note:'' 固定でサーバー往復のたびメモが消えていた。memo 末尾の「メモ: …」から復元する
+      note: (String(rowValue(row, ['メモ', 'memo']) || '').match(/(?:^| \/ )メモ: ([\s\S]*)$/) || [, ''])[1],
       items: [],
       structuredItems: [],
       diningOut: false,
@@ -4070,6 +4071,7 @@ function sbRowsFromMealDetails(data) {
       '日付': meal.eaten_on,
       '区分': meal.timing,
       '区分キー': timingKey,
+      'メモ': meal.memo || '',   // 監査#9: note 復元用（「… / メモ: 本文」形式）
       recordId: meal.legacy_record_id || meal.id
     };
     (itemsByMeal[meal.id] || []).forEach((it) => {
@@ -5103,8 +5105,10 @@ async function saveWorkout() {
   const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
   last[exo.id] = { ...state.exoValues };
   lsSet(LS_KEYS.WT_LAST, last);
-  showToast(`${exo.short}を送信予定に追加しました`);
   haptic([8, 24, 8]);
+  // 監査#13: 「追加」で即送信に一本化（送信忘れで「未送信n件」が残る構造をなくす）。
+  // 失敗時は sendWorkoutDrafts 内で従来どおりキュー退避されるため、オフライン安全性は同等。
+  try { await sendWorkoutDrafts(); } catch (e) {}
   btn.disabled = false;
   renderWorkoutToday();
   renderHome();
@@ -7064,20 +7068,26 @@ function setNtSegment(seg) {
   else if (seg === 'workout') renderWorkoutAnalysis();
   else renderNutrition();
 }
+const WEEKLY_CACHE_KEY = 'hs:weekly-review-cache:v1';
 async function loadWeeklyInline() {
   const list = $('#weeklyList');
-  list.innerHTML = '<div class="empty-note">読み込み中…</div>';
+  // 監査#21: 開くたびのネットワーク待ちをやめ、前回結果を即描画→裏で更新（他のサーバー系と同じ方式）
+  const cached = lsGet(WEEKLY_CACHE_KEY, null);
+  if (cached && Array.isArray(cached.rows) && cached.rows.length) renderWeeklyReview(cached.rows);
+  else list.innerHTML = '<div class="empty-note">読み込み中…</div>';
   try {
     const sb = await window.HSSupabaseReady;
     const session = await sb.getSession();
     if (!session) {
-      list.innerHTML = '<div class="empty-note">ログインすると表示できます</div>';
-      openLoginSheet('login');
+      if (!cached) { list.innerHTML = '<div class="empty-note">ログインすると表示できます</div>'; openLoginSheet('login'); }
       return;
     }
-    renderWeeklyReview(await sb.fetchWeeklyReview(8));
+    const rows = await sb.fetchWeeklyReview(8);
+    lsSet(WEEKLY_CACHE_KEY, { fetchedAt: Date.now(), rows: rows || [] });
+    renderWeeklyReview(rows);
   } catch (err) {
-    list.innerHTML = `<div class="empty-note">読み込みに失敗しました（${escapeHtml(String(err && err.message ? err.message : err))}）</div>`;
+    if (!cached) list.innerHTML = `<div class="empty-note">読み込みに失敗しました（${escapeHtml(String(err && err.message ? err.message : err))}）</div>`;
+    /* キャッシュ表示中は静かに現状維持 */
   }
 }
 
@@ -7498,7 +7508,20 @@ $('#mealItems').addEventListener('click', (e) => {
 });
 
 let qtySheetIndex = -1;
+// 監査#20: からだの数値タップで直接入力（±0.1ステッパーだけだと1kg差で長押し必須だった）
+let bodyValueTarget = null;
+function openBodyValueSheet(kind) {
+  if (!state.body || state.body.weight == null) return;   // プリフィル前は開かない
+  bodyValueTarget = kind;
+  qtySheetIndex = -1;
+  $('#qtySheetTitle').textContent = kind === 'weight' ? '体重を入力' : '体脂肪率を入力';
+  $('#qtySheetInput').value = kind === 'weight' ? state.body.weight.toFixed(1) : state.body.fat.toFixed(1);
+  $('#qtySheetUnit').textContent = kind === 'weight' ? 'kg' : '%';
+  $('#qtyBack').classList.add('show');
+  setTimeout(() => $('#qtySheetInput').focus(), 50);
+}
 function openQtySheet(i) {
+  bodyValueTarget = null;
   const it = state.items[i];
   if (!it || it.frozen) return;
   qtySheetIndex = i;
@@ -7509,6 +7532,16 @@ function openQtySheet(i) {
   setTimeout(() => $('#qtySheetInput').focus(), 50);
 }
 function applyQtySheet() {
+  if (bodyValueTarget) {
+    const next = Number($('#qtySheetInput').value);
+    const max = bodyValueTarget === 'weight' ? 300 : 80;
+    if (!Number.isFinite(next) || next <= 0 || next > max) { showToast('数値を確認してください'); return; }
+    state.body[bodyValueTarget === 'weight' ? 'weight' : 'fat'] = Number(next.toFixed(1));
+    bodyValueTarget = null;
+    $('#qtyBack').classList.remove('show');
+    renderBodyView();
+    return;
+  }
   const it = state.items[qtySheetIndex];
   if (!it || it.frozen) return;
   const next = Number($('#qtySheetInput').value);
@@ -7521,6 +7554,9 @@ function applyQtySheet() {
 }
 
 $('#qtySheetOk').addEventListener('click', applyQtySheet);
+document.querySelectorAll('[data-body-edit]').forEach((el) => {
+  el.addEventListener('click', () => openBodyValueSheet(el.dataset.bodyEdit));
+});
 $('#qtySheetInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyQtySheet(); });
 // 監査3-3: 保存系2ボタンは「⋯」メニューへ（項目定義は mealSheetShortcuts）
 $('#mealMoreBtn').addEventListener('click', (e) => openSubMenu('mealSheet', e.currentTarget));
