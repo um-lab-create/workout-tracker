@@ -16,7 +16,7 @@
   旧4ページ（workout / meal / day / body.html）は退役・削除済み。
   記録・分析は app.html（Supabase 直結）に統合されている。
   旧 Cockpit の「今日の記録」「食事ベース」等のウィジェットは app.html ホームが代替。
-  day.html の栄養分析と 商品DB/独自食材/自作メニュー の管理UIは SPEC-013 で app.html へ移植予定。
+  栄養分析・食品管理は SPEC-013/014 で app.html へ移植済み（2026-07 完了）。
 -->
 <style>
   :root { --bg:#fff8ef; --ink:#1b1d1f; --sub:#8a8378; --accent:#ff8a2a; --card:#ffffff; --line:#f0e6d6; }
@@ -60,7 +60,7 @@
   2026-07-10: データ保存先を Google スプレッドシートから Supabase に切り替えました。
   旧ページ（workout / meal / day / body.html）は退役済みです。
   ホーム画面のアイコンやブックマークは app.html に張り替えてください。
-  栄養分析（35栄養素）と商品DB・自作メニューの管理画面は、次の更新（SPEC-013）で app.html に戻ります。
+  栄養分析（35栄養素）と食品・レシピの管理は、メインアプリ（app.html）に統合済みです。
 </div>
 
 <script src="js/storage.js"></script><!-- Service Worker 登録のため（キャッシュ更新に必要） -->

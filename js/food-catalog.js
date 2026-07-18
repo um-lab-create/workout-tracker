@@ -1,5 +1,5 @@
 // food-catalog.js — 検索用食材/商品カタログ（meal.html の BASE_FOODS / BASE_PRODUCTS から機械抽出）
-// 生成元: meal.html（2026-07-02 抽出）。新規食品は meal.html と nutrition-db.js に追加後、再抽出すること。
+// 生成元: 旧meal.html（2026-07-02 抽出・同ページは退役済み）。現行の食品追加経路は foods テーブル（SPEC-014: アプリ内「＋食品を追加」）。この埋め込みは初期シードとして温存。
 'use strict';
 
 window.HSFoodCatalog = {
