@@ -9,7 +9,7 @@
  */
 'use strict';
 
-const CACHE = 'cockpit-cache-v58';
+const CACHE = 'cockpit-cache-v59';
 
 // 同一オリジンのコア資産（個別 add で 1 件失敗しても install を止めない）
 // 旧4ページ（workout/meal/day/body.html）は SPEC-012 Step6.5 で退役・削除済み
@@ -17,16 +17,15 @@ const CORE = [
   './',
   'index.html', 'health-import.html', 'app.html',
   'nutrition-db.js', 'js/storage.js', 'js/nutrition-calc.js', 'js/food-catalog.js',
-  'js/supabase-client.js', 'js/charts.js',
+  'js/supabase-client.js', 'js/charts.js', 'js/search-alias.js', 'js/nav.js', 'js/theme.js',
   'manifest.webmanifest', 'manifest-app.webmanifest',
   'icons/sambo.svg', 'icons/sambo-192.png', 'icons/sambo-512.png', 'icons/apple-touch-icon.png'
 ];
 
 // 外部CDN（opaque レスポンスを no-cors で取得してキャッシュ）
+// 2026-07-18 監査#17: tabler-icons / zxing（不採用のバーコード残骸）は参照ゼロのため削除
 const CDN = [
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.20.0/dist/tabler-icons.min.css',
   'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-  'https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
 ];
 

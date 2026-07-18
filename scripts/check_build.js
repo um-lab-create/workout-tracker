@@ -21,13 +21,15 @@ const ROOT = path.join(__dirname, '..');
 const PAGES = ['index.html', 'health-import.html', 'app.html'];
 
 let failed = 0;
+const allModuleSrcs = new Set();   // sw.js CORE との突合用（監査#1: search-alias.js のプリキャッシュ漏れ再発防止）
 for (const page of PAGES) {
   const file = path.join(ROOT, page);
   if (!fs.existsSync(file)) { console.log(`SKIP ${page} (not found)`); continue; }
   const html = fs.readFileSync(file, 'utf8');
 
-  // ローカル js/ モジュール（読み込み順を保持）
-  const moduleSrcs = [...html.matchAll(/<script\s+src="(js\/[^"]+)"\s*><\/script>/g)].map(m => m[1]);
+  // ローカル JS モジュール（読み込み順を保持。js/ 配下とルート直下 nutrition-db.js の両方を拾う）
+  const moduleSrcs = [...html.matchAll(/<script\s+src="((?:js\/)?[^":]+\.js)"\s*><\/script>/g)].map(m => m[1]);   // CDN(https:)は対象外
+  moduleSrcs.forEach((s) => allModuleSrcs.add(s));
   // src 無しの inline <script>
   const inlineBlocks = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 
@@ -49,8 +51,20 @@ for (const page of PAGES) {
   }
 }
 
+// sw.js の CORE プリキャッシュ一覧と、HTML が実際に読むローカルJSの突合（監査#1）。
+// 漏れると「キャッシュ更新直後のオフライン起動」でそのモジュールだけ欠けて画面が壊れる。
+try {
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const coreMatch = sw.match(/const CORE = \[([\s\S]*?)\];/);
+  const core = new Set([...(coreMatch ? coreMatch[1] : '').matchAll(/'([^']+)'/g)].map(m => m[1]));
+  for (const src of allModuleSrcs) {
+    if (!core.has(src)) { console.error(`FAIL sw.js: CORE に ${src} がありません（オフライン起動で欠落します）`); failed++; }
+  }
+  if (!failed) console.log('OK   sw.js CORE がページの読むJSを網羅');
+} catch (e) { console.error(`FAIL sw.js の CORE 突合に失敗: ${e.message}`); failed++; }
+
 if (failed) {
-  console.error(`\n❌ ${failed} ページで結合構文エラー。push 前に修正してください。`);
+  console.error(`\n❌ ${failed} 件のエラー。push 前に修正してください。`);
   process.exit(1);
 }
 console.log('\n✅ 全ページ結合構文OK');
