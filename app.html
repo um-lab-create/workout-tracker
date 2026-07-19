@@ -957,7 +957,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       </div>
       <div class="dining-form">
         <input class="text-input" id="diningRestaurant" placeholder="店名">
-        <input class="text-input" id="diningMapUrl" placeholder="GoogleマップURL（任意）">
+        <!-- GoogleマップURL欄は 2026-07-20 廃止（監査#8・マネージャー承認）。サーバー非送信の書き捨て欄だった。★7: URLは扱わない -->
         <textarea class="memo-input" id="diningText" placeholder="食べたもの。後でCodexが未計算を推定"></textarea>
       </div>
     </section>
@@ -3914,7 +3914,7 @@ function syncDiningFromInputs() {
   state.diningOut = normalizeDiningOut({
     enabled: state.diningOut.enabled,
     restaurantName: $('#diningRestaurant').value,
-    googleMapUrl: $('#diningMapUrl').value,
+    googleMapUrl: '',   // 欄は廃止（監査#8）。既存ローカル記録の値は normalizeDiningOut が保持するのみ
     diningText: $('#diningText').value
   });
   renderDiningOut(false);
@@ -3930,7 +3930,6 @@ function renderDiningOut(writeInputs = true) {
   $('#diningToggleBtn').textContent = dining.enabled ? '外食中' : '外食した';
   if (writeInputs) {
     $('#diningRestaurant').value = dining.restaurantName;
-    $('#diningMapUrl').value = dining.googleMapUrl;
     $('#diningText').value = dining.diningText;
   }
   applyDiningVisibility();
@@ -7494,7 +7493,7 @@ $('#diningToggleBtn').addEventListener('click', () => {
   renderDiningOut();
   persistDraft();
 });
-['#diningRestaurant', '#diningMapUrl', '#diningText'].forEach((sel) => {
+['#diningRestaurant', '#diningText'].forEach((sel) => {
   $(sel).addEventListener('input', syncDiningFromInputs);
 });
 $('#hydrationCard').addEventListener('click', async (e) => {
