@@ -16,21 +16,21 @@ const LS_KEYS = {
   MEAL_PRODUCTS:    'meal_products_v1',        // 商品 DB
   MEAL_RECIPES:     'meal_recipes_v1',         // 自作メニュー
   MEAL_DRAFT:       'meal_draft_v4',           // 下書き（date:timing→items）
-  MEAL_HABITS:      'meal_habits_v1',          // 習慣判定キャッシュ
   FOOD_USAGE:       'hs:food-usage:v1',         // app.html 食品使用実績（派生データ）
   HYDRATION_RECORDS:'hydration_recs_v1',       // 水分摂取ログ（日付→ml）
+  BODY_RECORDS:     'body_recs_v1',             // からだ手入力（一次ストア。監査#22で台帳化）
+  WT_DRAFTS:        'wt:draftQueue:v1',         // 筋トレ送信前下書き（同上）
 
-  // day.html 関連
+  // サーバー同期
   DAY_SERVER_RECORDS: 'meal_server_records_v1',  // サーバーから同期した明細
   NUTRITION_TARGETS:  'nutrition_targets_v1',    // 目標値
-  DAY_DRAFT:          'meal_draft_v4',            // day.html も同じドラフトを参照
-  DAY_RECORD_CACHE:   'meal_recs_v3',             // day.html も同じレコードを参照
+  // （旧 day.html エイリアス DAY_DRAFT/DAY_RECORD_CACHE と未参照の MEAL_HABITS/WT_SELECTED_DATE は
+  //   2026-07-19 監査#35で削除。値そのものは MEAL_DRAFT/MEAL_RECORDS として存続）
 
   // 筋トレ関連（wt: プレフィクス）
   WT_LAST:          'wt:lastValues:v2',
   WT_HISTORY:       'wt:history:v2',
   WT_SELECTED:      'wt:selectedExercise:v2',
-  WT_SELECTED_DATE: 'wt:selectedDate:v1',
 
   // 同期
   LAST_SYNC:     'hs:last-sync:v1',     // app.html の最終サーバー同期時刻
@@ -83,40 +83,7 @@ function lsRemove(key) {
 }
 
 // ----------------------------------------------------------------
-// 後方互換エイリアス（既存 HTML の storageGet / storageSet 呼び出しを維持するため）
 // 新規コードでは lsGet / lsSet を使うこと。
 // ----------------------------------------------------------------
 
 /** @deprecated lsGet を使ってください */
-function storageGet(key, fallback) { return lsGet(key, fallback); }
-
-/** @deprecated lsSet を使ってください */
-function storageSet(key, value) { lsSet(key, value); }
-
-// ----------------------------------------------------------------
-// Service Worker 登録（全ページ共通・2026-05-29 cowork）
-// オフライン/電波弱でもアプリシェル+CDNが動くように。相対パスでGitHub Pagesのサブパスにも対応。
-// ----------------------------------------------------------------
-if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    // 監査#15: 「完全再起動×2」の不確実運用を緩和する。
-    // (1) 復帰のたびに update() を叩いて iOS PWA でも更新を早く検知する
-    // (2) SW が入れ替わったら一度だけ知らせる（初回インストールでは出さない）
-    var hadController = Boolean(navigator.serviceWorker.controller);
-    navigator.serviceWorker.register('sw.js').then(function (reg) {
-      document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible') { try { reg.update(); } catch (e) {} }
-      });
-    }).catch(function (err) {
-      console.warn('[sw] 登録失敗:', err);
-    });
-    var notified = false;
-    navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (!hadController || notified) return;
-      notified = true;
-      if (typeof window.showToast === 'function') {
-        window.showToast('新しいバージョンに更新しました。表示が変な時はアプリを再起動してください');
-      }
-    });
-  });
-}

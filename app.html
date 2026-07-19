@@ -108,6 +108,9 @@ input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 *
 .date-label.is-today { color: var(--accent-deep); }
 .gear-btn { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--muted); }
 .gear-btn:active { background: var(--accent-soft); }
+/* 44pt未満だった mini-chip / 日付矢印の当たり判定を広げる（監査#43。見た目は不変） */
+.mini-chip, .date-nav .arrow { position: relative; }
+.mini-chip::after, .date-nav .arrow::after { content: ''; position: absolute; inset: -6px; }
 
 /* ---------- レイアウト ---------- */
 main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); max-width: 560px; margin: 0 auto; overflow-x: hidden; }
@@ -652,6 +655,8 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   font-size:11px; font-weight:900;
 }
 .sync-pill.show { display:inline-flex; }
+.sync-pill.offline { background: var(--red-soft, #ffe3e0); color: var(--red, #e0554d); }
+.sync-pill.offline i { background: var(--red, #e0554d); animation: none; }
 .sync-pill i {
   width:10px; height:10px; border-radius:50%; border:2px solid rgba(31,91,75,.25);
   border-top-color:var(--accent-deep); animation:spin .8s linear infinite;
@@ -844,6 +849,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 <header class="topbar">
   <div class="brand"><span class="logo">HC</span>Health Cockpit</div>
   <div class="sync-pill" id="syncPill"><i></i>同期中</div>
+  <div class="sync-pill offline" id="netPill"><i></i>オフライン</div>
   <div class="date-nav">
     <button class="arrow" id="datePrev" aria-label="前の日">‹</button>
     <button class="date-label" id="dateLabel">今日</button>
@@ -1314,10 +1320,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       <div class="set-row"><span class="sl">材料名</span><input id="rcFreeName" placeholder="例: 焼肉のたれ"></div>
       <div class="set-row"><span class="sl">概算 kcal / P / F / C</span>
         <span style="display:flex;gap:4px">
-          <input id="rcFreeKcal" type="number" placeholder="kcal" style="width:60px">
-          <input id="rcFreeP" type="number" placeholder="P" style="width:44px">
-          <input id="rcFreeF" type="number" placeholder="F" style="width:44px">
-          <input id="rcFreeC" type="number" placeholder="C" style="width:44px">
+          <input id="rcFreeKcal" type="number" inputmode="decimal" placeholder="kcal" style="width:60px">
+          <input id="rcFreeP" type="number" inputmode="decimal" placeholder="P" style="width:44px">
+          <input id="rcFreeF" type="number" inputmode="decimal" placeholder="F" style="width:44px">
+          <input id="rcFreeC" type="number" inputmode="decimal" placeholder="C" style="width:44px">
         </span>
       </div>
       <button class="secondary-btn full" id="rcFreeAddBtn" type="button">概算材料を追加</button>
@@ -1645,8 +1651,9 @@ const CATALOG = window.HSFoodCatalog || { BASE_FOODS: [], BASE_PRODUCTS: [] };
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
 function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // JST固定（監査#31）: 端末TZに依存させない。渡航中の記録も日本時間の日付キーに揃える
+  //（bodyRowJst 等の +9h 方式と統一。既存データのキーは不変）
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 function shiftDate(dateStr, days) {
   const d = new Date(`${dateStr}T12:00:00`);
@@ -1794,7 +1801,7 @@ const state = {
   exoValues: {},
   body: { weight: null, fat: null, cond: 3 },
   diningOut: { enabled: false, restaurantName: '', googleMapUrl: '', diningText: '' },
-  workoutDrafts: lsGet('wt:draftQueue:v1', []),
+  workoutDrafts: lsGet(LS_KEYS.WT_DRAFTS, []),
   lastActiveToday: todayStr(),
   baseTab: 'home',
   mealDirtyWarned: {}
@@ -2644,7 +2651,7 @@ async function saveMeal() {
   state.editingRecordId = record.id;
   persistDraft();
 
-  // サーバー送信（Supabase 本線 → 成功後 GAS ミラー。SPEC-012 Step2）
+  // サーバー送信（Supabase 本線。旧GASミラーは2026-07-10退役済み）
   let writeResult = null;
   try {
     await pushMealToServer(record);
@@ -3961,7 +3968,7 @@ function serverRowsToAppRecords(rows) {
     if (item.foodId === 'dining-out-pending' || boolFromRow(row, ['外食フラグ', 'diningOut'])) {
       grouped[recordId].diningOut = true;
       grouped[recordId].restaurantName = String(rowValue(row, ['店名', 'restaurantName']) || '').trim();
-      grouped[recordId].googleMapUrl = String(rowValue(row, ['Googleマップ', 'googleMapUrl', 'mapUrl']) || '').trim();
+      grouped[recordId].googleMapUrl = '';   // ★7: サーバー行はURLを運ばない（旧GAS行キーの読取は退役。監査#35）
       grouped[recordId].diningText = String(rowValue(row, ['外食内容', 'diningText']) || '').trim();
       grouped[recordId].calcStatus = String(rowValue(row, ['計算ステータス', 'calcStatus']) || '').trim();
       grouped[recordId].calcMemo = String(rowValue(row, ['計算メモ', 'calcMemo']) || '').trim();
@@ -4276,6 +4283,9 @@ function hasMeaningfulDraft(dateStr, timingKey) {
   return Boolean(draft && ((draft.items && draft.items.length) || draft.note || dining.enabled));
 }
 function maybeRefreshAfterResume() {
+  // focus と visibilitychange の二重発火を抑止（監査#42）
+  if (Date.now() - (state._lastResumeAt || 0) < 500) return;
+  state._lastResumeAt = Date.now();
   const previousToday = state.lastActiveToday || todayStr();
   const currentToday = todayStr();
   const wasShowingToday = state.date === previousToday;
@@ -4887,7 +4897,7 @@ function renderHome() {
   }
 
   // からだサマリー（サーバー測定=タニタ等が手入力より新しければそちらを表示）
-  const bodyRecs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const bodyRecs = (lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = bodyRecs[0];
   const serverLatest = (typeof bodyServerRows === 'function' ? bodyServerRows() : [])[0] || null;
   const serverDate = serverLatest ? bodyRowJst(serverLatest).date : '';
@@ -4904,7 +4914,7 @@ function renderHome() {
     $('#homeBodySub').innerHTML = bodySub(serverLatest.body_fat_pct != null ? Number(serverLatest.body_fat_pct).toFixed(1) : '–', serverDate);
   } else if (latest) {
     $('#homeBodyBig').textContent = `${latest.weight || '–'} kg`;
-    $('#homeBodySub').innerHTML = bodySub(String(latest.fat || '–').replace(/[<>&"]/g, ''), String(latest.date));
+    $('#homeBodySub').innerHTML = bodySub(escapeHtml(String(latest.fat || '–')), String(latest.date));
   } else {
     $('#homeBodyBig').textContent = '未記録';
     $('#homeBodySub').textContent = 'タップして記録';
@@ -5205,7 +5215,7 @@ async function deleteWorkoutLog(ts) {
     });
     showUndoToast('筋トレ記録を削除しました', '戻す', async () => {
       state.workoutDrafts.push({ ...h, _draft: true, _serverId: undefined });
-      lsSet('wt:draftQueue:v1', state.workoutDrafts);
+      lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
       try { await sendWorkoutDrafts(); } catch (e) {}
       renderWorkoutToday(); renderHome();
     });
@@ -5243,7 +5253,7 @@ async function saveWorkout() {
   const btn = $('#saveWorkoutBtn');
   btn.disabled = true;
   state.workoutDrafts.push({ ...buildWorkoutRecord(), _draft: true });
-  lsSet('wt:draftQueue:v1', state.workoutDrafts);
+  lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
   const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
   last[exo.id] = { ...state.exoValues };
   lsSet(LS_KEYS.WT_LAST, last);
@@ -5264,7 +5274,7 @@ async function sendWorkoutDrafts() {
   const sent = [];
   let queuedCount = 0;
   for (const item of drafts) {
-    // Supabase 本線（クライアント生成 uuid で再送冪等）→ 成功後 GAS ミラー
+    // Supabase 本線（クライアント生成 uuid で再送冪等。旧GASミラーは退役済み）
     const row = sbWorkoutRow(item);
     try {
       await pushWorkoutToServer(row);
@@ -5277,7 +5287,7 @@ async function sendWorkoutDrafts() {
   }
   sent.forEach(rememberWorkout);
   state.workoutDrafts = [];
-  lsSet('wt:draftQueue:v1', state.workoutDrafts);
+  lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
   const confirmed = sent.filter((item) => item._writeStatus === 'confirmed').length;
   showToast(queuedCount ? `${queuedCount}件を未送信に保存しました（あとで自動送信）` : `送信済み ✓ ${confirmed}件`);
   btn.disabled = false;
@@ -5323,7 +5333,7 @@ async function refreshBodyServerCache() {
 }
 
 function initBodyDefaults() {
-  const recs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const recs = (lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = recs[0];
   // タニタ等の自動計測が手入力より新しければ初期値に使う（テスト運用第1回の改善）
   const server = bodyServerRows()[0] || null;
@@ -5372,7 +5382,7 @@ function renderBodySpark() {
     .filter((r) => Number(r.weight_kg) > 0)
     .slice().reverse()
     .map((r) => ({ date: bodyRowJst(r).date, weight: Number(r.weight_kg) }));
-  const localSeries = (lsGet('body_recs_v1', []) || [])
+  const localSeries = (lsGet(LS_KEYS.BODY_RECORDS, []) || [])
     .filter((r) => r && Number(r.weight) > 0)
     .slice()
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
@@ -5416,7 +5426,7 @@ function renderBodyView() {
   renderDeviceMeasureCard();
   // 一覧: サーバー測定（体組成計/手入力）+ サーバーに無いローカル記録（未送信・古い分）を統合表示
   const server = bodyServerRows();
-  const localRecs = (lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const localRecs = (lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const serverManualKeys = new Set(server.filter((r) => r.source === 'manual')
     .map((r) => `${bodyRowJst(r).date}:${Number(r.weight_kg || 0).toFixed(1)}`));
   const pendingLocal = server.length
@@ -5431,7 +5441,7 @@ function renderBodyView() {
   const serverHtml = server.slice(0, 7).map((r) => {
     const j = bodyRowJst(r);
     return `<div class="log-row">
-      <span class="desc"><b>${r.weight_kg != null ? Number(r.weight_kg).toFixed(1) : '–'} kg</b>　体脂肪 ${r.body_fat_pct != null ? Number(r.body_fat_pct).toFixed(1) : '–'}%<span class="src-tag">${BODY_SOURCE_LABEL[r.source] || r.source}</span></span>
+      <span class="desc"><b>${r.weight_kg != null ? Number(r.weight_kg).toFixed(1) : '–'} kg</b>　体脂肪 ${r.body_fat_pct != null ? Number(r.body_fat_pct).toFixed(1) : '–'}%<span class="src-tag">${escapeHtml(BODY_SOURCE_LABEL[r.source] || r.source || '')}</span></span>
       <span class="tm">${fmtDateLabel(j.date)} ${j.time}</span>
     </div>`;
   }).join('');
@@ -5440,19 +5450,19 @@ function renderBodyView() {
 }
 
 function restoreBodyRecord(record) {
-  const recs = lsGet('body_recs_v1', []) || [];
+  const recs = lsGet(LS_KEYS.BODY_RECORDS, []) || [];
   recs.push(record);
-  lsSet('body_recs_v1', recs);
+  lsSet(LS_KEYS.BODY_RECORDS, recs);
   renderBodyView();
   renderHome();
   showToast('からだ記録を復元しました');
 }
 function deleteBodyRecord(ts) {
-  const recs = lsGet('body_recs_v1', []) || [];
+  const recs = lsGet(LS_KEYS.BODY_RECORDS, []) || [];
   const target = recs.find((r) => String(r.ts) === String(ts));
   if (!target) { showToast('削除する記録がありません'); return; }
   // [fix] confirm は撤去（2026-07-12）: Undo トーストで復元可能なため（食事削除と同方針・旧GAS文言も解消）
-  lsSet('body_recs_v1', recs.filter((r) => String(r.ts) !== String(ts)));
+  lsSet(LS_KEYS.BODY_RECORDS, recs.filter((r) => String(r.ts) !== String(ts)));
   renderBodyView();
   renderHome();
   showUndoToast('からだ記録を削除しました', '元に戻す', () => restoreBodyRecord(target));
@@ -5467,9 +5477,9 @@ async function saveBody() {
     memo: $('#bodyMemo').value.trim(),
     ts: Date.now()
   };
-  const recs = lsGet('body_recs_v1', []) || [];
+  const recs = lsGet(LS_KEYS.BODY_RECORDS, []) || [];
   recs.push(record);
-  lsSet('body_recs_v1', recs);
+  lsSet(LS_KEYS.BODY_RECORDS, recs);
 
   const btn = $('#saveBodyBtn');
   btn.disabled = true;
@@ -6615,7 +6625,7 @@ function renderWeeklyStatus() {
   const pfcDays = week.filter((d) => d <= today && isPfcAchieved(d)).length;
   // 体組成の鮮度（タニタ/eufy/手入力の最新日）
   const bodyLatest = (bodyServerRows()[0] ? bodyRowJst(bodyServerRows()[0]).date : null)
-    || ((lsGet('body_recs_v1', []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0] || {}).date;
+    || ((lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0] || {}).date;
   const bodyAgo = bodyLatest ? Math.round((Date.parse(today + 'T12:00:00') - Date.parse(bodyLatest + 'T12:00:00')) / 86400000) : null;
 
   const bar = (label, cur, goal, unit, warnAgo) => {
@@ -6661,7 +6671,7 @@ function renderIntakeWeightChart() {
   bodyServerRows().slice().reverse().forEach((r) => {
     if (Number(r.weight_kg) > 0) weightByDate[bodyRowJst(r).date] = Number(r.weight_kg);
   });
-  (lsGet('body_recs_v1', []) || []).forEach((r) => {
+  (lsGet(LS_KEYS.BODY_RECORDS, []) || []).forEach((r) => {
     if (Number(r.weight) > 0 && !weightByDate[r.date]) weightByDate[r.date] = Number(r.weight);
   });
   const series = days.map((d) => {
@@ -7554,6 +7564,11 @@ $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
 $('#homeBodyCard').addEventListener('click', () => showView('body'));
 $('#homeWaterCard').addEventListener('click', () => showView('meal'));
 $('#homeSyncCard').addEventListener('click', retryPending);
+// 回線状態の常設表示（監査#46: 保存前に「つながっていない」が分かる）
+function updateNetPill() { const p = $('#netPill'); if (p) p.classList.toggle('show', !navigator.onLine); }
+window.addEventListener('online', updateNetPill);
+window.addEventListener('offline', updateNetPill);
+updateNetPill();
 $('#scoreRingWrap') && $('#scoreRingWrap').addEventListener('click', toggleScorePop);
 $('#nextMoveCard').addEventListener('click', (e) => {
   const action = e.currentTarget.dataset.nmAction || '';
@@ -7878,7 +7893,7 @@ $('#workoutTodayList').addEventListener('click', (e) => {
     const ts = del.dataset.logDel;
     if (del.dataset.logDraft) {
       state.workoutDrafts = (state.workoutDrafts || []).filter((h) => String(h._ts) !== String(ts));
-      lsSet('wt:draftQueue:v1', state.workoutDrafts);
+      lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
       renderWorkoutToday(); renderHome();
       showToast('送信予定から削除しました');
     } else {

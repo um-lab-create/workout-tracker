@@ -1032,7 +1032,9 @@ function logDebugSummary(aggregate) {
   const rows = [];
   Object.entries(aggregate.debug).forEach(([type, sources]) => {
     Object.entries(sources).forEach(([source, info]) => {
-      rows.push({ type, source, records: info.records, days: info.dates.size });
+      // 機器名に氏名が含まれ得るため種別に丸める（監査#25。画面共有・スクショ時の露出対策）
+      const kind = /watch/i.test(source) ? 'watch' : /iphone/i.test(source) ? 'iphone' : 'other';
+      rows.push({ type, source: kind, records: info.records, days: info.dates.size });
     });
   });
   rows.sort((a, b) => a.type.localeCompare(b.type) || b.records - a.records);

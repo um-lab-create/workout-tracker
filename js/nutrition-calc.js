@@ -2,6 +2,9 @@
 // nutrition-db.js より後に読み込むこと（window.HSNutritionDB を参照）。
 
 'use strict';
+// [未使用の注記・監査#34 2026-07-19] sumNutrients / calcTargets / judgeNutrients / suggestFoods /
+// foodHasMicros は現在どのページからも呼ばれていない（app.html 側の buildNtJudgement /
+// suggestFoodsFor 等が現行実装）。参照実装として温存。現役は computeDailyScore とカーボサイクル系のみ。
 
 // ----------------------------------------------------------------
 // 公開: 摂取栄養素の積算
