@@ -3997,27 +3997,42 @@ function mealRecordSignature(record) {
     dining: [Boolean(record.diningOut), record.restaurantName || '', record.diningText || '']
   });
 }
+// [fix] 監査#4(B-1): 突合を record.id からスロット（date×timingKey）に変更。
+// 冪等キー契約 meals=(user_id,eaten_on,timing) と同粒度なので、サーバーはスロットに1件しか
+// 持てない。id 違いの並存（削除しても別idが復活する原因）はサーバー版1件に収束させる。
+// synced=false（未送信）のローカル record は従来どおり上書き・置換しない。
 function mergeServerMealRecords(serverRecords) {
   const local = getRecords();
-  const merged = local.slice();
+  let merged = local.slice();
   const counts = { added: 0, updated: 0, unchanged: 0, protected: 0 };
   (serverRecords || []).forEach((serverRecord) => {
-    const idx = merged.findIndex((record) => record && record.id === serverRecord.id);
-    if (idx < 0) {
+    const matches = merged.filter((record) => record
+      && record.date === serverRecord.date && record.timingKey === serverRecord.timingKey);
+    if (!matches.length) {
       merged.push(serverRecord);
       counts.added += 1;
       return;
     }
-    if (merged[idx] && merged[idx].synced === false) {
+    if (matches.some((record) => record.synced === false)) {
       counts.protected += 1;
       return;
     }
-    if (mealRecordSignature(merged[idx]) === mealRecordSignature(serverRecord)) {
+    // findRecord は「最後の1件」を返すため、UI が見ていた代表も最後の1件
+    const primary = matches[matches.length - 1];
+    const changed = matches.length > 1
+      || primary.id !== serverRecord.id
+      || mealRecordSignature(primary) !== mealRecordSignature(serverRecord);
+    merged = merged.filter((record) => !matches.includes(record));
+    merged.push({ ...primary, ...serverRecord, synced: true });
+    if (!changed) {
       counts.unchanged += 1;
       return;
     }
-    merged[idx] = { ...merged[idx], ...serverRecord, synced: true };
     counts.updated += 1;
+    // 収束で置換された旧 id を編集中だった場合は新 id に付け替える（編集消失防止）
+    matches.forEach((record) => {
+      if (state.editingRecordId === record.id) state.editingRecordId = serverRecord.id;
+    });
   });
   merged.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.timingKey || '').localeCompare(String(b.timingKey || '')));
   saveRecords(merged);
