@@ -2897,6 +2897,10 @@ function registerSbOpHandlers() {
   q.registerHandler('body_save', async ({ row }) => {
     await pushBodyToServer(row);
   });
+  q.registerHandler('workout_delete', async ({ id }) => {
+    const sb = await window.HSSupabaseReady;
+    if (id) await sb.deleteWorkout(id);   // id 指定 delete は冪等（無ければ0行）
+  });
   q.registerHandler('settings_save', async () => {
     await pushSettingsToServer();
   });
@@ -5048,10 +5052,12 @@ function renderWorkoutToday() {
     if (h['時間']) parts.push(`${h['時間']}分`);
     if (h['距離']) parts.push(`${h['距離']}km`);
     const time = h._ts ? new Date(h._ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+    // 誤送信の削除・修正（2026-07-19）: 本文タップ=値を入力欄へ読込 / ×=この行を削除（サーバー含む）
     return `<div class="log-row">
       <span class="kj2" style="background:${exo.color}">${exo.kanji}</span>
-      <span class="desc"><b>${escapeHtml(h['種目'] || '')}</b>　${parts.join(' ')}${draft ? ' / 送信予定' : ''}</span>
+      <span class="desc" data-log-load="${h._ts || ''}"><b>${escapeHtml(h['種目'] || '')}</b>　${parts.join(' ')}${draft ? ' / 送信予定' : ''}</span>
       <span class="tm">${draft ? '未送信' : time}</span>
+      <button class="log-del" data-log-del="${h._ts || ''}" data-log-draft="${draft ? '1' : ''}" type="button" aria-label="この記録を削除">×</button>
     </div>`;
   };
   $('#workoutTodayList').innerHTML = drafts.map((h) => renderRow(h, true)).concat(logs.map((h) => renderRow(h, false))).join('');
@@ -5077,6 +5083,79 @@ function buildWorkoutRecord() {
     _exerciseId: exo.id,
     _values: { ...v }
   };
+}
+
+/** 記録行の値を入力欄へ読み込む（修正フロー: 読み込み→直して追加→間違い行を×で削除） */
+function loadWorkoutLogIntoForm(h) {
+  const exo = EXERCISES.find((e) => e.name === h['種目']);
+  if (!exo) return;
+  state.exoId = exo.id;
+  lsSet(LS_KEYS.WT_SELECTED, exo.id);
+  const v = {};
+  exo.fields.forEach((f) => {
+    const jp = { weight: '重量', reps: '回数', sets: 'セット数', minutes: '時間', distance: '距離' }[f];
+    const raw = jp ? h[jp] : null;
+    v[f] = (raw === '' || raw == null) ? exo.defaults[f] : Number(raw);
+  });
+  if (exo.fields.includes('intensity')) v.intensity = Number(h['強度']) || exo.defaults.intensity;
+  if (exo.fields.includes('difficulty')) v.difficulty = Number(h['強度']) || exo.defaults.difficulty;
+  if (exo.fields.includes('incline')) v.incline = Number(h['傾斜']) || 0;
+  state.exoValues = v;
+  renderExoGrid();
+  renderExoCard();
+  showToast('値を入力欄に読み込みました。直して「追加」→ 間違った行は × で削除');
+  haptic(6);
+}
+
+/** 送信済み行の削除。サーバー側は _serverId（新）→ 同値検索（旧）の順で特定する */
+async function deleteWorkoutLog(ts) {
+  const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  const idx = history.findIndex((h) => String(h._ts) === String(ts));
+  if (idx < 0) return;
+  const h = history[idx];
+  history.splice(idx, 1);
+  lsSet(LS_KEYS.WT_HISTORY, history);
+  renderWorkoutToday();
+  renderHome();
+  let serverId = h._serverId || null;
+  try {
+    const sb = await window.HSSupabaseReady;
+    if (!serverId) {
+      // 旧形式（_serverId なし）: 同一内容のサーバー行を検索。複数一致=同内容の重複なので先頭1件でよい
+      const fields = {
+        performed_on: h['日付'], exercise: h['種目'],
+        weight_kg: h['重量'] === '' ? null : Number(h['重量']),
+        reps: h['回数'] === '' ? null : Number(h['回数']),
+        sets: h['セット数'] === '' ? null : Number(h['セット数']),
+        minutes: h['時間'] === '' ? null : Number(h['時間']),
+        distance_km: h['距離'] === '' ? null : Number(h['距離'])
+      };
+      const hits = await sb.findWorkoutIds(fields);
+      if (hits && hits.length) serverId = hits[0].id;
+    }
+    if (serverId) await sb.deleteWorkout(serverId);
+    // まだキュー内（未送達）の同一行があれば送信自体を取り消す
+    (window.HSSbQueue.load() || []).forEach((e) => {
+      if (e && e.op === 'workout_save' && e.data && e.data.row && e.data.row.id === h._serverId) {
+        window.HSSbQueue.discard(e.key);
+      }
+    });
+    showUndoToast('筋トレ記録を削除しました', '戻す', async () => {
+      state.workoutDrafts.push({ ...h, _draft: true, _serverId: undefined });
+      lsSet('wt:draftQueue:v1', state.workoutDrafts);
+      try { await sendWorkoutDrafts(); } catch (e) {}
+      renderWorkoutToday(); renderHome();
+    });
+  } catch (err) {
+    if (serverId) {
+      window.HSSbQueue.enqueue('workout_delete', `workout_delete:${serverId}`, { id: serverId });
+      showToast('オフラインのため、サーバー側は復帰後に削除されます');
+    } else {
+      showToast('サーバー側の行を特定できませんでした（この端末の表示からは削除済み）', 'error');
+    }
+    renderSyncStatus();
+  }
+  refreshWorkoutServerCache && (wtServerFetchedAt = 0);
 }
 
 function rememberWorkout(record) {
@@ -5126,10 +5205,10 @@ async function sendWorkoutDrafts() {
     const row = sbWorkoutRow(item);
     try {
       await pushWorkoutToServer(row);
-      sent.push({ ...item, _draft: false, _queued: false, _writeStatus: 'confirmed', _ts: Date.now() });
+      sent.push({ ...item, _draft: false, _queued: false, _writeStatus: 'confirmed', _ts: Date.now(), _serverId: row.id });
     } catch (err) {
       window.HSSbQueue.enqueue('workout_save', null, { row });
-      sent.push({ ...item, _draft: false, _queued: true, _writeStatus: 'queued', _ts: Date.now() });
+      sent.push({ ...item, _draft: false, _queued: true, _writeStatus: 'queued', _ts: Date.now(), _serverId: row.id });
       queuedCount += 1;
     }
   }
@@ -7727,6 +7806,29 @@ $('#hydrationCard').addEventListener('click', async (e) => {
 $('#saveMealBtn').addEventListener('click', async () => {
   await saveMeal();
   if (showHydration()) { try { await sendHydration(); renderHydration(); } catch (e) {} }
+});
+
+// この日の記録: 本文タップ=読込 / ×=削除（2026-07-19）
+$('#workoutTodayList').addEventListener('click', (e) => {
+  const del = e.target.closest('[data-log-del]');
+  if (del) {
+    const ts = del.dataset.logDel;
+    if (del.dataset.logDraft) {
+      state.workoutDrafts = (state.workoutDrafts || []).filter((h) => String(h._ts) !== String(ts));
+      lsSet('wt:draftQueue:v1', state.workoutDrafts);
+      renderWorkoutToday(); renderHome();
+      showToast('送信予定から削除しました');
+    } else {
+      deleteWorkoutLog(ts);
+    }
+    return;
+  }
+  const load = e.target.closest('[data-log-load]');
+  if (load) {
+    const all = [...(state.workoutDrafts || []), ...(lsGet(LS_KEYS.WT_HISTORY, []) || [])];
+    const h = all.find((x) => String(x._ts) === String(load.dataset.logLoad));
+    if (h) loadWorkoutLogIntoForm(h);
+  }
 });
 
 // 運動

@@ -365,9 +365,29 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
   async function fetchWorkoutHistory(limit = 400) {
     await requireUserId();
     return must(await client.from('workouts')
-      .select('performed_on, exercise, weight_kg, reps, sets, minutes, distance_km, intensity')
+      .select('id, performed_on, exercise, weight_kg, reps, sets, minutes, distance_km, intensity')
       .order('performed_on', { ascending: false })
       .limit(limit));
+  }
+
+  /** 誤送信の削除（2026-07-19 マネージャー依頼）。id はクライアント生成 uuid。
+   *  RLS が本人行に限定するが、明示の user_id 絞りも併用する。冪等（既に無ければ0行削除）。 */
+  async function deleteWorkout(id) {
+    const uid = await requireUserId();
+    must(await client.from('workouts').delete().eq('id', id).eq('user_id', uid));
+  }
+
+  /** _serverId を持たない旧履歴行の削除用: 同一内容のサーバー行 id を探す（完全一致・最大5件） */
+  async function findWorkoutIds(fields) {
+    await requireUserId();
+    let q = client.from('workouts').select('id')
+      .eq('performed_on', fields.performed_on)
+      .eq('exercise', fields.exercise);
+    ['weight_kg', 'reps', 'sets', 'minutes', 'distance_km'].forEach((k) => {
+      if (fields[k] == null || fields[k] === '') q = q.is(k, null);
+      else q = q.eq(k, fields[k]);
+    });
+    return must(await q.limit(5));
   }
 
   /**
@@ -667,6 +687,8 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     fetchWeeklyReview,
     fetchRecentBodyComposition,
     fetchWorkoutHistory,
+    deleteWorkout,
+    findWorkoutIds,
     fetchHealthMetrics,
     fetchFoodsKeyMap,
     pingRead,
