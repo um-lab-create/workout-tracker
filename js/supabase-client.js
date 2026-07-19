@@ -634,6 +634,7 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     try {
       const snapshot = window.HSSbQueue.load();
       const processed = [];
+      const failedMeta = [];
       for (const entry of snapshot) {
         const handler = window.HSSbQueue.handlers[entry.op];
         if (!handler) continue; // ハンドラ未登録の操作は残す（別ページで積まれた等）
@@ -643,12 +644,20 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
           summary.done += 1;
         } catch (e) {
           summary.failed += 1;
+          // 監査#11: 恒久失敗（poison）を沈黙させない。試行回数と最後のエラーを残して UI が説明できるようにする
+          failedMeta.push({ key: entry.key, queuedAt: entry.queuedAt,
+            attempts: (entry.attempts || 0) + 1,
+            lastError: String(e && e.message ? e.message : e).slice(0, 140) });
         }
       }
-      if (processed.length) {
+      if (processed.length || failedMeta.length) {
         // flush 中に enqueue された同一 key の新しいエントリ（queuedAt が進んでいる）は残す
         const remain = window.HSSbQueue.load().filter((e) =>
           !processed.some((p) => p.key === e.key && p.queuedAt === e.queuedAt));
+        remain.forEach((e) => {
+          const meta = failedMeta.find((f) => f.key === e.key && f.queuedAt === e.queuedAt);
+          if (meta) { e.attempts = meta.attempts; e.lastError = meta.lastError; }
+        });
         window.HSSbQueue.save(remain);
       }
     } finally {
