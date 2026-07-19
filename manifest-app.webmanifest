@@ -5,7 +5,7 @@
   "start_url": "/workout-tracker/app.html",
   "scope": "/workout-tracker/",
   "display": "standalone",
-  "background_color": "#fff8ef",
+  "background_color": "#efe3d0",
   "theme_color": "#fff8ef",
   "icons": [
     {
