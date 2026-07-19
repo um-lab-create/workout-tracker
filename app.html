@@ -3997,6 +3997,28 @@ function mealRecordSignature(record) {
     dining: [Boolean(record.diningOut), record.restaurantName || '', record.diningText || '']
   });
 }
+// [fix] 監査#12(B-6): 保存後に残る draft は record の鏡写し（saveMeal が persistDraft で同期）。
+// サーバー更新・削除で record が変わった時、鏡写しの draft を残すと loadMealFor の draft 優先で
+// 最新がマスクされ、再保存すると他端末の編集を黙って上書きする。旧 record と同一内容の draft は
+// 削除して record 表示に委ねる。旧 record と異なる draft（ユーザーの未保存編集）には触れない。
+function dropDraftIfMirrorsRecord(record) {
+  if (!record) return false;
+  const drafts = loadDrafts();
+  const key = draftKey(record.date, record.timingKey);
+  const draft = drafts[key];
+  if (!draft) return false;
+  const sameItems = JSON.stringify(draft.items || []) === savedStoredItemsSignature(record);
+  const sameNote = String(draft.note || '') === String(record.note || '');
+  const draftDining = normalizeDiningOut(draft.diningOut);
+  const recordDining = normalizeDiningOut(record);
+  const sameDining = draftDining.enabled === recordDining.enabled
+    && draftDining.restaurantName === recordDining.restaurantName
+    && draftDining.diningText === recordDining.diningText;
+  if (!(sameItems && sameNote && sameDining)) return false;
+  delete drafts[key];
+  lsSet(LS_KEYS.MEAL_DRAFT, drafts);
+  return true;
+}
 // [fix] 監査#4(B-1): 突合を record.id からスロット（date×timingKey）に変更。
 // 冪等キー契約 meals=(user_id,eaten_on,timing) と同粒度なので、サーバーはスロットに1件しか
 // 持てない。id 違いの並存（削除しても別idが復活する原因）はサーバー版1件に収束させる。
@@ -4035,6 +4057,8 @@ function mergeServerMealRecords(serverRecords, options = {}) {
     matches.forEach((record) => {
       if (state.editingRecordId === record.id) state.editingRecordId = serverRecord.id;
     });
+    // 監査#12: 旧 record の鏡写しだった draft はサーバー更新に追従（削除→record 表示に委ねる）
+    dropDraftIfMirrorsRecord(primary);
   });
   // [fix] 監査#5(B-2): サーバー側削除の伝播。取得窓（from〜to）内で「synced=true かつ
   // サーバー結果に同スロットが無い」ローカル record を削除する。synced=false（未送信）は保護。
@@ -4050,6 +4074,8 @@ function mergeServerMealRecords(serverRecords, options = {}) {
       if (startedAt && Date.parse(record.updatedAt || '') >= startedAt) return true;
       counts.deleted += 1;
       if (state.editingRecordId === record.id) state.editingRecordId = null;
+      // 監査#12: 削除された record の鏡写し draft も除去（残すと削除がマスクされ復活して見える）
+      dropDraftIfMirrorsRecord(record);
       return false;
     });
   }
