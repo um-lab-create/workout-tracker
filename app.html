@@ -7384,7 +7384,10 @@ function consumeLongPressClick(el) {
   longPressConsumed.delete(el);
   return true;
 }
-function bindContinuousPress(root, selector, action) {
+// [perf] 監査#19: リピート中は action(el, true) で軽量更新パスを選べるようにし、
+// リピート終了時（pointerup 等）に onRepeatEnd で1回だけフル再描画する。
+// 単発タップ（リピート未発火）は従来どおり click ハンドラ経由のフル再描画。
+function bindContinuousPress(root, selector, action, onRepeatEnd) {
   let timer = null;
   let interval = null;
   let startedAt = 0;
@@ -7395,13 +7398,16 @@ function bindContinuousPress(root, selector, action) {
     clearInterval(interval);
     timer = null;
     interval = null;
+    const endedEl = activeEl;
+    const didRepeat = fired;
     if (activeEl && fired) longPressConsumed.add(activeEl);
     activeEl = null;
     fired = false;
+    if (didRepeat && endedEl && onRepeatEnd) onRepeatEnd(endedEl);
   };
   const repeat = () => {
     if (!activeEl || activeEl.disabled) return;
-    action(activeEl);
+    action(activeEl, true);   // 第2引数 true = リピート中（軽量更新）
     fired = true;
     const elapsed = Date.now() - startedAt;
     if (elapsed > 1500 && interval) {
@@ -7423,19 +7429,31 @@ function bindContinuousPress(root, selector, action) {
     root.addEventListener(eventName, clear);
   });
 }
-function runWorkoutFieldButton(b) {
+function runWorkoutFieldButton(b, repeating) {
   const f = b.dataset.wf, meta = FIELD[f];
   let v = (Number(state.exoValues[f]) || 0) + Number(b.dataset.d) * meta.step;
   v = Math.max(meta.min, Math.min(meta.max, v));
   state.exoValues[f] = Number(v.toFixed(meta.decimals));
-  renderExoCard();
+  if (repeating) {
+    // [perf] 監査#19: リピート中は数値表示のみ更新（renderExoCard の全履歴集計はリピート終了後に1回）
+    const fv = b.parentElement && b.parentElement.querySelector('.fv');
+    if (fv) fv.innerHTML = `${Number(state.exoValues[f]).toFixed(meta.decimals)}<small>${meta.unit}</small>`;
+  } else {
+    renderExoCard();
+  }
   haptic(6);
 }
-function runBodyButton(b) {
+function runBodyButton(b, repeating) {
   const key = b.dataset.body;
   const d = Number(b.dataset.d);
   state.body[key] = Math.max(0, Number(((state.body[key] || 0) + d).toFixed(1)));
-  renderBodyView();
+  if (repeating) {
+    // [perf] 監査#19: リピート中は数値表示のみ更新（SVG・履歴一覧の再構築はリピート終了後に1回）
+    const el = key === 'fat' ? $('#bodyFat') : $('#bodyWeight');
+    if (el) el.textContent = state.body[key].toFixed(1);
+  } else {
+    renderBodyView();
+  }
   haptic(6);
 }
 
@@ -7966,8 +7984,8 @@ $('#bodyList').addEventListener('click', (e) => {
 });
 $('#saveBodyBtn').addEventListener('click', saveBody);
 bindContinuousPress($('#mealItems'), '[data-step]', (b) => stepItem(Number(b.dataset.i), Number(b.dataset.step)));
-bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton);
-bindContinuousPress(document.body, '[data-body]', runBodyButton);
+bindContinuousPress($('#exoFields'), '[data-wf]', runWorkoutFieldButton, () => renderExoCard());
+bindContinuousPress(document.body, '[data-body]', runBodyButton, () => renderBodyView());
 
 // タブバー・＋ボタンの上での「長押し→スライド」による文字選択（コピー/検索メニューの発生源）を潰す。
 // これらの領域はスクロールしないので touchmove を止めても副作用がない（タップは通常どおり効く）。
