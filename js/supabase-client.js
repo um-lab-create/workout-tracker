@@ -192,26 +192,14 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
    * @returns {Promise<string>} meal_id
    */
   async function saveMealRecord(payload) {
-    const uid = await requireUserId();
-    const meal = must(await client.from('meals')
-      .upsert({
-        user_id: uid,
-        eaten_on: payload.eatenOn,
-        timing: payload.timing,
-        memo: payload.memo || null,
-        kcal: payload.kcal ?? null,
-        protein_g: payload.proteinG ?? null,
-        fat_g: payload.fatG ?? null,
-        carb_g: payload.carbG ?? null,
-        legacy_record_id: payload.legacyRecordId || null
-      }, { onConflict: 'user_id,eaten_on,timing' })
-      .select('id')
-      .single());
-
-    must(await client.from('meal_items').delete().eq('meal_id', meal.id));
+    await requireUserId();
+    // 監査#14（2026-07-20）: 旧実装の3リクエスト（meals upsert → items 全delete → 全insert）は
+    // 途中失敗で「品目0件の食事」がサーバーに残った。009 の RPC save_meal_with_items に置換し
+    // 1トランザクション化。意味論・冪等キー契約 (user_id,eaten_on,timing) は不変。
+    // RLS/★7/冪等の機能テスト: health-sambo scripts/rls_rpc_test_009.py（8項目PASS 2026-07-20）。
+    // 挙動差1点（privacy-auditor 要修正 e-3 による意図的変更）: 外食ONでも店名・内容が空なら
+    // context 行を作らない（空文字の phantom 外食行を防ぐ）。
     const items = (payload.items || []).map((it, i) => ({
-      meal_id: meal.id,
-      user_id: uid,
       food_id: it.foodId || null,
       food_key: it.foodKey || null,
       name: it.name,
@@ -225,16 +213,18 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
       est_fat_g: it.estFatG ?? null,
       est_carb_g: it.estCarbG ?? null
     }));
-    if (items.length) must(await client.from('meal_items').insert(items));
-
-    if (payload.dining) {
-      // ★7: note は人間可読テキストのみ。URL（GoogleマップURL等）は絶対に渡さないこと（呼び出し側の契約）。
-      must(await client.from('meal_dining_context')
-        .upsert({ meal_id: meal.id, user_id: uid, note: payload.dining.note || null }, { onConflict: 'meal_id' }));
-    } else {
-      must(await client.from('meal_dining_context').delete().eq('meal_id', meal.id));
-    }
-    return meal.id;
+    return must(await client.rpc('save_meal_with_items', {
+      p_eaten_on: payload.eatenOn,
+      p_timing: payload.timing,
+      p_memo: payload.memo || null,
+      p_kcal: payload.kcal ?? null,
+      p_protein_g: payload.proteinG ?? null,
+      p_fat_g: payload.fatG ?? null,
+      p_carb_g: payload.carbG ?? null,
+      p_legacy_record_id: payload.legacyRecordId || null,
+      p_dining_note: payload.dining ? (payload.dining.note || null) : null,
+      p_items: items
+    }));
   }
 
   /**
