@@ -1652,7 +1652,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 const $ = (s) => document.querySelector(s);
 const NUTRITION_DB = window.HSNutritionDB || null;
 const CATALOG = window.HSFoodCatalog || { BASE_FOODS: [], BASE_PRODUCTS: [] };
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+// 曜日配列は順序2種をここで1回だけ定義する（監査#23: 局所定義4箇所の取り違え防止）
+const WEEKDAYS_SUN = ['日', '月', '火', '水', '木', '金', '土'];   // getDay() 直引き用（日曜始まり）
+const WEEKDAYS_MON = ['月', '火', '水', '木', '金', '土', '日'];   // 週バー・ヒートマップの表示順（月曜始まり）
+const WEEKDAYS = WEEKDAYS_SUN;                                     // 旧名の別名（既存参照の互換）
 
 function todayStr() {
   // JST固定（監査#31）: 端末TZに依存させない。渡航中の記録も日本時間の日付キーに揃える
@@ -1668,7 +1671,11 @@ function fmtDateLabel(dateStr) {
   // 「今日 7/16(木)」だと390pxのトップバーで2行に折り返す（監査 2-2）。
   // 今日かどうかは date-label の is-today 色で伝える（プレフィックスは付けない）。
   const d = new Date(`${dateStr}T12:00:00`);
-  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS_SUN[d.getDay()]})`;
+}
+/** 日付文字列2つの日数差（to − from。正=経過日数）。T12:00:00 固定でTZ/夏時間の影響を受けない（監査#23） */
+function daysBetween(fromDateStr, toDateStr) {
+  return Math.round((Date.parse(`${toDateStr}T12:00:00`) - Date.parse(`${fromDateStr}T12:00:00`)) / 86400000);
 }
 function fmtNum(n) { return Math.round(n).toLocaleString('ja-JP'); }
 function fmtQty(v) { return Number((Math.round(v * 100) / 100).toFixed(2)).toString(); }
@@ -1719,6 +1726,11 @@ function normalizeForSearch(s) {
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
     .replace(/\s+/g, '')
     .toLowerCase();
+}
+/** 検索クエリ → バリアント別の正規化トークン配列。正規化は空白を除去するため
+ *  トークン分割を先に行う（複数語AND検索）。renderSearch / renderRcSearch 共通（監査#23） */
+function buildQueryTokenVariants(q) {
+  return buildQueryVariants(q).map((v) => v.split(/\s+/).map(normalizeForSearch).filter(Boolean)).filter((v) => v.length);
 }
 
 // ---------------- グローバル状態 ----------------
@@ -2283,9 +2295,8 @@ function renderQuickRow() {
   // 「いつもの」（曜日パターン学習）を先頭に置く
   const usual = usualMealFor(state.timing, state.date);
   if (usual) {
-    const DOW = ['日', '月', '火', '水', '木', '金', '土'];
     const dowIdx = new Date(state.date + 'T12:00:00').getDay();
-    const label = usual.sameDow ? `${DOW[dowIdx]}曜のいつも` : 'いつもの';
+    const label = usual.sameDow ? `${WEEKDAYS_SUN[dowIdx]}曜のいつも` : 'いつもの';
     chips.push(`<button class="quick-chip accent" data-quick="usual"><span class="n">${label}</span><span class="d">${fmtNum(usual.record.kcal || 0)} kcal・${usual.record.items.length}品・${usual.count}回</span></button>`);
   }
   // 直近の同タイミング記録を最大3件（先頭は「前回と同じ」）
@@ -2478,7 +2489,7 @@ function renderSearch() {
     // 複数語AND検索を可能にする。八訂の長い階層名で特に重要。SPEC-015）
     // 漢字→かなエイリアス（SPEC-017）: 「豚肉」→「ぶた」等のバリアントを併走させ、
     // どれか1バリアントの全トークンが当たれば一致とする。
-    const variants = buildQueryVariants(q).map((v) => v.split(/\s+/).map(normalizeForSearch).filter(Boolean)).filter((v) => v.length);
+    const variants = buildQueryTokenVariants(q);
     const tokens = variants[0] || [];
     const nq = tokens.join('');
     // 八訂の大量公式行（hakutei-*）は2文字以上の入力から出す（1文字でのノイズ回避。SPEC-015）。
@@ -3272,7 +3283,7 @@ function renderRcSearch() {
   const q = $('#rcSearch').value.trim();
   const box = $('#rcSearchResults');
   if (!q) { box.innerHTML = ''; return; }
-  const variants = buildQueryVariants(q).map((v) => v.split(/\s+/).map(normalizeForSearch).filter(Boolean)).filter((v) => v.length);
+  const variants = buildQueryTokenVariants(q);
   const hits = allFoods.filter((f) => {
     if (f.entryType === 'recipe') return false;
     if (String(f.id).startsWith('hakutei-') && f.primaryVariant === false && !hakuteiVariantMatched(f, variants)) return false;
@@ -4153,11 +4164,10 @@ function renderWeekCard() {
   const week = weekDatesOf(state.date);
   const strength = strengthDatesSet();
   const today = todayStr();
-  const DOW = ['月', '火', '水', '木', '金', '土', '日'];
   $('#weekDays').innerHTML = week.map((d, i) => {
     const hasMeal = Boolean(dayMealTotals(d));
     const cls = [hasMeal ? 'meal' : '', strength[d] ? 'strength' : '', d === today ? 'today' : ''].join(' ');
-    return `<div class="wd ${cls}"><span>${DOW[i]}</span><span class="dn">${Number(d.slice(8))}</span><span class="tri"></span></div>`;
+    return `<div class="wd ${cls}"><span>${WEEKDAYS_MON[i]}</span><span class="dn">${Number(d.slice(8))}</span><span class="tri"></span></div>`;
   }).join('');
   const strengthCount = week.filter((d) => strength[d]).length;
   const pfcDays = week.filter((d) => d <= today && isPfcAchieved(d)).length;
@@ -4270,7 +4280,7 @@ function daysSinceLastStrength() {
     .map((r) => r.date);
   if (!dates.length) return null;
   const last = dates.sort().pop();
-  return Math.round((Date.parse(`${todayStr()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
+  return daysBetween(last, todayStr());
 }
 function renderNextMove(totals, targets, perTiming) {
   const card = $('#nextMoveCard');
@@ -4463,7 +4473,7 @@ function renderHome() {
   const serverDate = serverLatest ? bodyRowJst(serverLatest).date : '';
   // 古い測定値が「今日の値」の顔をしないよう、4日以上前は日付を注意色で見せる（監査 2-3）
   const bodySub = (fatText, dateStr) => {
-    const ago = Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(dateStr + 'T12:00:00')) / 86400000);
+    const ago = daysBetween(dateStr, todayStr());
     const dateHtml = ago >= 4
       ? `<span style="color:var(--warn-ink,#c98a00);font-weight:700">${fmtDateLabel(dateStr)}（${ago}日前）</span>`
       : fmtDateLabel(dateStr);
@@ -4566,7 +4576,7 @@ function exoDaysAgoMap() {
   const map = {};
   EXERCISES.forEach((e) => {
     map[e.id] = lastDate[e.id]
-      ? Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(lastDate[e.id] + 'T12:00:00')) / 86400000)
+      ? daysBetween(lastDate[e.id], todayStr())
       : null;
   });
   return map;
@@ -4619,7 +4629,7 @@ function progressionFor(exoId) {
   const list = Object.values(sessions).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   if (!list.length) return null;
   const last = list[list.length - 1];
-  const daysAgo = Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(last.date + 'T12:00:00')) / 86400000);
+  const daysAgo = daysBetween(last.date, todayStr());
   const sets = Math.max(3, last.sets || 3);
   if (last.reps >= PROG_TARGET_REPS) {
     const step = PROG_STEP_KG[exo.id] || 2.5;
@@ -6190,7 +6200,7 @@ function renderWeeklyStatus() {
   // 体組成の鮮度（タニタ/eufy/手入力の最新日）
   const bodyLatest = (bodyServerRows()[0] ? bodyRowJst(bodyServerRows()[0]).date : null)
     || ((lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0] || {}).date;
-  const bodyAgo = bodyLatest ? Math.round((Date.parse(today + 'T12:00:00') - Date.parse(bodyLatest + 'T12:00:00')) / 86400000) : null;
+  const bodyAgo = bodyLatest ? daysBetween(bodyLatest, today) : null;
 
   const bar = (label, cur, goal, unit, warnAgo) => {
     const pct = Math.min(100, Math.round((cur / goal) * 100));
@@ -6403,7 +6413,7 @@ function renderRecoveryChart() {
   const verdict = recoveryVerdict(byMetric);
   // 取込が古い時は体組成と同様に明示する（睡眠だけ無言で止まっていた非対称の解消。監査 4-2）
   const latestOn = Object.values(byMetric).flatMap((m) => Object.keys(m)).sort().pop() || null;
-  const dataAgo = latestOn ? Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(latestOn + 'T12:00:00')) / 86400000) : null;
+  const dataAgo = latestOn ? daysBetween(latestOn, todayStr()) : null;
   const staleNote = (dataAgo != null && dataAgo >= 5)
     ? `<div class="sync-note" style="margin-top:2px;color:var(--warn-ink,#c98a00)"><b>最終取込 ${fmtDateLabel(latestOn)}（${dataAgo}日前）</b>。ヘルスケア取込（設定 → その他の画面）で更新されます。</div>` : '';
   el.innerHTML = `<div class="wk-chart-card">
@@ -6449,7 +6459,6 @@ function renderStreakHeatmap() {
       return { date, level, workout: Boolean(strength[date]), future: date > today };
     }));
   }
-  const DOW = ['月', '火', '水', '木', '金', '土', '日'];
   const cells = cols.map((week) => `<div class="hm-col">${week.map((c) =>
     `<i class="hm-cell l${c.level}${c.workout ? ' wk' : ''}${c.future ? ' fu' : ''}" title="${c.date}"></i>`).join('')}</div>`).join('');
   // [fix] 月替わりの列にだけ月ラベルを置く（時間軸の手がかり。先頭列は基準として常に表示。監査 4-3）
@@ -6461,7 +6470,7 @@ function renderStreakHeatmap() {
   el.innerHTML = `<div class="wk-chart-card">
     <div class="tt">記録の継続（8週間）</div>
     <div class="legend"><span>濃いほど摂取が目標に近い日</span><span><i style="background:transparent;box-shadow:inset 0 0 0 1.5px var(--accent,#ff8a2a)"></i>枠=筋トレ日</span></div>
-    <div class="hm-wrap"><div class="hm-dow">${DOW.map((d) => `<span>${d}</span>`).join('')}</div><div class="hm-main"><div class="hm-grid">${cells}</div><div class="hm-months">${months}</div></div></div>
+    <div class="hm-wrap"><div class="hm-dow">${WEEKDAYS_MON.map((d) => `<span>${d}</span>`).join('')}</div><div class="hm-main"><div class="hm-grid">${cells}</div><div class="hm-months">${months}</div></div></div>
   </div>`;
 }
 
@@ -6602,7 +6611,7 @@ function renderWorkoutBalance() {
     if (!part || part === '有酸素') return;
     if (!lastByPart[part] || r.date > lastByPart[part]) lastByPart[part] = r.date;
   });
-  const daysAgo = (d) => (d ? Math.round((Date.parse(todayStr() + 'T12:00:00') - Date.parse(d + 'T12:00:00')) / 86400000) : null);
+  const daysAgo = (d) => (d ? daysBetween(d, todayStr()) : null);
   const parts = ['肩', '胸', '背', '脚', '内外', '腹'];
   const max = Math.max(...parts.map((p) => sets[p] || 0), 1);
   const stale = parts.filter((p) => { const n = daysAgo(lastByPart[p]); return n == null || n >= 10; });
