@@ -33,7 +33,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await Promise.all(CORE.map((u) => cache.add(u).catch(() => { /* 欠落しても継続 */ })));
-    await Promise.all(CDN.map((u) => cache.add(new Request(u, { mode: 'no-cors' })).catch(() => {})));
+    await Promise.all(CDN.map((u) => {
+      // 監査#16: supabase-js は ESM のため opaque(no-cors) 応答では import できない。
+      // jsdelivr は CORS ヘッダを返すので通常フェッチでキャッシュする（他は従来どおり no-cors）
+      const req = u.includes('@supabase/supabase-js') ? u : new Request(u, { mode: 'no-cors' });
+      return cache.add(req).catch(() => {});
+    }));
     self.skipWaiting();
   })());
 });
