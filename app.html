@@ -1967,8 +1967,23 @@ function mealTotalsFor(items) {
 }
 
 // ---------------- 記録・下書きストア（旧 meal.html と共通） ----------------
-function getRecords() { return lsGet(LS_KEYS.MEAL_RECORDS, []) || []; }
-function saveRecords(records) { lsSet(LS_KEYS.MEAL_RECORDS, records); }
+// [perf] 監査#18: renderHome 1回で全食事レコードを約60回 JSON.parse していたため、
+// 書込世代カウンタ方式のキャッシュを持つ（saveRecords が必ず無効化）。
+// 同一参照を返してよい根拠: 読み手は全員 filter()/slice() でコピーしてから sort/pop する実装で、
+// 配列を破壊的に書き換える呼び出し元（saveMeal / restoreDeletedMeal / markMealSynced /
+// mergeServerMealRecords）は直後に必ず saveRecords を呼ぶため、キャッシュは書込と同時に破棄される。
+let _recordsCache = null;
+function getRecords() {
+  if (_recordsCache === null) _recordsCache = lsGet(LS_KEYS.MEAL_RECORDS, []) || [];
+  return _recordsCache;
+}
+function saveRecords(records) { lsSet(LS_KEYS.MEAL_RECORDS, records); _recordsCache = null; }
+// 別タブ・別ウィンドウからの書込に追従（storage イベントは他ドキュメントの書込時のみ発火する）
+window.addEventListener('storage', (e) => {
+  if (!e || !e.key) return;
+  if (e.key === LS_KEYS.MEAL_RECORDS) _recordsCache = null;
+  if (e.key === LS_KEYS.WT_HISTORY || e.key === WT_SERVER_CACHE_KEY) invalidateWorkoutRowsCache();
+});
 function findRecord(dateStr, timingKey) {
   const list = getRecords().filter((r) => r.date === dateStr && r.timingKey === timingKey);
   return list.length ? list[list.length - 1] : null;
@@ -5188,6 +5203,7 @@ async function deleteWorkoutLog(ts) {
   const h = history[idx];
   history.splice(idx, 1);
   lsSet(LS_KEYS.WT_HISTORY, history);
+  invalidateWorkoutRowsCache();   // [perf] 監査#18
   renderWorkoutToday();
   renderHome();
   let serverId = h._serverId || null;
@@ -5238,6 +5254,7 @@ function rememberWorkout(record) {
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
   history.unshift(record);
   lsSet(LS_KEYS.WT_HISTORY, history.slice(0, 80));
+  invalidateWorkoutRowsCache();   // [perf] 監査#18
   lsSet(LS_KEYS.WT_SELECTED, state.exoId);
 }
 
@@ -6962,12 +6979,19 @@ async function refreshWorkoutServerCache() {
     if (!(await sb.getSession())) return;
     const rows = await sb.fetchWorkoutHistory(400);
     lsSet(WT_SERVER_CACHE_KEY, { fetchedAt: new Date().toISOString(), rows: rows || [] });
+    invalidateWorkoutRowsCache();   // [perf] 監査#18
     wtServerFetchedAt = Date.now();
     if (state.view === 'nutrition' && ntSegment === 'workout') renderWorkoutAnalysis();
   } catch (e) { /* 未ログイン・オフラインはキャッシュ表示のまま */ }
 }
 /** サーバー履歴 + サーバーに未着のローカル履歴を統合して古い順で返す */
+// [perf] 監査#18: 呼び出しごとに WT_HISTORY とサーバーキャッシュを JSON.parse していたためメモ化。
+// 無効化は書込3点（rememberWorkout / deleteWorkoutLog / refreshWorkoutServerCache）+
+// storage イベント（別タブ書込）。読み手は filter/forEach のみで破壊的変更しないため同一参照でよい。
+let _wtAllRowsCache = null;
+function invalidateWorkoutRowsCache() { _wtAllRowsCache = null; }
 function workoutAllRows() {
+  if (_wtAllRowsCache) return _wtAllRowsCache;
   const key = (r) => `${r.date}|${r.exercise}|${r.weight}|${r.reps}|${r.sets}`;
   const server = workoutServerRows().map((r) => ({
     date: r.performed_on, exercise: r.exercise,
@@ -6986,7 +7010,8 @@ function workoutAllRows() {
     minutes: h['時間'] ? Number(h['時間']) : null,
     distance: h['距離'] ? Number(h['距離']) : null
   })).filter((r) => r.date && r.exercise && !seen.has(key(r)));
-  return server.concat(local).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  _wtAllRowsCache = server.concat(local).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  return _wtAllRowsCache;
 }
 /** 種目ごとの主要指標: 重量系=重量 / アブベンチ=回数 / トレッドミル=距離 */
 function wtMetricFor(exerciseName) {

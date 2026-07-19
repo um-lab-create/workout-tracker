@@ -200,12 +200,14 @@ ok('栄養変換: E9脂肪酸(saturatedFat/n3/n6)が分析に届く',
   JSON.stringify({sat: fattyEntry.per100g.saturatedFat, n3: fattyEntry.per100g.n3}));
 
 // 12) 栄養集計と判定（レコード投入→state→judgement）
+// [perf] 監査#18: 記録の投入・撤去はアプリの書込API saveRecords 経由に統一
+// （getRecords がキャッシュを持つため、素の localStorage.setItem では反映されない）
 vm.runInContext(`
-  localStorage.setItem('meal_recs_v3', JSON.stringify([{
+  saveRecords([{
     id: 'rec-t1', date: '2026-07-09', timingKey: 'lunch', timing: '昼', synced: true,
     items: [{foodId: 'rice', qty: 1, unit: '膳'}],
     structuredItems: [{ foodId: 'rice', foodName: '白米', qty: 1, unit: '膳', nutrients: { energy: 252, protein: 3.8, fat: 0.5, carb: 55.7 } }]
-  }]));
+  }]);
 `, context);
 const nt = vm.runInContext(`(() => { const s = buildNutritionState('2026-07-09'); const j = buildNtJudgement(s); return { meals: s.totals.meals, kcal: Math.round(s.nutrients.energy), K: Math.round(s.nutrients.K || 0), score: j.score, pri: j.priorities.length }; })()`, context);
 ok('栄養集計: 記録→state→判定', nt.meals === 1 && nt.kcal > 200 && nt.score > 0 && nt.pri > 0, JSON.stringify(nt));
@@ -215,11 +217,11 @@ ok('栄養集計: microsが再構築で補完される', nt.K > 0, `(K=${nt.K}mg
 const mergeTest = vm.runInContext(`(() => {
   const rec = { id: 'rec-m1', date: '2026-07-08', timingKey: 'lunch', timing: '昼', synced: true, kcal: 500,
     items: [], structuredItems: [{ foodId: 'rice', qty: 1, unit: '膳', nutrients: { energy: 500 } }] };
-  localStorage.setItem('meal_recs_v3', JSON.stringify([rec]));
+  saveRecords([rec]);
   const same = mergeServerMealRecords([JSON.parse(JSON.stringify(rec))]);
   const changed = mergeServerMealRecords([{ ...JSON.parse(JSON.stringify(rec)), kcal: 600,
     structuredItems: [{ foodId: 'rice', qty: 2, unit: '膳', nutrients: { energy: 600 } }] }]);
-  localStorage.removeItem('meal_recs_v3');
+  saveRecords([]);
   return { sameUnchanged: same.unchanged, sameUpdated: same.updated, changedUpdated: changed.updated };
 })()`, context);
 ok('同期カウント: 同一内容はunchanged', mergeTest.sameUnchanged === 1 && mergeTest.sameUpdated === 0, JSON.stringify(mergeTest));
@@ -230,17 +232,17 @@ const usualTest = vm.runInContext(`(() => {
   // 2026-07-13 は月曜。過去の月曜の昼 = A構成×2 / 他曜日の昼 = B構成×3
   const mk = (id, date, ids, kcal) => ({ id, date, timingKey: 'lunch', timing: '昼', synced: true, kcal,
     items: ids.map((f) => ({ foodId: f, qty: 1, unit: 'g' })), structuredItems: [] });
-  localStorage.setItem('meal_recs_v3', JSON.stringify([
+  saveRecords([
     mk('r1', '2026-07-06', ['rice', 'egg'], 500),        // 月
     mk('r2', '2026-06-29', ['rice', 'egg'], 510),        // 月
     mk('r3', '2026-07-07', ['bread', 'milk'], 300),      // 火
     mk('r4', '2026-07-08', ['bread', 'milk'], 300),      // 水
     mk('r5', '2026-07-09', ['bread', 'milk'], 300)       // 木
-  ]));
+  ]);
   const dow = usualMealFor('lunch', '2026-07-13');       // 月曜
   const other = usualMealFor('lunch', '2026-07-14');     // 火曜（同曜日の常習が無い→全体の最頻）
   const none = usualMealFor('dinner', '2026-07-13');     // 記録なし
-  localStorage.removeItem('meal_recs_v3');
+  saveRecords([]);
   return {
     dowIds: dow ? dow.record.items.map((i) => i.foodId).sort().join(',') : null,
     dowSame: dow ? dow.sameDow : null, dowCount: dow ? dow.count : 0,
@@ -256,14 +258,14 @@ ok('いつもの: 記録が足りなければ null', usualTest.none === true);
 const simTest = vm.runInContext(`(() => {
   const mk = (id, date, ids) => ({ id, date, timingKey: 'morning', timing: '朝', synced: true, kcal: 400,
     items: ids.map((f) => ({ foodId: f, qty: 1, unit: 'g' })), structuredItems: [] });
-  localStorage.setItem('meal_recs_v3', JSON.stringify([
+  saveRecords([
     mk('a', '2026-07-10', ['bihidas', 'banana', 'soy-protein', 'bread']),
     mk('b', '2026-07-09', ['bihidas', 'banana', 'soy-protein', 'mix-nuts', 'raisin']),
     mk('c', '2026-07-08', ['bihidas', 'banana', 'soy-protein', 'mix-nuts'])
-  ]));
+  ]);
   const u = usualMealFor('morning', '2026-07-13');
   const sim = mealSimilarity([{foodId:'a'},{foodId:'b'},{foodId:'c'}], [{foodId:'a'},{foodId:'b'},{foodId:'d'}]);
-  localStorage.removeItem('meal_recs_v3');
+  saveRecords([]);
   return { count: u ? u.count : 0, date: u ? u.record.date : null, sim: Math.round(sim * 100) };
 })()`, context);
 ok('いつもの: 6割類似で常習と判定（核3品が共通・最新を採用）',
