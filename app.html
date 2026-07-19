@@ -4001,10 +4001,12 @@ function mealRecordSignature(record) {
 // 冪等キー契約 meals=(user_id,eaten_on,timing) と同粒度なので、サーバーはスロットに1件しか
 // 持てない。id 違いの並存（削除しても別idが復活する原因）はサーバー版1件に収束させる。
 // synced=false（未送信）のローカル record は従来どおり上書き・置換しない。
-function mergeServerMealRecords(serverRecords) {
+function mergeServerMealRecords(serverRecords, options = {}) {
   const local = getRecords();
   let merged = local.slice();
-  const counts = { added: 0, updated: 0, unchanged: 0, protected: 0 };
+  const counts = { added: 0, updated: 0, unchanged: 0, protected: 0, deleted: 0 };
+  const slotOf = (record) => `${record.date}:${record.timingKey}`;
+  const serverSlots = new Set((serverRecords || []).map(slotOf));
   (serverRecords || []).forEach((serverRecord) => {
     const matches = merged.filter((record) => record
       && record.date === serverRecord.date && record.timingKey === serverRecord.timingKey);
@@ -4034,6 +4036,23 @@ function mergeServerMealRecords(serverRecords) {
       if (state.editingRecordId === record.id) state.editingRecordId = serverRecord.id;
     });
   });
+  // [fix] 監査#5(B-2): サーバー側削除の伝播。取得窓（from〜to）内で「synced=true かつ
+  // サーバー結果に同スロットが無い」ローカル record を削除する。synced=false（未送信）は保護。
+  // 保険1: 呼び出し側が窓を明示した時だけ実行（fetchMealDetails 成功時のみ渡される想定）。
+  // 保険2: 同期開始（startedAt）以降に更新された record は消さない（フェッチ中の保存との競合対策）。
+  if (options.from && options.to) {
+    const startedAt = Number(options.startedAt) || 0;
+    merged = merged.filter((record) => {
+      if (!record) return false;
+      if (String(record.date || '') < options.from || String(record.date || '') > options.to) return true;
+      if (record.synced === false) return true;
+      if (serverSlots.has(slotOf(record))) return true;
+      if (startedAt && Date.parse(record.updatedAt || '') >= startedAt) return true;
+      counts.deleted += 1;
+      if (state.editingRecordId === record.id) state.editingRecordId = null;
+      return false;
+    });
+  }
   merged.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.timingKey || '').localeCompare(String(b.timingKey || '')));
   saveRecords(merged);
   rebuildFoodUsage(merged);
@@ -4170,10 +4189,13 @@ async function syncFromServer(options = {}) {
         applyHydrationVisibility();
       }
     }
+    // 監査#5: 削除伝播は fetchMealDetails が正常応答した時のみ（窓を渡した時のみ実行される）。
+    // 取得失敗時はこの先に到達しないため、部分データでの大量削除は起きない。
+    const syncStartedAt = Date.now();
     const details = await sb.fetchMealDetails(from, to);
     const serverRecords = serverRowsToAppRecords(sbRowsFromMealDetails(details));
     lsSet(LS_KEYS.DAY_SERVER_RECORDS, serverRecords);
-    const counts = mergeServerMealRecords(serverRecords);
+    const counts = mergeServerMealRecords(serverRecords, { from, to, startedAt: syncStartedAt });
     // テンプレート（普段の食事セット）: サーバー → localStorage へ反映（SPEC-014）
     try {
       const templates = await sb.fetchMealTemplates();
@@ -4205,8 +4227,8 @@ async function syncFromServer(options = {}) {
     renderHydration();
     renderHome();
     if (manual) {
-      showToast(counts.added || counts.updated
-        ? `同期しました（追加${counts.added}・更新${counts.updated}）`
+      showToast(counts.added || counts.updated || counts.deleted
+        ? `同期しました（追加${counts.added}・更新${counts.updated}${counts.deleted ? `・削除${counts.deleted}` : ''}）`
         : '同期しました（サーバーと一致しています）');
     }
     return { status: 'ok', ...counts };
