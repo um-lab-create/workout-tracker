@@ -1143,6 +1143,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <div class="set-row"><span class="sl">文字を大きめに表示</span><input id="setFontLarge" type="checkbox" style="width:22px;height:22px"></div>
     <div class="set-row"><span class="sl">外食メモを表示（既定OFF）</span><input id="setShowDining" type="checkbox" style="width:22px;height:22px"></div>
     <div class="section-label" style="margin-top:12px">目標</div>
+    <button class="secondary-btn full" id="goalCalcBtn" type="button" style="margin-bottom:8px">目標を自動計算（体重から）</button>
     <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
     <div class="set-row"><span class="sl">P たんぱく質 g</span><input id="setTargetProtein" type="number" inputmode="numeric" min="0" max="400" step="1"></div>
     <div class="set-row"><span class="sl">F 脂質 g</span><input id="setTargetFat" type="number" inputmode="numeric" min="0" max="300" step="1"></div>
@@ -1308,6 +1309,32 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 </div>
 
 <!-- レシピビルダー（SPEC-014 §3-3。作り置き・弁当・1食メニューは全部これ） -->
+<!-- 目標の自動計算（2026-07-20 マネージャー承認）: PFC目標は定石の計算式で決まる。
+     体重・基礎代謝は最新のタニタ測定から自動プリフィル。家族展開時も各自の測定値から各自の目標が出る -->
+<div class="modal-back" id="goalCalcBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>目標を自動計算</h3>
+    <div class="set-row"><span class="sl">体重 kg</span><input id="gcWeight" type="number" inputmode="decimal" step="0.1" min="20" max="200"></div>
+    <div class="set-row"><span class="sl">基礎代謝 kcal</span><input id="gcBmr" type="number" inputmode="numeric" step="10" min="800" max="3000"></div>
+    <div class="set-row"><span class="sl">目的</span>
+      <select id="gcGoal" class="rc-unit" style="min-width:130px">
+        <option value="bulk">筋肉を増やす</option>
+        <option value="maintain">維持</option>
+        <option value="cut">絞る</option>
+      </select></div>
+    <div class="set-row"><span class="sl">運動量</span>
+      <select id="gcActivity" class="rc-unit" style="min-width:130px">
+        <option value="1.4">低（運動ほぼなし）</option>
+        <option value="1.6" selected>中（週2〜3回）</option>
+        <option value="1.75">高（週4回以上）</option>
+      </select></div>
+    <div class="sync-note" id="gcPreview" style="font-weight:800">–</div>
+    <div class="sync-note">タニタの最新測定から自動入力しています。計算式: 基礎代謝×運動量→目的で微調整。P=体重×2.0〜2.2g / F=カロリーの28% / C=残り</div>
+    <button class="primary-btn full" id="gcApplyBtn" type="button">この目標を設定欄に入れる</button>
+  </div>
+</div>
+
 <div class="modal-back" id="recipeBack">
   <div class="modal">
     <div class="close-row"><div class="grip"></div></div>
@@ -2895,11 +2922,18 @@ async function pushBodyToServer(row) {
 async function pushSettingsToServer() {
   const targets = baseTargets();
   const sb = await window.HSSupabaseReady;
+  // 判定帯は目標から常に導出して同送する（2026-07-20: 目標3系統の不整合が再発しないように。
+  // 方針: kcal ±10% / P -5%〜+20% / F・C ±20%）
+  const kcal = Math.round(targets.energy);
   await sb.upsertUserSettings({
-    target_kcal: Math.round(targets.energy),
+    target_kcal: kcal,
     target_p_g: targets.protein,
     target_f_g: targets.fat,
     target_c_g: targets.carb,
+    target_kcal_min: Math.round(kcal * 0.9), target_kcal_max: Math.round(kcal * 1.1),
+    target_protein_min: Math.round(targets.protein * 0.95), target_protein_max: Math.round(targets.protein * 1.2),
+    target_fat_min: Math.round(targets.fat * 0.8), target_fat_max: Math.round(targets.fat * 1.2),
+    target_carb_min: Math.round(targets.carb * 0.8), target_carb_max: Math.round(targets.carb * 1.2),
     show_hydration: showHydration(),
     updated_at: new Date().toISOString()
   });
@@ -5898,6 +5932,40 @@ function setTiming(tk) {
   renderSearch();
 }
 
+// ---- 目標の自動計算（案1・2026-07-20）----
+// 定石: TDEE = 基礎代謝 × 活動係数。目的で ±（増やす+5% / 絞る-15%）。
+// P = 体重×2.2g（維持は2.0）/ F = kcalの28% / C = 残り。AI不要・各ユーザーの測定値から算出。
+function calcTargetsFromProfile(weight, bmr, goal, activity) {
+  const tdee = bmr * activity;
+  const kcal = Math.round(tdee * (goal === 'cut' ? 0.85 : goal === 'bulk' ? 1.05 : 1.0) / 10) * 10;
+  const p = Math.round(weight * (goal === 'maintain' ? 2.0 : 2.2) / 5) * 5;
+  const f = Math.round(kcal * 0.28 / 9 / 5) * 5;
+  const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4 / 10) * 10);
+  return { kcal, p, f, c };
+}
+function latestBodyForCalc() {
+  const server = (typeof bodyServerRows === 'function' ? bodyServerRows() : [])[0] || null;
+  const local = (lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+  const weight = server && server.weight_kg != null ? Number(server.weight_kg) : (local ? Number(local.weight) : null);
+  const bmr = server && server.bmr != null ? Number(server.bmr) : null;
+  return { weight, bmr };
+}
+function renderGoalCalcPreview() {
+  const w = Number($('#gcWeight').value), b = Number($('#gcBmr').value);
+  if (!(w > 0) || !(b > 0)) { $('#gcPreview').textContent = '体重と基礎代謝を入れてください'; return null; }
+  const t = calcTargetsFromProfile(w, b, $('#gcGoal').value, Number($('#gcActivity').value));
+  $('#gcPreview').innerHTML = `<b>${fmtNum(t.kcal)} kcal</b>　P${t.p} / F${t.f} / C${t.c} g`;
+  return t;
+}
+function openGoalCalc() {
+  const { weight, bmr } = latestBodyForCalc();
+  if (weight) $('#gcWeight').value = weight.toFixed(1);
+  // 基礎代謝が未測定なら概算（22×体重）を初期値に
+  $('#gcBmr').value = bmr || (weight ? Math.round(weight * 22) : '');
+  renderGoalCalcPreview();
+  $('#goalCalcBack').classList.add('show');
+}
+
 // ---------------- 設定モーダル ----------------
 function openSettings() {
   $('#setShowHydration').checked = showHydration();
@@ -7195,6 +7263,19 @@ window.addEventListener('offline', updateNetPill);
 updateNetPill();
 applyFontScale();
 $('#scoreRingWrap') && $('#scoreRingWrap').addEventListener('click', toggleScorePop);
+$('#goalCalcBtn') && $('#goalCalcBtn').addEventListener('click', openGoalCalc);
+['#gcWeight', '#gcBmr'].forEach((sel) => { const el = $(sel); el && el.addEventListener('input', renderGoalCalcPreview); });
+['#gcGoal', '#gcActivity'].forEach((sel) => { const el = $(sel); el && el.addEventListener('change', renderGoalCalcPreview); });
+$('#gcApplyBtn') && $('#gcApplyBtn').addEventListener('click', () => {
+  const t = renderGoalCalcPreview();
+  if (!t) return;
+  $('#setTargetEnergy').value = t.kcal;
+  $('#setTargetProtein').value = t.p;
+  $('#setTargetFat').value = t.f;
+  $('#setTargetCarb').value = t.c;
+  $('#goalCalcBack').classList.remove('show');
+  showToast('設定欄に入れました。「保存する」で確定します');
+});
 $('#nextMoveCard').addEventListener('click', (e) => {
   const action = e.currentTarget.dataset.nmAction || '';
   if (action.startsWith('meal:')) {
