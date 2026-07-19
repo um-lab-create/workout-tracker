@@ -108,6 +108,8 @@ input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 *
 .date-label.is-today { color: var(--accent-deep); }
 .gear-btn { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--muted); }
 .gear-btn:active { background: var(--accent-soft); }
+/* 文字サイズ 大きめ（監査#40）。zoom は Safari/Chrome 対応 */
+html[data-font="large"] body { zoom: 1.13; }
 /* 44pt未満だった mini-chip / 日付矢印の当たり判定を広げる（監査#43。見た目は不変） */
 .mini-chip, .date-nav .arrow { position: relative; }
 .mini-chip::after, .date-nav .arrow::after { content: ''; position: absolute; inset: -6px; }
@@ -1123,7 +1125,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 </nav>
 <div id="recordScrim"></div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <!-- 設定モーダル -->
 <div class="modal-back" id="settingsBack">
@@ -1138,6 +1140,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     </div>
     <div class="set-row"><span class="sl">筋トレ日の炭水化物 +g</span><input id="setCarbDelta" type="number" inputmode="numeric" min="0" max="200" step="5"></div>
     <div class="set-row"><span class="sl">水分記録を表示（既定OFF）</span><input id="setShowHydration" type="checkbox" style="width:22px;height:22px"></div>
+    <div class="set-row"><span class="sl">文字を大きめに表示</span><input id="setFontLarge" type="checkbox" style="width:22px;height:22px"></div>
     <div class="set-row"><span class="sl">外食メモを表示（既定OFF）</span><input id="setShowDining" type="checkbox" style="width:22px;height:22px"></div>
     <div class="section-label" style="margin-top:12px">目標</div>
     <div class="set-row"><span class="sl">エネルギー kcal</span><input id="setTargetEnergy" type="number" inputmode="numeric" min="800" max="5000" step="10"></div>
@@ -4398,6 +4401,11 @@ function applyDiningVisibility() {
 }
 // 水分記録はオプション（既定OFF・SPEC-014 / 設計書 §5）。データ・同期コードは温存。
 const SHOW_HYDRATION_KEY = 'hs:show-hydration:v1';
+// 文字サイズ（監査#40）: CSSがpx基準のため root font-size でなく zoom で全体を拡大する
+const FONT_LARGE_KEY = 'hs:font-large:v1';
+function applyFontScale() {
+  document.documentElement.dataset.font = lsGet(FONT_LARGE_KEY, false) ? 'large' : '';
+}
 function showHydration() { return Boolean(lsGet(SHOW_HYDRATION_KEY, false)); }
 function applyHydrationVisibility() {
   const on = showHydration();
@@ -6347,6 +6355,7 @@ function setTiming(tk) {
 // ---------------- 設定モーダル ----------------
 function openSettings() {
   $('#setShowHydration').checked = showHydration();
+  if ($('#setFontLarge')) $('#setFontLarge').checked = Boolean(lsGet(FONT_LARGE_KEY, false));
   $('#setShowDining').checked = showDining();
   try { $('#setCarbDelta').value = loadCarbCycle().carbDelta; } catch (e) { $('#setCarbDelta').value = 50; }
   const targets = baseTargets();
@@ -6360,6 +6369,7 @@ function openSettings() {
 }
 async function saveSettings() {
   lsSet(SHOW_HYDRATION_KEY, $('#setShowHydration').checked);
+  if ($('#setFontLarge')) { lsSet(FONT_LARGE_KEY, $('#setFontLarge').checked); applyFontScale(); }
   applyHydrationVisibility();
   lsSet(SHOW_DINING_KEY, $('#setShowDining').checked);
   applyDiningVisibility();
@@ -7607,11 +7617,38 @@ $('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
 $('#homeBodyCard').addEventListener('click', () => showView('body'));
 $('#homeWaterCard').addEventListener('click', () => showView('meal'));
 $('#homeSyncCard').addEventListener('click', retryPending);
+// モーダルの a11y（監査#39）: show 付与で aria-modal + 先頭フォーカス、解除で呼び出し元へ返す
+(() => {
+  if (typeof MutationObserver === 'undefined') return;   // vm実行（regress）にはDOM APIが無い
+  const lastFocus = new WeakMap();
+  const obs = new MutationObserver((muts) => {
+    muts.forEach((m) => {
+      const el = m.target;
+      if (!(el instanceof HTMLElement) || !el.classList.contains('modal-back')) return;
+      const shown = el.classList.contains('show');
+      const wasShown = m.oldValue && m.oldValue.split(/\s+/).includes('show');
+      const modal = el.querySelector('.modal');
+      if (shown && !wasShown) {
+        if (modal) { modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); }
+        lastFocus.set(el, document.activeElement);
+        const first = el.querySelector('input:not([type=hidden]), select, textarea, button');
+        if (first && typeof first.focus === 'function') { try { first.focus({ preventScroll: true }); } catch (e) {} }
+      } else if (!shown && wasShown) {
+        const back = lastFocus.get(el);
+        if (back && document.contains(back)) { try { back.focus({ preventScroll: true }); } catch (e) {} }
+      }
+    });
+  });
+  document.querySelectorAll('.modal-back').forEach((el) =>
+    obs.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
+})();
+
 // 回線状態の常設表示（監査#46: 保存前に「つながっていない」が分かる）
 function updateNetPill() { const p = $('#netPill'); if (p) p.classList.toggle('show', !navigator.onLine); }
 window.addEventListener('online', updateNetPill);
 window.addEventListener('offline', updateNetPill);
 updateNetPill();
+applyFontScale();
 $('#scoreRingWrap') && $('#scoreRingWrap').addEventListener('click', toggleScorePop);
 $('#nextMoveCard').addEventListener('click', (e) => {
   const action = e.currentTarget.dataset.nmAction || '';
