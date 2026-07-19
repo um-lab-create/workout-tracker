@@ -6,10 +6,11 @@
 // inline より前だが、呼び出し時には定義済みなので関数参照でよい。charts.js の前例に倣う）:
 //   - js/storage.js           : lsGet / lsSet / LS_KEYS
 //   - js/supabase-client.js   : window.HSSupabaseReady / window.HSSbQueue
+//   - js/sync.js              : queueWithToast / foodsKeyMap / FOODS_MAP_KEY /
+//       foodIdForKey / toNumOrNull（監査9-1 第3歩で app.html inline から移動。実行時解決）
 //   - app.html inline         : state / buildCatalog / renderSearch / renderHome /
-//       renderSyncStatus / showToast / queueWithToast / getFoodById / createMealItem /
-//       buildStructuredItem / recipeToCatalogFood / loadPresets /
-//       foodsKeyMap / FOODS_MAP_KEY / foodIdForKey / toNumOrNull
+//       renderSyncStatus / showToast / getFoodById / createMealItem /
+//       buildStructuredItem / recipeToCatalogFood / loadPresets
 // DOM を触る関数（buildCatalog / renderSearch 系）は app.html 側に残している。
 'use strict';
 

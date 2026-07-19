@@ -17,7 +17,7 @@ const CORE = [
   './',
   'index.html', 'health-import.html', 'app.html',
   'nutrition-db.js', 'js/storage.js', 'js/nutrition-calc.js', 'js/food-catalog.js',
-  'js/supabase-client.js', 'js/charts.js', 'js/food-domain.js', 'js/search-alias.js', 'js/nav.js', 'js/theme.js',
+  'js/supabase-client.js', 'js/charts.js', 'js/food-domain.js', 'js/sync.js', 'js/search-alias.js', 'js/nav.js', 'js/theme.js',
   'manifest.webmanifest', 'manifest-app.webmanifest',
   'icons/sambo.svg', 'icons/sambo-192.png', 'icons/sambo-512.png', 'icons/apple-touch-icon.png'
 ];
