@@ -157,7 +157,11 @@ function sbWorkoutRow(gasRecord) {
     speed_kmh: toNumOrNull(gasRecord['速さ']),
     intensity: toNumOrNull(gasRecord['強度']),
     incline: toNumOrNull(gasRecord['傾斜']),
-    load_note: gasRecord['負荷'] === '' || gasRecord['負荷'] == null ? null : String(gasRecord['負荷'])
+    load_note: gasRecord['負荷'] === '' || gasRecord['負荷'] == null ? null : String(gasRecord['負荷']),
+    // SPEC-024: AI登録種目の参照キー（緩い text 参照・FKではない）と消費kcalスナップショット。
+    // どちらも nullable。組み込み8種は null のまま＝既存の挙動と完全互換。
+    exercise_key: gasRecord._exerciseKey || null,
+    est_kcal: toNumOrNull(gasRecord._estKcal)
   };
 }
 async function pushWorkoutToServer(row) {

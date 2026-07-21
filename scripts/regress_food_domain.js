@@ -287,5 +287,133 @@ ok('名寄せ: 埋め込みと同名の八訂行に重複マークが付く',
   !dupTest.hakuteiTwins || dupTest.twinsHidden, JSON.stringify(dupTest));
 ok('名寄せ: 埋め込み側は隠さない', dupTest.embeddedVisible, JSON.stringify(dupTest));
 
+// ---- SPEC-024: 運動種目のAI登録（privacy-auditor [R-1][R-3] の担保をテストで固定する）----
+const exoOk = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: 'バスケットボール(3on3)', short: 'バスケ3on3', kanji: '球', kind: 'sport',
+  mets: 6.0, fields: ['minutes'], defaults: { minutes: 60 },
+  source: '国立健康・栄養研究所 身体活動のメッツ表'
+}))`, context);
+ok('SPEC-024: 正常なAI出力を取り込める',
+  !exoOk.error && exoOk.mets === 6 && exoOk.fields.join() === 'minutes' && exoOk.kanji === '球',
+  JSON.stringify(exoOk));
+
+// [R-1] URL を含む名前は拒否（★7・DB CHECK の手前でフロントも弾く）
+const exoUrl = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: 'バスケ https://maps.example.com/x', kind: 'sport', mets: 6, fields: ['minutes']
+}))`, context);
+ok('SPEC-024: 名前にURLがあれば拒否（★7）', Boolean(exoUrl.error), JSON.stringify(exoUrl));
+
+// [R-1] 固有地名・施設名は拒否
+const exoPlace = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: '〇〇スポーツクラブでバスケ', kind: 'sport', mets: 6, fields: ['minutes']
+}))`, context);
+ok('SPEC-024: 施設名らしい語があれば拒否（[R-1]）', Boolean(exoPlace.error), JSON.stringify(exoPlace));
+
+// source に URL が来たら source だけ捨てて登録は通す（DB CHECK に到達させない）
+const exoSrcUrl = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: 'バスケットボール(1on1)', kind: 'sport', mets: 8, fields: ['minutes'],
+  source: 'https://example.com/mets'
+}))`, context);
+ok('SPEC-024: 出典のURLは捨てて登録は通る',
+  !exoSrcUrl.error && exoSrcUrl.source === '', JSON.stringify(exoSrcUrl));
+
+// [R-3] 未知フィールドはホワイトリストで落ちる / 範囲外METsは拒否
+const exoField = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: '家トレ ダンベルカール', kind: 'strength', mets: 3.5,
+  fields: ['weight', 'reps', 'sets', 'evilField'], defaults: { weight: 10, reps: 12, sets: 3 }
+}))`, context);
+ok('SPEC-024: 未知フィールドは捨てる（[R-3]）',
+  !exoField.error && exoField.fields.join() === 'weight,reps,sets', JSON.stringify(exoField));
+const exoMets = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: 'テスト', kind: 'sport', mets: 99, fields: ['minutes']
+}))`, context);
+ok('SPEC-024: METs範囲外は拒否', Boolean(exoMets.error), JSON.stringify(exoMets));
+
+// スポーツ/有酸素は minutes を必ず含める（消費kcal計算に必要）
+const exoMin = vm.runInContext(`parseAiExerciseResult(JSON.stringify({
+  name: 'ランニング', kind: 'cardio', mets: 8, fields: ['distance'], defaults: { distance: 5 }
+}))`, context);
+ok('SPEC-024: 有酸素はminutesを補う', !exoMin.error && exoMin.fields.includes('minutes'), JSON.stringify(exoMin));
+
+// 消費kcal: METs × 体重 × 時間 × 1.05（体重が無ければ null＝架空値を出さない）
+const exoKcal = vm.runInContext(`(() => {
+  const exo = { mets: 6, fields: ['minutes'] };
+  const before = estimateWorkoutKcal(exo, { minutes: 60 });   // 体重データなし
+  return { before };
+})()`, context);
+ok('SPEC-024: 体重未同期なら消費kcalは出さない', exoKcal.before === null, JSON.stringify(exoKcal));
+
+// ★ プロンプトに健康データが混ざらない（SPEC-024 受け入れ基準・交渉不可）
+const exoPrompt = vm.runInContext(`(() => {
+  // 体重・体組成の控えを入れた状態でプロンプトを作っても、本文に数値が出ないこと
+  localStorage.setItem('hs:body-server-cache:v1', JSON.stringify({
+    fetchedAt: '2026-07-21T00:00:00Z',
+    rows: [{ measured_on: '2026-07-20', weight_kg: 68.4, body_fat_pct: 17.5, bmr: 1560 }]
+  }));
+  const p = buildExerciseAiPrompt('屋外のハーフコートでバスケ3対3');
+  return { p, leaks: ['68.4', '17.5', '1560', '体重', '体脂肪', '基礎代謝'].filter((s) => p.includes(s)) };
+})()`, context);
+ok('SPEC-024: プロンプトに健康データが入らない',
+  exoPrompt.leaks.length === 0 && exoPrompt.p.includes('バスケ3対3'),
+  `leaks=${JSON.stringify(exoPrompt.leaks)}`);
+
+// マージ: 組み込み8種は不変のまま、AI登録分が末尾に足される
+const exoMerge = vm.runInContext(`(() => {
+  const extra = applyExerciseTypes([{ client_key: 'basketball-3on3', name: 'バスケ(3on3)',
+    short: 'バスケ', kanji: '球', kind: 'sport', fields: ['minutes'], mets: 6,
+    load_params: { default_minutes: 60 } }]);
+  const builtinIntact = BUILTIN_EXERCISES.every((b, i) => EXERCISES[i] && EXERCISES[i].id === b.id);
+  const added = EXERCISES[EXERCISES.length - 1];
+  const kcal = estimateWorkoutKcal(added, { minutes: 60 });
+  applyExerciseTypes([]);   // 後続テストに影響させない
+  return { n: extra.length, builtinIntact, id: added.id, def: added.defaults.minutes, kcal,
+    restored: EXERCISES.length === BUILTIN_EXERCISES.length };
+})()`, context);
+ok('SPEC-024: 組み込み8種を壊さずAI登録分を統合',
+  exoMerge.builtinIntact && exoMerge.n === 1 && exoMerge.id === 'exo:basketball-3on3'
+    && exoMerge.def === 60 && exoMerge.restored, JSON.stringify(exoMerge));
+
+// 画面描画: 種目一覧の末尾に「＋運動を追加」が出る / AI登録種目がチップとして並ぶ
+const exoRender = vm.runInContext(`(() => {
+  applyExerciseTypes([{ client_key: 'basketball-3on3', name: 'バスケ(3on3)', short: 'バスケ',
+    kanji: '球', kind: 'sport', fields: ['minutes'], mets: 6, load_params: { default_minutes: 60 } }]);
+  renderExoGrid();
+  const html = document.querySelector('#exoGrid').innerHTML;
+  applyExerciseTypes([]);
+  renderExoGrid();
+  const htmlAfter = document.querySelector('#exoGrid').innerHTML;
+  return {
+    hasAdd: html.includes('data-exo-add'),
+    hasCustom: html.includes('data-exo="exo:basketball-3on3"') && html.includes('球'),
+    builtinCount: (html.match(/data-exo="/g) || []).length,        // 組み込み8 + カスタム1
+    addStillThere: htmlAfter.includes('data-exo-add')
+  };
+})()`, context);
+ok('SPEC-024: 種目一覧に「＋運動を追加」とAI登録種目が出る',
+  exoRender.hasAdd && exoRender.hasCustom && exoRender.builtinCount === 9 && exoRender.addStillThere,
+  JSON.stringify(exoRender));
+
+// 保存レコード: AI登録種目は exercise_key と est_kcal を持ち、組み込み種目は null のまま（既存互換）
+const exoRecord = vm.runInContext(`(() => {
+  lsSet(LS_KEYS.BODY_RECORDS, [{ date: '2026-07-20', weight: 68.4 }]);
+  applyExerciseTypes([{ client_key: 'basketball-3on3', name: 'バスケ(3on3)', short: 'バスケ',
+    kanji: '球', kind: 'sport', fields: ['minutes'], mets: 6, load_params: { default_minutes: 60 } }]);
+  state.exoId = 'exo:basketball-3on3';
+  state.exoValues = { minutes: 60 };
+  const custom = buildWorkoutRecord();
+  const customRow = sbWorkoutRow(custom);
+  state.exoId = 'shoulder';
+  state.exoValues = { weight: 30, reps: 10, sets: 3 };
+  const builtin = buildWorkoutRecord();
+  const builtinRow = sbWorkoutRow(builtin);
+  applyExerciseTypes([]);
+  return { key: customRow.exercise_key, kcal: customRow.est_kcal,
+    bKey: builtinRow.exercise_key, bKcal: builtinRow.est_kcal };
+})()`, context);
+// 6 METs × 68.4kg × 1h × 1.05 = 430.9 → 431
+ok('SPEC-024: AI種目は exercise_key と est_kcal を送る / 組み込みは従来どおり null',
+  exoRecord.key === 'basketball-3on3' && exoRecord.kcal === 431
+    && exoRecord.bKey === null && exoRecord.bKcal === null, JSON.stringify(exoRecord));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

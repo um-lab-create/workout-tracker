@@ -432,6 +432,34 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
       .single());
   }
 
+  // ---- 運動種目マスタ（SPEC-024）----
+  // 冪等キーは (user_id, client_key)。同じ種目を再登録しても2行に割れない（010 の unique が前提）。
+  // ★7: source / name / short への URL は 011 の CHECK が DB 側で拒否する（フロントも事前に弾く）。
+  async function fetchExerciseTypes() {
+    await requireUserId();
+    const data = must(await client.from('exercise_types')
+      .select('id, client_key, name, short, kanji, kind, fields, mets, load_params, source, verified, archived')
+      .eq('archived', false)
+      .order('created_at', { ascending: true }));
+    return data || [];
+  }
+
+  async function upsertExerciseType(row) {
+    const uid = await requireUserId();
+    return must(await client.from('exercise_types')
+      .upsert({ ...row, user_id: uid }, { onConflict: 'user_id,client_key' })
+      .select('id, client_key')
+      .single());
+  }
+
+  /** 論理削除（過去の記録は exercise 名スナップショットで残るため物理削除しない）。 */
+  async function setExerciseTypeArchived(clientKey, archived) {
+    const uid = await requireUserId();
+    must(await client.from('exercise_types')
+      .update({ archived: Boolean(archived) })
+      .eq('user_id', uid).eq('client_key', clientKey));
+  }
+
   /**
    * レシピを保存する: 親 foods 行 upsert → recipe_items を全 delete → 全 insert（置換・冪等）。
    * 親行には呼び出し側で計算済みの 1食分栄養（per_unit / micros / typed列）を渡すこと。
@@ -693,6 +721,9 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     pingRead,
     fetchFoodsCatalog,
     upsertUserFood,
+    fetchExerciseTypes,
+    upsertExerciseType,
+    setExerciseTypeArchived,
     saveRecipe,
     fetchRecipeItems,
     setFoodArchived,

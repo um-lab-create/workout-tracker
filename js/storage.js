@@ -31,6 +31,8 @@ const LS_KEYS = {
   WT_LAST:          'wt:lastValues:v2',
   WT_HISTORY:       'wt:history:v2',
   WT_SELECTED:      'wt:selectedExercise:v2',
+  // AI登録した運動種目マスタのローカル控え（SPEC-024）。サーバーが正・これはオフライン表示用
+  WT_EXO_TYPES:     'hs:exercise-types:v1',
 
   // 同期
   LAST_SYNC:     'hs:last-sync:v1',     // app.html の最終サーバー同期時刻

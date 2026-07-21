@@ -425,6 +425,8 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .exo-chip .sn { font-size: 9.5px; color: var(--muted); font-weight: 700; }
 .exo-chip.active { border-color: var(--accent); }
 .exo-chip.active .sn { color: var(--accent-deep); }
+/* SPEC-024: 末尾の「＋運動を追加」。種目チップと並ぶが選択状態は持たない */
+.exo-chip.exo-add { border-style: dashed; border-color: var(--line, #e5ded2); background: transparent; box-shadow: none; }
 /* 空き日数バッジと「今日のおすすめ」行（監査 6-1） */
 .exo-chip { position: relative; }
 .exo-chip .gap {
@@ -1274,6 +1276,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <div class="card" style="margin-top:10px">
       <div style="font-size:15px;font-weight:800;margin-bottom:4px" id="exoTitle"></div>
       <div id="exoFields"></div>
+      <!-- SPEC-024: 消費kcalの目安（METs登録済み種目のみ・参考表示） -->
+      <div class="sync-note" id="exoKcalNote" style="margin-top:2px"></div>
       <div class="action-row">
         <button class="secondary-btn" id="saveWorkoutBtn">追加</button>
         <button class="primary-btn" id="sendWorkoutBtn">送信 <span class="draft-badge" id="workoutDraftCount">0</span></button>
@@ -1564,6 +1568,31 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <div class="sync-note" id="gcPreview" style="font-weight:800">–</div>
     <div class="sync-note">タニタの最新測定から自動入力しています。計算式: 基礎代謝×運動量→目的で微調整。P=体重×2.0〜2.2g / F=カロリーの28% / C=残り</div>
     <button class="primary-btn full" id="gcApplyBtn" type="button">この目標を設定欄に入れる</button>
+  </div>
+</div>
+
+<!-- 運動をAIで追加（SPEC-024・コピペ方式。API不使用・健康データは送らない） -->
+<div class="modal-back" id="exoAddBack">
+  <div class="modal">
+    <div class="close-row"><div class="grip"></div></div>
+    <h3>運動を追加</h3>
+    <div class="sync-note">やる運動を、条件までなるべく細かく書いてください。<b>形式・場所の種類・強さ・道具</b>が分かるほど正確になります。</div>
+    <textarea id="exoDesc" rows="3" placeholder="例) 屋外のハーフコートでバスケ3対3。休憩をはさみながら普通のペース" style="width:100%"></textarea>
+    <div class="quick-row" id="exoDescChips">
+      <button class="quick-chip" type="button" data-exo-eg="屋外のハーフコートでバスケ3対3。休憩をはさみながら普通のペース"><span class="n">バスケ 3on3</span><span class="d">例を入れる</span></button>
+      <button class="quick-chip" type="button" data-exo-eg="一人でバスケのシューティング練習。ゴール下中心でゆっくり"><span class="n">シューティング</span><span class="d">例を入れる</span></button>
+      <button class="quick-chip" type="button" data-exo-eg="家でダンベルを使ったアームカール。重量と回数とセット数を記録したい"><span class="n">家トレ（ダンベル）</span><span class="d">例を入れる</span></button>
+      <button class="quick-chip" type="button" data-exo-eg="家で自重のスクワット。回数とセット数を記録したい"><span class="n">自重スクワット</span><span class="d">例を入れる</span></button>
+    </div>
+    <button class="secondary-btn full" id="exoCopyPromptBtn" type="button">① AIに聞く文章をコピー</button>
+    <div class="sync-note">コピーした文章を生成AIアプリに貼り付け → 返ってきた答えを下に貼り付けます。<br>
+      ※この文章に体重や記録は含まれません（健康データは外部に送りません）</div>
+    <textarea id="exoResultPaste" rows="4" placeholder="② AIの答え（JSON）をここに貼り付け" style="width:100%"></textarea>
+    <button class="secondary-btn full" id="exoImportBtn" type="button">③ 読み取る</button>
+    <div id="exoPreview" class="sync-note"></div>
+    <button class="primary-btn full" id="exoSaveBtn" type="button" disabled>④ この運動を追加する</button>
+    <div class="section-label" style="margin-top:12px">追加した運動</div>
+    <div id="exoCustomList" class="sync-note">まだありません</div>
   </div>
 </div>
 
@@ -3880,7 +3909,8 @@ function toggleScorePop() {
 }
 
 // ---------------- 運動ビュー（旧 workout.html と同一契約） ----------------
-const EXERCISES = [
+// 組み込み8種（DBへは移行しない。AI登録分と統合したものが EXERCISES になる。SPEC-024）
+const BUILTIN_EXERCISES = [
   { id: 'shoulder', kanji: '肩', name: 'ショルダープレス', short: 'ショルダー', color: '#ff9861', fields: ['weight', 'reps', 'sets'], defaults: { weight: 30, reps: 10, sets: 3 } },
   { id: 'chest', kanji: '胸', name: 'チェストプレス', short: 'チェスト', color: '#ff5f7f', fields: ['weight', 'reps', 'sets'], defaults: { weight: 40, reps: 10, sets: 3 } },
   { id: 'back', kanji: '背', name: 'ラットプルダウン', short: 'ラットプル', color: '#a889ff', fields: ['weight', 'reps', 'sets'], defaults: { weight: 40, reps: 10, sets: 3 } },
@@ -3890,6 +3920,8 @@ const EXERCISES = [
   { id: 'abs', kanji: '腹', name: 'アブベンチ', short: 'アブ', color: '#ffd15a', fields: ['reps', 'sets', 'difficulty'], defaults: { reps: 20, sets: 3, difficulty: 3 } },
   { id: 'run', kanji: '走', name: 'トレッドミル', short: 'ラン', color: '#6ba7ff', fields: ['minutes', 'distance', 'intensity', 'incline'], defaults: { minutes: 20, distance: 2, intensity: 12, incline: 0 } }
 ];
+// AI登録分を足した実効リスト。renderExoGrid / exoById / progressionFor 等はすべてこれを見る。
+let EXERCISES = BUILTIN_EXERCISES.slice();
 const FIELD = {
   weight: { label: '重量', unit: 'kg', step: 2.5, min: 0, max: 300, decimals: 1 },
   reps: { label: '回数', unit: '回', step: 1, min: 0, max: 200, decimals: 0 },
@@ -3913,6 +3945,182 @@ function calculateRunLoad(v) {
 function calculateAbsLoad(v) {
   return Math.round((Number(v.reps) || 0) * (Number(v.sets) || 0) * (Number(v.difficulty) || 1));
 }
+
+// ================= SPEC-024: 運動種目のAI登録（コピペ方式・API不使用）=================
+// 設計の要点（privacy-auditor 監査 [R-1][R-2][R-3] を実装で担保する）:
+//  - 外部AIへ渡すプロンプトに健康データ（体重・体組成・記録履歴）を一切含めない
+//  - AIから受け取るのは METs / fields / defaults / 表示ラベルのみ。kcal 計算はこちらでやる
+//  - fields は既知語彙のホワイトリストのみ採用（[R-3] 自由 jsonb に生入力を流さない）
+//  - URL・固有地名（ジム名/公園名/店名）を含む値は破棄。警告に本体は出さない（[R-1]）
+
+/** AI出力で受け付ける入力項目の語彙。FIELD のキーと一致させること（[R-3] ホワイトリスト）。 */
+const EXO_AI_FIELD_VOCAB = ['weight', 'reps', 'sets', 'minutes', 'distance', 'intensity', 'difficulty', 'incline'];
+const EXO_AI_KIND_VOCAB = ['strength', 'cardio', 'sport'];
+/** AI登録種目のチップ色（kind 別。組み込み8種の配色と衝突しない落ち着いた色）。 */
+const EXO_KIND_COLOR = { strength: '#8f9bff', cardio: '#4fd1c5', sport: '#f6a5c0' };
+/** URL 混入の検査（011 の DB CHECK と同じ判定をフロントでも先に行う）。 */
+const EXO_URL_RE = /(https?:\/\/|www\.)/i;
+/** 固有地名・施設名の混入検査（[R-1]）。完全判定は不可能だが典型語を弾く。 */
+const EXO_PLACE_RE = /(ジム|スポーツクラブ|フィットネス|公園|体育館|コート|店|支店|校|センター|クラブ)/;
+
+/** localStorage の控えから即時復元（オフラインでも種目が消えないように）。 */
+function loadExerciseTypesCache() {
+  return lsGet(LS_KEYS.WT_EXO_TYPES, []) || [];
+}
+
+/** サーバー行（または控え）を組み込み8種にマージして EXERCISES を作り直す。 */
+function applyExerciseTypes(rows) {
+  const extra = (rows || []).filter((r) => r && r.client_key && r.name).map((r) => {
+    const fields = Array.isArray(r.fields) ? r.fields.filter((f) => EXO_AI_FIELD_VOCAB.includes(f)) : [];
+    const lp = (r.load_params && typeof r.load_params === 'object') ? r.load_params : {};
+    const defaults = {};
+    fields.forEach((f) => {
+      const d = Number(lp['default_' + f]);
+      defaults[f] = Number.isFinite(d) ? d : (FIELD[f] ? (FIELD[f].min || 0) : 0);
+    });
+    return {
+      id: 'exo:' + r.client_key,          // 組み込みidと衝突しない名前空間
+      clientKey: r.client_key,
+      kanji: (typeof r.kanji === 'string' && r.kanji.length === 1) ? r.kanji : '運',
+      name: r.name,
+      short: r.short || r.name,
+      color: EXO_KIND_COLOR[r.kind] || '#b9ae97',
+      fields: fields.length ? fields : ['minutes'],
+      defaults,
+      mets: Number.isFinite(Number(r.mets)) ? Number(r.mets) : null,
+      kind: EXO_AI_KIND_VOCAB.includes(r.kind) ? r.kind : 'sport',
+      source: r.source || '',
+      isCustom: true
+    };
+  });
+  EXERCISES = BUILTIN_EXERCISES.concat(extra);
+  return extra;
+}
+
+/** サーバーから取り直して控えを更新し、画面を描き直す。失敗しても控えで動き続ける。 */
+async function refreshExerciseTypes() {
+  try {
+    const sb = await window.HSSupabaseReady;
+    const rows = await sb.fetchExerciseTypes();
+    lsSet(LS_KEYS.WT_EXO_TYPES, rows || []);
+    applyExerciseTypes(rows);
+    return rows || [];
+  } catch (e) {
+    applyExerciseTypes(loadExerciseTypesCache());
+    return null;
+  }
+}
+
+// ---- 消費カロリー（参考表示のみ。摂取目標には足さない = 二重カウント防止）----
+/**
+ * METs式: kcal = METs × 体重kg × 時間h × 1.05
+ * 体重は同期済みの最新実測値のみを使う。無ければ null を返し「体重未同期」と出す
+ * （既定70kgのような架空値で誤った精度を出さない）。
+ */
+function estimateWorkoutKcal(exo, values) {
+  if (!exo || !exo.mets) return null;
+  const minutes = Number(values && values.minutes);
+  if (!(minutes > 0)) return null;
+  const { weight } = latestBodyForCalc();
+  if (!(Number(weight) > 0)) return null;
+  return Math.round(exo.mets * Number(weight) * (minutes / 60) * 1.05);
+}
+
+/** 記録行（履歴形式）から消費kcalを引き直す（保存済み値が無い旧行の表示用）。 */
+function workoutRowKcal(h) {
+  const exo = EXERCISES.find((e) => e.name === h['種目']);
+  if (!exo || !exo.mets) return null;
+  return estimateWorkoutKcal(exo, { minutes: Number(h['時間']) });
+}
+
+// ---- プロンプト生成（★ 健康データを一切含めない）----
+function buildExerciseAiPrompt(desc) {
+  return [
+    'あなたは運動生理学の調査係です。次の運動の強度を調べて、指定のJSON形式「だけ」で答えてください。',
+    `運動の内容: ${desc}`,
+    '',
+    'ルール:',
+    '- mets は METs（メッツ）値。国立健康・栄養研究所「身体活動のメッツ表」または',
+    '  Compendium of Physical Activities の値を優先し、条件（形式・強度）に最も近いものを選ぶ',
+    '- source には参照した資料の名称を書く（例: 国立健康・栄養研究所 メッツ表）。',
+    '  **URLは絶対に書かない**。施設名・店名・地名も書かない',
+    '- name は一般名詞のみ（例: バスケットボール(3on3)）。特定の施設名・地名を含めない',
+    '- kanji は種目を表す漢字1文字（例: 球・走・泳・自・筋・家）',
+    '- kind: 筋力系=strength / 有酸素=cardio / スポーツ=sport',
+    `- fields は記録時に入力する項目。次から選ぶ: ${EXO_AI_FIELD_VOCAB.join(' / ')}`,
+    '  スポーツ・有酸素は minutes を必ず含める（消費カロリー計算に必要）',
+    '- defaults は各 field の初期値（数値）',
+    '- JSON以外の文章・説明・コードフェンスを出力しない',
+    '',
+    '{"name": "バスケットボール(3on3)", "short": "バスケ3on3", "kanji": "球", "kind": "sport",',
+    ' "mets": 6.0, "fields": ["minutes"], "defaults": {"minutes": 60},',
+    ' "source": "国立健康・栄養研究所 身体活動のメッツ表"}'
+  ].join('\n');
+}
+
+/** 貼り付けJSONを厳格に検証して種目定義にする。危険な値は採用せず理由を返す。 */
+function parseAiExerciseResult(text) {
+  const raw = String(text || '');
+  const start = raw.indexOf('{');
+  if (start < 0) return { error: 'JSONが見つかりません（{ } を含む答えを貼り付けてください）' };
+  let depth = 0, end = -1;
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '{') depth++;
+    else if (raw[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (end < 0) return { error: 'JSONが閉じていません' };
+  const body = raw.slice(start, end + 1)
+    .replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/,\s*}/g, '}');
+  let data;
+  try { data = JSON.parse(body); } catch (e) { return { error: `JSONを読めませんでした: ${e.message}` }; }
+
+  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  const name = str(data.name);
+  if (!name) return { error: '種目名（name）がありません' };
+  // [R-1] URL・固有地名は採用しない。警告に本体を出さない（機微をログ・画面に残さない）
+  if (EXO_URL_RE.test(name) || EXO_URL_RE.test(str(data.short))) {
+    return { error: '種目名にURLが含まれています。AIの答えを確認してください' };
+  }
+  if (EXO_PLACE_RE.test(name) || EXO_PLACE_RE.test(str(data.short))) {
+    return { error: '種目名に施設名・地名らしい語が含まれています。一般名だけに直してください' };
+  }
+  const mets = Number(data.mets);
+  if (!Number.isFinite(mets) || mets < 0.5 || mets > 20) {
+    return { error: 'METs値が正しくありません（0.5〜20の数値が必要）' };
+  }
+  const fields = Array.isArray(data.fields)
+    ? data.fields.filter((f) => EXO_AI_FIELD_VOCAB.includes(f)) : [];
+  if (!fields.length) return { error: '入力項目（fields）が読み取れませんでした' };
+  const kind = EXO_AI_KIND_VOCAB.includes(data.kind) ? data.kind : 'sport';
+  if ((kind === 'sport' || kind === 'cardio') && !fields.includes('minutes')) fields.unshift('minutes');
+  // defaults: 既知フィールドの有限数だけ採る（[R-3]）
+  const defaults = {};
+  const rawDef = (data.defaults && typeof data.defaults === 'object') ? data.defaults : {};
+  fields.forEach((f) => {
+    const v = Number(rawDef[f]);
+    defaults[f] = Number.isFinite(v) ? v : (FIELD[f] ? (FIELD[f].min || 0) : 0);
+  });
+  // source: URL を含むなら丸ごと捨てる（★7・011 の CHECK に到達させない）
+  let source = str(data.source).slice(0, 120);
+  if (EXO_URL_RE.test(source)) source = '';
+  const kanjiRaw = str(data.kanji);
+  return {
+    name: name.slice(0, 40),
+    short: (str(data.short) || name).slice(0, 16),
+    kanji: kanjiRaw.length === 1 ? kanjiRaw : '運',
+    kind, mets, fields, defaults, source
+  };
+}
+
+/** 表示名から安定した client_key を作る（冪等キー。同じ種目の再登録で2行に割れない）。 */
+function exerciseClientKey(name) {
+  const slug = String(name).toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  return slug || ('exo-' + Date.now().toString(36));
+}
+// 起動時に控えから即復元（オフラインでも追加済みの種目が消えない。サーバー取得は後から上書き）
+applyExerciseTypes(loadExerciseTypesCache());
+// ================= /SPEC-024 =================
 
 function loadExoValues(exo) {
   const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
@@ -3947,9 +4155,12 @@ function renderExoGrid() {
     const ago = agoMap[e.id];
     const gap = (ago != null && ago >= 10) ? `<span class="gap">${ago}日</span>` : '';
     return `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}">
-      <span class="kj" style="background:${e.color}">${e.kanji}</span><span class="sn">${e.short}</span>${gap}
+      <span class="kj" style="background:${e.color}">${escapeHtml(e.kanji)}</span><span class="sn">${escapeHtml(e.short)}</span>${gap}
     </button>`;
-  }).join('');
+  // SPEC-024: 末尾に「＋運動を追加」（種目を探している場所で目に入るのが自然・マネージャー選択）
+  }).join('') + `<button class="exo-chip exo-add" data-exo-add="1" type="button">
+      <span class="kj" style="background:#7d8ba1">＋</span><span class="sn">運動を追加</span>
+    </button>`;
   const recoEl = $('#exoReco');
   if (recoEl) {
     // 筋トレ種目（重量あり）のうち最も空いているものを1つだけおすすめする
@@ -4026,6 +4237,17 @@ function renderExoCard() {
   const exo = exoById(state.exoId);
   renderProgressionCard();
   $('#exoTitle').textContent = exo.name;
+  // SPEC-024: METs を持つ種目は、入力中の時間から消費kcalの目安を出す（参考表示のみ）
+  const kcalEl = $('#exoKcalNote');
+  if (kcalEl) {
+    if (!exo.mets) kcalEl.innerHTML = '';
+    else {
+      const kcal = estimateWorkoutKcal(exo, state.exoValues);
+      kcalEl.innerHTML = kcal != null
+        ? `消費カロリーの目安: <b>約${kcal} kcal</b>（参考値。食事の目標には足していません）`
+        : '消費カロリーの目安: <b>—</b>（体重が未同期のため計算できません）';
+    }
+  }
   $('#exoFields').innerHTML = exo.fields.map((f) => {
     const meta = FIELD[f];
     const v = state.exoValues[f];
@@ -4053,6 +4275,9 @@ function renderWorkoutToday() {
     if (h['セット数']) parts.push(`${h['セット数']}set`);
     if (h['時間']) parts.push(`${h['時間']}分`);
     if (h['距離']) parts.push(`${h['距離']}km`);
+    // SPEC-024: 消費kcalは「参考」と明示して出す（摂取目標には足していない）
+    const kcal = (h._estKcal != null) ? Number(h._estKcal) : workoutRowKcal(h);
+    if (kcal != null && kcal > 0) parts.push(`<span style="color:var(--muted)">約${kcal}kcal</span>`);
     const time = h._ts ? new Date(h._ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
     // 誤送信の削除・修正（2026-07-19）: 本文タップ=値を入力欄へ読込 / ×=この行を削除（サーバー含む）
     return `<div class="log-row">
@@ -4083,6 +4308,10 @@ function buildWorkoutRecord() {
     負荷: exo.id === 'run' ? calculateRunLoad(v) : exo.id === 'abs' ? calculateAbsLoad(v) : '',
     _ts: Date.now(),
     _exerciseId: exo.id,
+    // SPEC-024: AI登録種目は client_key と消費kcal（記録時点スナップショット）を持たせる。
+    // kcal は参考表示のみ・摂取目標には足さない（二重カウント防止）。
+    _exerciseKey: exo.isCustom ? exo.clientKey : null,
+    _estKcal: estimateWorkoutKcal(exo, v),
     _values: { ...v }
   };
 }
@@ -5487,6 +5716,7 @@ function initSupabaseAuth() {
         // ログイン完了時の再送トリガ（SPEC-012 実装方針4）＋ カタログ・設定の同期
         flushSbQueueAndRender();
         refreshFoodsCatalog();
+        refreshExerciseTypes().then(() => { renderExoGrid(); });   // SPEC-024
         promoteLocalFoodStores().catch(() => {});
         maybeAutoSyncFromServer();
       }
@@ -5501,6 +5731,7 @@ function initSupabaseAuth() {
       // 起動時の再送トリガ（SPEC-012 実装方針4）＋ カタログ同期・昇格（初回のみ）
       flushSbQueueAndRender();
       refreshFoodsCatalog();
+      refreshExerciseTypes().then(() => { renderExoGrid(); });   // SPEC-024
       promoteLocalFoodStores().catch(() => {});
     }
   }).catch(() => {
@@ -6967,6 +7198,7 @@ $('#workoutTodayList').addEventListener('click', (e) => {
 
 // 運動
 $('#exoGrid').addEventListener('click', (e) => {
+  if (e.target.closest('[data-exo-add]')) { openExoAdd(); return; }   // SPEC-024
   const chip = e.target.closest('[data-exo]');
   if (!chip) return;
   state.exoId = chip.dataset.exo;
@@ -6983,6 +7215,113 @@ $('#exoFields').addEventListener('click', (e) => {
 });
 $('#saveWorkoutBtn').addEventListener('click', saveWorkout);
 $('#sendWorkoutBtn').addEventListener('click', sendWorkoutDrafts);
+
+// ---- 運動をAIで追加（SPEC-024）----
+let exoAddParsed = null;
+function openExoAdd() {
+  exoAddParsed = null;
+  $('#exoDesc').value = '';
+  $('#exoResultPaste').value = '';
+  $('#exoPreview').innerHTML = '';
+  $('#exoSaveBtn').disabled = true;
+  renderExoCustomList();
+  $('#exoAddBack').classList.add('show');
+}
+function renderExoCustomList() {
+  const custom = EXERCISES.filter((e) => e.isCustom);
+  $('#exoCustomList').innerHTML = custom.length
+    ? custom.map((e) => `<div class="log-row"><span class="desc"><b>${escapeHtml(e.kanji)} ${escapeHtml(e.name)}</b>　${e.mets ? e.mets + ' METs' : ''}</span>
+        <button class="log-del" data-exo-del="${escapeHtml(e.clientKey)}" type="button" aria-label="この運動を削除">×</button></div>`).join('')
+    : 'まだありません';
+}
+$('#exoDescChips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-exo-eg]');
+  if (!b) return;
+  $('#exoDesc').value = b.dataset.exoEg;
+  haptic(6);
+});
+$('#exoCopyPromptBtn').addEventListener('click', async () => {
+  const desc = $('#exoDesc').value.trim();
+  if (!desc) { showToast('先にやる運動の内容を書いてください'); return; }
+  const prompt = buildExerciseAiPrompt(desc);
+  try {
+    await navigator.clipboard.writeText(prompt);
+    showToast('コピーしました。AIアプリに貼り付けてください');
+  } catch (err) {
+    $('#exoResultPaste').value = prompt;
+    $('#exoResultPaste').select();
+    showToast('コピーできなかったため下の欄に表示しました。全選択してコピーしてください');
+  }
+});
+$('#exoImportBtn').addEventListener('click', () => {
+  const parsed = parseAiExerciseResult($('#exoResultPaste').value);
+  if (parsed.error) {
+    exoAddParsed = null;
+    $('#exoSaveBtn').disabled = true;
+    $('#exoPreview').innerHTML = '';
+    showToast(parsed.error, 'error');
+    return;
+  }
+  exoAddParsed = parsed;
+  const { weight } = latestBodyForCalc();
+  const mins = parsed.defaults.minutes;
+  const kcal = (mins > 0 && Number(weight) > 0)
+    ? Math.round(parsed.mets * Number(weight) * (mins / 60) * 1.05) : null;
+  const kcalLine = mins > 0
+    ? (kcal != null ? `　目安: ${mins}分で約 <b>${kcal} kcal</b>` : '　（体重が未同期のため消費kcalは出せません）')
+    : '';
+  const fieldLabels = parsed.fields.map((f) => (FIELD[f] ? FIELD[f].label : f)).join(' / ');
+  $('#exoPreview').innerHTML = `<b>${escapeHtml(parsed.kanji)} ${escapeHtml(parsed.name)}</b>
+    （${parsed.mets} METs）<br>入力する項目: ${escapeHtml(fieldLabels)}${kcalLine}
+    <br>出典: ${escapeHtml(parsed.source || '記載なし')}`;
+  $('#exoSaveBtn').disabled = false;
+  showToast('読み取りました。内容を確認して追加してください');
+});
+$('#exoSaveBtn').addEventListener('click', async () => {
+  if (!exoAddParsed) return;
+  const p = exoAddParsed;
+  const loadParams = {};
+  Object.keys(p.defaults).forEach((f) => { loadParams['default_' + f] = p.defaults[f]; });
+  const row = {
+    client_key: exerciseClientKey(p.name),
+    name: p.name, short: p.short, kanji: p.kanji, kind: p.kind,
+    fields: p.fields, mets: p.mets, load_params: loadParams,
+    source: p.source || null, verified: false
+  };
+  try {
+    const sb = await window.HSSupabaseReady;
+    await sb.upsertExerciseType(row);
+    await refreshExerciseTypes();
+    renderExoGrid(); renderExoCustomList();
+    $('#exoSaveBtn').disabled = true;
+    exoAddParsed = null;
+    $('#exoDesc').value = ''; $('#exoResultPaste').value = ''; $('#exoPreview').innerHTML = '';
+    showToast(`「${p.name}」を追加しました。種目一覧から選べます`);
+    haptic(10);
+  } catch (err) {
+    // オフライン等。種目マスタはサーバーが正なので、キューには積まず明示的に失敗を伝える
+    showToast('追加できませんでした（通信を確認してもう一度お試しください）', 'error');
+  }
+});
+$('#exoCustomList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-exo-del]');
+  if (!b) return;
+  const key = b.dataset.exoDel;
+  try {
+    const sb = await window.HSSupabaseReady;
+    await sb.setExerciseTypeArchived(key, true);
+    if (state.exoId === 'exo:' + key) {
+      state.exoId = BUILTIN_EXERCISES[0].id;
+      lsSet(LS_KEYS.WT_SELECTED, state.exoId);
+      state.exoValues = loadExoValues(exoById(state.exoId));
+    }
+    await refreshExerciseTypes();
+    renderExoGrid(); renderExoCard(); renderExoCustomList();
+    showToast('削除しました（過去の記録は残ります）');
+  } catch (err) {
+    showToast('削除できませんでした（通信を確認してください）', 'error');
+  }
+});
 
 // からだ
 document.querySelectorAll('[data-body]').forEach((b) => {
