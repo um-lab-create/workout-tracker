@@ -154,14 +154,13 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .kcal-line .u { font-size: 12px; color: var(--muted); font-weight: 700; }
 .kcal-line.over b { color: var(--red); }
 .kcal-sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
-.macro-bars { margin-top: 8px; display: grid; gap: 5px; }
-.mb { display: grid; grid-template-columns: 15px 1fr 74px; gap: 8px; align-items: center; }
+.macro-bars { margin-top: 9px; display: grid; gap: 7px; }
+.mb { display: grid; grid-template-columns: 15px 1fr; gap: 8px; align-items: center; }
 .mb .k { font-size: 11px; font-weight: 800; color: var(--muted); }
-.mb .bar { height: 7px; border-radius: 4px; background: #f4ead9; overflow: hidden; }
+.mb .bar { height: 8px; border-radius: 4px; background: #f4ead9; overflow: hidden; }
 .mb .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width .4s ease; }
 .mb .bar i.ok { background: var(--green); }
 .mb .bar i.over { background: var(--red); }
-.mb .v { font-size: 10.5px; color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .train-row { display: flex; gap: 8px; margin-top: 10px; }
 .train-chip {
@@ -204,17 +203,34 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .ic.bd { background: var(--green-soft); color: var(--green); }
 
 /* ---------- Phase D: 次の一手カード・ミニトレンド ---------- */
-.next-move { margin-top: 10px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; padding: 11px 14px; }
+.next-move { margin-top: 10px; display: flex; align-items: center; gap: 11px; text-align: left; width: 100%; padding: 12px 14px; background: var(--accent-soft, #ffefdd); }
 .next-move:active { transform: scale(.98); }
-.next-move .nm-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.next-move .nm-kicker { font-size: 9.5px; font-weight: 900; color: var(--accent-deep, #b35c12); letter-spacing: .08em; }
-.next-move .nm-title { font-size: 14px; font-weight: 800; line-height: 1.35; }
-.next-move .nm-sub { font-size: 11px; color: var(--muted); line-height: 1.45; }
-.next-move .nm-cta { flex: none; border-radius: 999px; padding: 6px 12px; background: var(--accent-soft, #ffe9d6); color: var(--accent-deep, #b35c12); font-size: 11px; font-weight: 900; white-space: nowrap; }
-.next-move.good .nm-kicker, .next-move.good .nm-cta { color: var(--green); }
-.next-move.good .nm-cta { background: var(--green-soft); }
-.next-move.warn .nm-kicker, .next-move.warn .nm-cta { color: #c98a00; }
-.next-move.warn .nm-cta { background: #fff3d6; }
+.next-move .nm-ic { flex: none; width: 34px; height: 34px; border-radius: 11px; background: var(--accent, #ff8a2a); color: #fff; display: grid; place-items: center; font-size: 17px; font-weight: 800; }
+.next-move .nm-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.next-move .nm-title { font-size: 15px; font-weight: 800; line-height: 1.3; color: var(--accent-deep, #f07300); }
+.next-move .nm-sub { font-size: 11px; color: var(--muted); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.next-move .nm-cta { flex: none; color: var(--accent-deep, #f07300); font-size: 20px; font-weight: 900; }
+.next-move.good { background: var(--green-soft); }
+.next-move.good .nm-ic { background: var(--green); }
+.next-move.good .nm-title, .next-move.good .nm-cta { color: var(--green); }
+.next-move.warn { background: #fff3d6; }
+.next-move.warn .nm-ic { background: #e4a23a; }
+.next-move.warn .nm-title, .next-move.warn .nm-cta { color: #c98a00; }
+
+/* ③ きょうの記録タイル（食/運/体/水）。済み=緑チェック・未=控えめ */
+.today-tiles { display: flex; gap: 8px; margin-top: 10px; }
+.rec-tile { flex: 1; min-width: 0; position: relative; background: var(--card); border-radius: 13px; box-shadow: var(--shadow); padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: transform .08s ease; }
+.rec-tile:active { transform: scale(.95); }
+.rec-tile .ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 17px; font-weight: 800; background: #f4ead9; color: var(--muted); }
+.rec-tile.done .ic { background: var(--green-soft); color: var(--green); }
+.rec-tile .lb { font-size: 10.5px; color: var(--muted); font-weight: 700; }
+.rec-tile .st { font-size: 11px; font-weight: 800; color: var(--ink); min-height: 13px; font-variant-numeric: tabular-nums; }
+.rec-tile.done .st { color: var(--green); }
+.rec-tile .chk { position: absolute; top: 5px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--green); color: #fff; display: none; place-items: center; font-size: 11px; font-weight: 900; }
+.rec-tile.done .chk { display: grid; }
+
+/* 送信待ちの帯 */
+.sync-banner { width: 100%; margin-top: 8px; padding: 8px 12px; border-radius: 11px; background: var(--red-soft, #fdecec); color: var(--red, #ef6461); font-size: 12px; font-weight: 700; text-align: center; }
 .ht-spark { width: 100%; height: 26px; display: block; margin-top: 2px; }
 .week-stats .ws-line { display: flex; gap: 6px; margin-top: 8px; }
 .week-stats .wsc { flex: 1; text-align: center; font-size: 10px; font-weight: 800; color: var(--muted); background: rgba(125,95,60,.06); border-radius: 8px; padding: 5px 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -234,21 +250,18 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   flex: none; border-radius: 999px; padding: 4px 8px; background: #fff; color: var(--accent-deep);
   font-size: 10px; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(31,91,75,.12);
 }
-.week-card { margin-top: 8px; padding: 12px 14px; }
-.week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.week-card { margin-top: 8px; padding: 13px 14px; }
+.week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 3px; }
 .wd {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  font-size: 9.5px; color: var(--muted); font-weight: 700; padding: 2px 0;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 10px; color: var(--muted); font-weight: 700; padding: 2px 0;
 }
-.wd .dn {
-  width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center;
-  font-size: 11.5px; font-weight: 800; background: var(--bg); color: #cdc4b0;
-  font-variant-numeric: tabular-nums;
-}
-.wd.meal .dn { background: var(--accent-soft); color: var(--accent-deep); }
-.wd.today .dn { box-shadow: inset 0 0 0 2px var(--accent); }
-.wd .tri { width: 6px; height: 6px; border-radius: 2px; background: transparent; }
-.wd.strength .tri { background: var(--blue); }
+/* 曜日は色の丸で。緑=記録あり・オレンジ枠=今日（数字は省いて視認性優先） */
+.wd .dot { width: 22px; height: 22px; border-radius: 50%; background: #f0e4d0; box-sizing: border-box; }
+.wd.meal .dot { background: var(--green); }
+.wd.today .dot { background: transparent; border: 2px solid var(--accent); }
+.wd.today.meal .dot { background: var(--green); border-color: var(--accent); }
+.wd.today { color: var(--accent-deep); }
 .week-stats { display: flex; gap: 6px; margin-top: 10px; }
 .ws { flex: 1; background: var(--bg); border-radius: 12px; padding: 7px 4px 6px; text-align: center; }
 .ws b { font-size: 15px; font-variant-numeric: tabular-nums; }
@@ -1131,6 +1144,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
   <!-- ============ ホーム ============ -->
   <section class="view" id="view-home">
+    <!-- ① 主役: スコア + 残kcal + PFCバー（数字を削り色で伝える。2026-07-24 見やすさ改修） -->
     <div class="card hero">
       <div class="ring-wrap" id="scoreRingWrap" role="button" aria-label="スコアの内訳を見る">
         <svg width="92" height="92" viewBox="0 0 92 92">
@@ -1142,57 +1156,54 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       </div>
       <div class="hero-right">
         <div class="kcal-line" id="kcalLine"><b id="kcalRemain">–</b><span class="u" id="kcalRemainUnit">kcal 残り</span></div>
-        <div class="kcal-sub" id="kcalSub"></div>
         <div class="macro-bars">
-          <div class="mb"><span class="k">P</span><span class="bar"><i id="barP"></i></span><span class="v" id="valP"></span></div>
-          <div class="mb"><span class="k">F</span><span class="bar"><i id="barF"></i></span><span class="v" id="valF"></span></div>
-          <div class="mb"><span class="k">C</span><span class="bar"><i id="barC"></i></span><span class="v" id="valC"></span></div>
+          <div class="mb"><span class="k">P</span><span class="bar"><i id="barP"></i></span></div>
+          <div class="mb"><span class="k">F</span><span class="bar"><i id="barF"></i></span></div>
+          <div class="mb"><span class="k">C</span><span class="bar"><i id="barC"></i></span></div>
         </div>
       </div>
     </div>
     <!-- スコアの内訳（リングをタップでその場に開く。数字への納得感=監査 2-1） -->
     <div class="card score-pop" id="scorePop" hidden></div>
-    <!-- 次の一手（Phase D-1: コーチ一言+筋トレ日ボタンを統合した行動カード） -->
+
+    <!-- ② 次の一手（アイコン + 一言。説明文は畳んだ） -->
     <button class="card next-move" id="nextMoveCard" type="button">
+      <span class="nm-ic" id="nmIcon" aria-hidden="true">→</span>
       <span class="nm-body">
-        <span class="nm-kicker">次の一手</span>
         <span class="nm-title" id="nmTitle">–</span>
         <span class="nm-sub" id="nmSub"></span>
       </span>
       <span class="nm-cta" id="nmCta">→</span>
     </button>
 
-    <div class="status-grid">
-      <button class="status-card" id="homeWaterCard">
-        <span class="cap">水分</span><span class="val" id="homeWaterVal">0.0L</span><span class="sub" id="homeWaterSub">目標 1.2L</span>
+    <!-- ③ きょうの記録: 食/運/体/水 を漢字アイコンに集約。済み=緑チェック -->
+    <div class="today-tiles" id="todayTiles">
+      <button class="rec-tile" id="tileMeal" data-rec="meal" aria-label="食事を記録">
+        <span class="chk" aria-hidden="true">✓</span>
+        <span class="ic food">食</span><span class="lb">食事</span><span class="st" id="tileMealSt"></span>
       </button>
-      <button class="status-card" id="homeSyncCard">
-        <span class="cap">送信</span><span class="val" id="homeSyncVal">0件</span><span class="sub" id="homeSyncSub">待機なし</span>
+      <button class="rec-tile" id="tileWorkout" data-rec="workout" aria-label="運動を記録">
+        <span class="chk" aria-hidden="true">✓</span>
+        <span class="ic wk">運</span><span class="lb">運動</span><span class="st" id="tileWorkoutSt"></span>
+      </button>
+      <button class="rec-tile" id="tileBody" data-rec="body" aria-label="からだを記録">
+        <span class="chk" aria-hidden="true">✓</span>
+        <span class="ic bd">体</span><span class="lb">からだ</span><span class="st" id="tileBodySt"></span>
+      </button>
+      <button class="rec-tile" id="tileWater" data-rec="water" aria-label="水分を記録">
+        <span class="chk" aria-hidden="true">✓</span>
+        <span class="ic wt">水</span><span class="lb">水分</span><span class="st" id="tileWaterSt"></span>
       </button>
     </div>
+    <!-- 送信待ちがある時だけ出る細い帯（平常時は消す） -->
+    <button class="sync-banner" id="homeSyncCard" type="button" style="display:none">
+      <span id="homeSyncVal">0件</span>の送信待ち・<span id="homeSyncSub">タップで再送</span>
+    </button>
 
-    <div class="section-label">食事をつける</div>
-    <div class="meal-grid" id="homeMealGrid"></div>
-
-    <!-- ミニトレンドは iPhone で窮屈なため分析タブへ移設（2026-07-13 マネージャー指示） -->
-
+    <!-- ④ 今週: 曜日を色の丸で。詳細はタップで分析へ -->
     <div class="card week-card" id="weekCard">
       <div class="week-days" id="weekDays"></div>
       <div class="week-stats" id="weekStats"></div>
-    </div>
-
-    <div class="section-label" id="homeTodayLabel">きょうの記録</div>
-    <div class="row2" id="homeTodayRow">
-      <button class="card mini-card" id="homeWorkoutCard">
-        <span class="head"><span class="ic wk">運</span>運動</span>
-        <span class="big" id="homeWorkoutBig">–</span>
-        <span class="sub" id="homeWorkoutSub"></span>
-      </button>
-      <button class="card mini-card" id="homeBodyCard">
-        <span class="head"><span class="ic bd">体</span>からだ</span>
-        <span class="big" id="homeBodyBig">–</span>
-        <span class="sub" id="homeBodySub"></span>
-      </button>
     </div>
   </section>
 
@@ -3332,7 +3343,7 @@ function showHydration() { return Boolean(lsGet(SHOW_HYDRATION_KEY, false)); }
 function applyHydrationVisibility() {
   const on = showHydration();
   if ($('#hydrationCard')) $('#hydrationCard').style.display = on ? '' : 'none';
-  if ($('#homeWaterCard')) $('#homeWaterCard').style.display = on ? '' : 'none';
+  if ($('#tileWater')) $('#tileWater').style.display = on ? '' : 'none';
 }
 function hydrationForDate(dateStr = state.date) {
   const all = lsGet(LS_KEYS.HYDRATION_RECORDS, {}) || {};
@@ -3359,8 +3370,12 @@ function renderHydration() {
   const targetL = (target / 1000).toFixed(1);
   if ($('#waterLabel')) $('#waterLabel').textContent = `${liters} / ${targetL}L`;
   if ($('#waterFill')) $('#waterFill').style.width = `${Math.min(100, total / target * 100)}%`;
-  if ($('#homeWaterVal')) $('#homeWaterVal').textContent = `${liters}L`;
-  if ($('#homeWaterSub')) $('#homeWaterSub').textContent = `目標 ${targetL}L${rec.synced ? ' / 送信済み ✓' : ''}`;
+  // ホームの水分タイル（見やすさ改修）: 記録があれば済み・リットル表示
+  if ($('#tileWater')) {
+    $('#tileWater').classList.toggle('done', total > 0);
+    const st = $('#tileWaterSt');
+    if (st) st.textContent = total > 0 ? `${liters}L` : '';
+  }
 }
 function addHydration(ml, label) {
   const rec = hydrationForDate();
@@ -3552,10 +3567,11 @@ function renderWeekCard() {
   const week = weekDatesOf(state.date);
   const strength = strengthDatesSet();
   const today = todayStr();
+  // 見やすさ改修: 曜日を色の丸で表す（緑=食事記録あり / オレンジ枠=今日）。日付数字は省く
   $('#weekDays').innerHTML = week.map((d, i) => {
     const hasMeal = Boolean(dayMealTotals(d));
     const cls = [hasMeal ? 'meal' : '', strength[d] ? 'strength' : '', d === today ? 'today' : ''].join(' ');
-    return `<div class="wd ${cls}"><span>${WEEKDAYS_MON[i]}</span><span class="dn">${Number(d.slice(8))}</span><span class="tri"></span></div>`;
+    return `<div class="wd ${cls}"><span class="dot"></span><span>${WEEKDAYS_MON[i]}</span></div>`;
   }).join('');
   const strengthCount = week.filter((d) => strength[d]).length;
   const pfcDays = week.filter((d) => d <= today && isPfcAchieved(d)).length;
@@ -3735,7 +3751,10 @@ function renderNextMove(totals, targets, perTiming) {
   $('#nmTitle').textContent = move.title;
   $('#nmSub').textContent = move.sub;
   $('#nmSub').style.display = move.sub ? '' : 'none';
-  $('#nmCta').textContent = move.cta;
+  // 見やすさ改修: 行動の分野を漢字アイコンで示し、右は矢印だけに（動詞テキストは畳んだ）
+  const iconMap = { meal: '食', fill: '食', add: '食', workout: '運', nutrition: '栄', weekly: '週' };
+  $('#nmIcon').textContent = iconMap[String(move.action).split(':')[0]] || '→';
+  $('#nmCta').textContent = '→';
 }
 
 // ミニトレンド描画 miniSpark は js/charts.js へ切り出し（監査 9-1）
@@ -3799,16 +3818,13 @@ function renderHome() {
     $('#kcalRemain').textContent = fmtNum(-remain);
     $('#kcalRemainUnit').textContent = 'kcal オーバー';
   }
-  $('#kcalSub').textContent = `摂取 ${fmtNum(totals.energy)} / 目標 ${fmtNum(targets.energy)} kcal${targets.dayType === 'training' ? '（筋トレ日 +C）' : ''}`;
-
-  // PFCバー
+  // PFCバー（見やすさ改修: 数字を消して色だけで伝える。緑=足りている/オレンジ=まだ/赤=過剰）
   [['P', 'protein'], ['F', 'fat'], ['C', 'carb']].forEach(([k, key]) => {
     const v = totals[key], t = targets[key] || 1;
     const ratio = v / t;
     const bar = $(`#bar${k}`);
     bar.style.width = `${Math.min(100, ratio * 100)}%`;
     bar.className = ratio > 1.2 ? 'over' : (ratio >= 0.8 ? 'ok' : '');
-    $(`#val${k}`).textContent = `${Math.round(v)} / ${Math.round(t)}g`;
   });
 
   // 筋トレ日トグル
@@ -3824,63 +3840,56 @@ function renderHome() {
   renderHydration();
   renderSyncStatus();
 
-  // 食事グリッド
-  $('#homeMealGrid').innerHTML = TIMING_KEYS.map((tk) => {
-    const info = perTiming[tk];
-    const done = info.recorded;
-    const kc = info.kcal > 0
-      ? `<span class="kc">${fmtNum(info.kcal)}</span>`
-      : '<span class="kc empty">＋</span>';
-    // 未記録セルに「いつもの候補あり」を示す（タップで自動プリフィル。2026-07-16）
-    const hasUsual = !done && !info.draft && state.date === todayStr()
-      && (() => { const u = usualMealFor(tk, state.date); return u && u.count >= 3; })();
-    // Phase C 変更指示書#1: 下書きのセルに draft クラス（状態言語「下書き=琥珀リング」）
-    return `<button class="meal-cell ${done ? 'done' : ''}${!done && info.draft ? ' draft' : ''}" data-meal-timing="${tk}">
-      <span class="t">${TIMINGS[tk].label}</span>${kc}
-      <span class="lbl">${done ? '記録済み' : (info.draft ? '下書き' : (hasUsual ? 'いつもの候補' : 'kcal'))}</span>
-    </button>`;
-  }).join('');
+  // ③ きょうの記録タイル（食/運/体/水）を状態表示。文字を読まず色とチェックで進捗が分かる
+  renderTodayTiles(totals);
+}
 
-  // 運動サマリー
+/** いまの時刻から妥当な食事タイミングを1つ選ぶ（食事タイルのタップ先。見やすさ改修）。 */
+function currentTimingByClock() {
+  const h = new Date().getHours();
+  return h < 10 ? 'morning' : h < 14 ? 'lunch' : h < 21 ? 'dinner' : 'snack';
+}
+/** 食/運/体/水 の4タイルに「済み(緑チェック)」と小さな数値を出す（見やすさ改修 2026-07-24）。 */
+function renderTodayTiles(totals) {
+  const setTile = (id, done, stat) => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.classList.toggle('done', Boolean(done));
+    const st = el.querySelector('.st');
+    if (st) st.textContent = stat || '';
+  };
+  // 食事: 何か食べていれば済み。数値は今日の摂取kcal
+  setTile('tileMeal', totals.energy > 0, totals.energy > 0 ? `${fmtNum(Math.round(totals.energy))}` : '');
+
+  // 運動: 今日の記録件数（送信済み+未送信下書き）
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
   const todayLogs = history.filter((h) => h['日付'] === state.date);
   const draftCount = (state.workoutDrafts || []).filter((h) => h['日付'] === state.date).length;
-  if (todayLogs.length || draftCount) {
-    const names = [...new Set(todayLogs.map((h) => h['種目']))];
-    $('#homeWorkoutBig').textContent = `${todayLogs.length}件`;
-    $('#homeWorkoutSub').textContent = `${names.slice(0, 3).join('・') || '送信予定'}${draftCount ? ` / 送信予定${draftCount}` : ''}`;
-  } else {
-    $('#homeWorkoutBig').textContent = '未記録';
-    $('#homeWorkoutSub').textContent = 'タップして記録';
-  }
+  const wkCount = todayLogs.length + draftCount;
+  setTile('tileWorkout', wkCount > 0, wkCount > 0 ? `${wkCount}件` : '');
 
-  // からだサマリー（サーバー測定=タニタ等が手入力より新しければそちらを表示）
+  // からだ: 今日測ったら済み・体重を表示。古い測定は「済み」にしない
   const bodyRecs = (lsGet(LS_KEYS.BODY_RECORDS, []) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = bodyRecs[0];
   const serverLatest = (typeof bodyServerRows === 'function' ? bodyServerRows() : [])[0] || null;
   const serverDate = serverLatest ? bodyRowJst(serverLatest).date : '';
-  // 古い測定値が「今日の値」の顔をしないよう、4日以上前は日付を注意色で見せる（監査 2-3）
-  const bodySub = (fatText, dateStr) => {
-    const ago = daysBetween(dateStr, todayStr());
-    const dateHtml = ago >= 4
-      ? `<span style="color:var(--warn-ink,#c98a00);font-weight:700">${fmtDateLabel(dateStr)}（${ago}日前）</span>`
-      : fmtDateLabel(dateStr);
-    return `体脂肪 ${fatText}%・${dateHtml}`;
-  };
-  if (serverLatest && serverLatest.weight_kg != null && (!latest || serverDate >= String(latest.date))) {
-    $('#homeBodyBig').textContent = `${Number(serverLatest.weight_kg).toFixed(1)} kg`;
-    $('#homeBodySub').innerHTML = bodySub(serverLatest.body_fat_pct != null ? Number(serverLatest.body_fat_pct).toFixed(1) : '–', serverDate);
-  } else if (latest) {
-    $('#homeBodyBig').textContent = `${latest.weight || '–'} kg`;
-    $('#homeBodySub').innerHTML = bodySub(escapeHtml(String(latest.fat || '–')), String(latest.date));
-  } else {
-    $('#homeBodyBig').textContent = '未記録';
-    $('#homeBodySub').textContent = 'タップして記録';
+  const bodyToday = serverDate === todayStr() || (latest && String(latest.date) === todayStr());
+  let bodyStat = '';
+  if (bodyToday) {
+    bodyStat = serverDate === todayStr() && serverLatest && serverLatest.weight_kg != null
+      ? `${Number(serverLatest.weight_kg).toFixed(1)}` : (latest ? `${latest.weight || ''}` : '');
   }
+  setTile('tileBody', bodyToday, bodyStat);
 
-  // Phase D-2: 今日の運動・からだが両方済みならこの段はトレンドに役割を譲って非表示
-  const bodyDoneToday = serverDate === todayStr() || (latest && String(latest.date) === todayStr());
-  const workoutDoneToday = Boolean(todayLogs.length || draftCount);
+  // 水分: 記録があれば済み・リットル表示（水分機能OFFのときはタイル自体を隠す）
+  if (typeof showHydration === 'function' && !showHydration()) {
+    if ($('#tileWater')) $('#tileWater').style.display = 'none';
+  } else {
+    if ($('#tileWater')) $('#tileWater').style.display = '';
+    const rec = hydrationForDate();
+    const total = hydrationTotal(rec);
+    setTile('tileWater', total > 0, total > 0 ? `${(total / 1000).toFixed(1)}L` : '');
+  }
 }
 
 // スコアの内訳ポップ（分析タブの判定ロジックを流用してその場に出す。監査 2-1）
@@ -4475,7 +4484,10 @@ function bodyServerRows() {
 }
 /** measured_at(UTC) → JST の日付・時刻（端末TZに依存しない） */
 function bodyRowJst(row) {
-  const iso = new Date(new Date(row.measured_at).getTime() + 9 * 3600 * 1000).toISOString();
+  // [fix] measured_at 欠落・不正日付でも例外にしない（1行の破損でホーム全体が落ちるのを防ぐ）
+  const t = row && row.measured_at ? new Date(row.measured_at).getTime() : NaN;
+  if (!Number.isFinite(t)) return { date: '', time: '' };
+  const iso = new Date(t + 9 * 3600 * 1000).toISOString();
   return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
 }
 let bodyServerFetchedAt = 0;
@@ -6721,10 +6733,9 @@ window.addEventListener('scroll', () => { if ($('#ctxBack').classList.contains('
 document.querySelectorAll('#recordMenuBack [data-record="meal"], #recordMenuBack [data-record="workout"]').forEach((el) => {
   bindLongPress(el, () => openSubMenu(el.dataset.record, el));
 });
-// ホームの食事セルも長押しで同じメニュー（押したセルの時間帯で「いつもの」を出す）
-bindLongPress($('#homeMealGrid'), (target) => {
-  const cell = target && target.closest ? target.closest('[data-meal-timing]') : null;
-  openSubMenu('meal', cell || $('#homeMealGrid'), cell ? cell.dataset.mealTiming : null);
+// ホームの食事タイルも長押しで同じメニュー（いまの時刻の時間帯で「いつもの」を出す。見やすさ改修）
+bindLongPress($('#tileMeal'), () => {
+  openSubMenu('meal', $('#tileMeal'), currentTimingByClock());
 });
 $('#eufyImportBtn').addEventListener('click', () => $('#eufyCsvInput').click());
 $('#eufyCsvInput').addEventListener('change', async (e) => {
@@ -6786,15 +6797,13 @@ $('#trainToggle').addEventListener('click', () => {
   } catch (e) {}
   renderHome();
 });
-$('#homeMealGrid').addEventListener('click', (e) => {
-  const cell = e.target.closest('[data-meal-timing]');
-  if (!cell) return;
-  const tk = cell.dataset.mealTiming;
+// ③ きょうの記録タイル: タップで各記録画面へ（見やすさ改修 2026-07-24）
+$('#tileMeal').addEventListener('click', () => {
+  // 記録の摩擦を下げる（2026-07-16）: その時間帯の「いつもの」が3回以上の強い常習で、
+  // かつ下書きも空なら、自動でプリフィルする（保存はしない＝確認だけ）。
+  const tk = currentTimingByClock();
   state.timing = tk;
   loadMealFor(state.date, tk);
-  // 記録の摩擦を下げる（2026-07-16）: 未記録セルをタップし、その時間帯の「いつもの」が
-  // 3回以上の強い常習で、かつ下書きも空なら、自動でプリフィルする（保存はしない＝確認だけ）。
-  // 朝食（毎回ほぼ同じ6品）を1つずつ入れる手間を無くす。
   const recorded = findRecord(state.date, tk);
   if (!recorded && !state.items.length && !hasMeaningfulDraft(state.date, tk)) {
     const usual = usualMealFor(tk, state.date);
@@ -6807,9 +6816,9 @@ $('#homeMealGrid').addEventListener('click', (e) => {
   }
   showView('meal');
 });
-$('#homeWorkoutCard').addEventListener('click', () => showView('workout'));
-$('#homeBodyCard').addEventListener('click', () => showView('body'));
-$('#homeWaterCard').addEventListener('click', () => showView('meal'));
+$('#tileWorkout').addEventListener('click', () => showView('workout'));
+$('#tileBody').addEventListener('click', () => showView('body'));
+$('#tileWater').addEventListener('click', () => showView('meal'));
 $('#homeSyncCard').addEventListener('click', retryPending);
 // モーダルの a11y（監査#39）: show 付与で aria-modal + 先頭フォーカス、解除で呼び出し元へ返す
 (() => {

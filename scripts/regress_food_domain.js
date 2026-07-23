@@ -351,6 +351,7 @@ const exoPrompt = vm.runInContext(`(() => {
     rows: [{ measured_on: '2026-07-20', weight_kg: 68.4, body_fat_pct: 17.5, bmr: 1560 }]
   }));
   const p = buildExerciseAiPrompt('屋外のハーフコートでバスケ3対3');
+  localStorage.removeItem('hs:body-server-cache:v1');
   return { p, leaks: ['68.4', '17.5', '1560', '体重', '体脂肪', '基礎代謝'].filter((s) => p.includes(s)) };
 })()`, context);
 ok('SPEC-024: プロンプトに健康データが入らない',
@@ -414,6 +415,24 @@ const exoRecord = vm.runInContext(`(() => {
 ok('SPEC-024: AI種目は exercise_key と est_kcal を送る / 組み込みは従来どおり null',
   exoRecord.key === 'basketball-3on3' && exoRecord.kcal === 431
     && exoRecord.bKey === null && exoRecord.bKcal === null, JSON.stringify(exoRecord));
+
+// ---- 見やすさ改修（2026-07-24 ホーム4ゾーン化）: 描画が例外なく動く + タイル状態 ----
+const homeSmoke = vm.runInContext(`(() => {
+  try { renderHome(); return { ok: true }; }
+  catch (e) { return { ok: false, err: String(e && e.message || e) }; }
+})()`, context);
+ok('見やすさ改修: renderHome が例外なく動く', homeSmoke.ok, homeSmoke.err || '');
+
+const tileTest = vm.runInContext(`(() => {
+  renderTodayTiles({ energy: 1300 });
+  const meal = document.querySelector('#tileMeal');
+  const doneWhenEaten = meal.classList.contains('done');
+  renderTodayTiles({ energy: 0 });
+  const undoneWhenEmpty = !meal.classList.contains('done');
+  return { doneWhenEaten, undoneWhenEmpty };
+})()`, context);
+ok('見やすさ改修: 食事タイルが摂取有無で済み/未を切替',
+  tileTest.doneWhenEaten && tileTest.undoneWhenEmpty, JSON.stringify(tileTest));
 
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
