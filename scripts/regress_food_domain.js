@@ -434,5 +434,18 @@ const tileTest = vm.runInContext(`(() => {
 ok('見やすさ改修: 食事タイルが摂取有無で済み/未を切替',
   tileTest.doneWhenEaten && tileTest.undoneWhenEmpty, JSON.stringify(tileTest));
 
+// ---- 見やすさ改修 第2弾（栄養タブ）: 描画が落ちず、要点が #ntPriorities に出る ----
+const ntSmoke = vm.runInContext(`(() => {
+  try {
+    renderNutrition();
+    const pri = document.querySelector('#ntPriorities').innerHTML || '';
+    const judge = document.querySelector('#ntJudge').innerHTML || '';
+    return { ok: true, hasPri: pri.length > 0, judgeNoUl: !judge.includes('nt-pri') };
+  } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
+})()`, context);
+ok('見やすさ改修2: renderNutrition が例外なく動く', ntSmoke.ok, ntSmoke.err || '');
+ok('見やすさ改修2: 要点が #ntPriorities に出る / スコアカードから要点ulを分離',
+  ntSmoke.hasPri && ntSmoke.judgeNoUl, JSON.stringify(ntSmoke));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

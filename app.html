@@ -930,6 +930,20 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .nt-food-row .nm { flex:1; min-width:0; font-size:13px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .nt-food-row .kc { flex:none; font-size:12px; color:var(--muted,#888); font-variant-numeric:tabular-nums; }
   .nt-food-row .tags { flex:none; display:flex; gap:4px; }
+  /* 見やすさ改修 第2弾: 今日の要点カード（↓=不足/赤・↑=多め/橙）と、詳細のたたみ（details） */
+  #ntPriorities { display:flex; flex-direction:column; gap:8px; }
+  .nt-pri-card { display:flex; align-items:center; gap:10px; background:var(--card,#fff); border:0.5px solid var(--line,rgba(0,0,0,.08)); border-radius:12px; padding:10px 12px; }
+  .nt-pri-card .ic { flex:none; width:30px; height:30px; border-radius:10px; display:grid; place-items:center; font-size:16px; font-weight:900; }
+  .nt-pri-card.low .ic { background:var(--red-soft,#fdecec); color:var(--red,#ef6461); }
+  .nt-pri-card.high .ic { background:#faeeda; color:#854f0b; }
+  .nt-pri-card .tx { flex:1; min-width:0; font-size:13px; font-weight:800; color:var(--ink); line-height:1.35; }
+  .nt-pri-card .add { flex:none; font-size:12px; font-weight:900; color:var(--accent-deep,#f07300); background:var(--accent-soft,#ffefdd); padding:5px 11px; border-radius:9px; text-decoration:none; }
+  .nt-fold { background:var(--card,#fff); border:0.5px solid var(--line,rgba(0,0,0,.08)); border-radius:12px; margin-top:8px; }
+  .nt-fold > summary { list-style:none; cursor:pointer; padding:12px 13px; font-size:12.5px; font-weight:800; color:var(--ink); display:flex; align-items:center; }
+  .nt-fold > summary::-webkit-details-marker { display:none; }
+  .nt-fold > summary::after { content:''; margin-left:auto; width:8px; height:8px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(-45deg); transition:transform .2s ease; }
+  .nt-fold[open] > summary::after { transform:rotate(45deg); }
+  .nt-fold-body { padding:0 12px 12px; }
   .rc-item .nm { display:flex; flex-direction:column; gap:1px; }
   /* 実重量・kcal は取り違え検知の要なので本文並みに見せる（実機指摘 2026-07-17: まだ見づらい） */
   .rc-detail { font-size:12.5px; color:var(--ink); opacity:.85; font-weight:700; font-variant-numeric:tabular-nums; }
@@ -1358,15 +1372,25 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       <button data-ntseg="workout">筋トレ</button>
     </div>
     <div id="ntDaily">
+    <!-- 見やすさ改修 第2弾（2026-07-24）: スコア＋4軸バーを主役に。要点3つを見せ、詳細は畳む -->
     <div class="card nt-judge" id="ntJudge"></div>
-    <div id="ntNextMeal"></div>
-    <div class="section-label">栄養ランキング（不足・多すぎ・充足）</div>
-    <div class="nt-ranking" id="ntRanking"></div>
-    <div class="section-label">35栄養素の過不足</div>
-    <div class="nt-grid" id="ntGrid"></div>
-    <div class="section-label">食品別の寄与（タップで詳細）</div>
-    <div id="ntFoods"></div>
-    <div class="sync-note">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
+    <div class="section-label">今日の要点</div>
+    <div id="ntPriorities"></div>
+    <details class="nt-fold"><summary>次の食事の組み立て</summary>
+      <div class="nt-fold-body"><div id="ntNextMeal"></div></div>
+    </details>
+    <details class="nt-fold"><summary>栄養素をくわしく（35項目）</summary>
+      <div class="nt-fold-body">
+        <div class="nt-kicker">不足・多すぎ・充足</div>
+        <div class="nt-ranking" id="ntRanking"></div>
+        <div class="nt-kicker" style="margin-top:12px">35栄養素の過不足</div>
+        <div class="nt-grid" id="ntGrid"></div>
+      </div>
+    </details>
+    <details class="nt-fold"><summary>食品別の内訳</summary>
+      <div class="nt-fold-body"><div id="ntFoods"></div></div>
+    </details>
+    <div class="sync-note" style="margin-top:10px">目標: エネルギー・PFCはあなたの設定値、その他は食事摂取基準ベースの目安。概算食品を含む日は精度が下がります。</div>
     </div>
     <div id="ntWeekly" style="display:none">
       <div id="weeklyStatus"></div>
@@ -4997,13 +5021,23 @@ function renderNutrition() {
   const judge = buildNtJudgement(ntState);
   // 4軸をゲージバーで可視化（2026-07-12 マネージャー依頼: 文字の羅列をやめる）
   const gaugeColor = (s) => (s >= 80 ? '#2eb872' : s >= 50 ? '#e4a23a' : '#e94e5b');
+  // 見やすさ改修 第2弾: スコアカードは「スコア＋4軸バー」まで。要点は下の #ntPriorities へ分離
   $('#ntJudge').innerHTML = `
     <div class="nt-score-row"><span class="nt-score">${judge.score}</span><span style="color:var(--muted,#888)">/100</span><span class="nt-score-label">${judge.label}</span>
       <span style="margin-left:auto;font-size:11px;color:var(--muted,#999)">${fmtDateLabel(state.date)}${ntState.totals.review ? ` / 概算${ntState.totals.review}品` : ''}</span></div>
     <div class="nt-gauges">${judge.parts.map((p) => `
       <div class="nt-gauge"><div class="gl"><span>${p.label}</span><b>${p.score}</b></div>
-        <div class="gbar"><i style="width:${Math.max(3, Math.min(100, p.score))}%;background:${gaugeColor(p.score)}"></i></div></div>`).join('')}</div>
-    <ul class="nt-pri" style="padding:0;margin:0">${judge.priorities.slice(0, 3).map((p) => `<li><b>${escapeHtml(p.title)}</b>${escapeHtml(p.copy)}${p.suggestFood ? ` <a href="#" class="nt-suggest" data-nt-add="${escapeHtml(p.suggestFood)}">追加する</a>` : ''}</li>`).join('')}</ul>`;
+        <div class="gbar"><i style="width:${Math.max(3, Math.min(100, p.score))}%;background:${gaugeColor(p.score)}"></i></div></div>`).join('')}</div>`;
+
+  // 今日の要点（最大3つ）: ↓=不足(赤)/↑=多め(橙)。suggestFood があれば「＋追加」を出す
+  const priIsHigh = (t) => /多め|多すぎ|過剰|オーバー/.test(t);
+  $('#ntPriorities').innerHTML = judge.priorities.length
+    ? judge.priorities.slice(0, 3).map((p) => {
+        const kind = priIsHigh(p.title) ? 'high' : 'low';
+        const add = p.suggestFood ? ` <a href="#" class="add" data-nt-add="${escapeHtml(p.suggestFood)}">＋追加</a>` : '';
+        return `<div class="nt-pri-card ${kind}"><span class="ic" aria-hidden="true">${kind === 'high' ? '↑' : '↓'}</span><span class="tx">${escapeHtml(p.title)}</span>${add}</div>`;
+      }).join('')
+    : '<div class="empty-note">大きな過不足はありません。良いバランスです。</div>';
 
   renderNextMealPlan(ntState);   // 第3形態: 次の1食の組み立て（SPEC-022）
 
