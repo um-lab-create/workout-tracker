@@ -590,10 +590,15 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .seg-control button.on { background: var(--panel, #fff); color: var(--ink, #1b1d1f); box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,.06)); }
 /* シート共通規約（SPEC-019 Phase A） */
 .modal { position: relative; animation-duration: .26s; animation-timing-function: cubic-bezier(.2,.8,.3,1); }
+/* [fix] 2026-07-24 実機指摘「この画面から戻れない」: ×が absolute で中身と一緒に
+   スクロールして画面外へ消えていた（長いシートでは出口が無くなる）。sticky で常時表示に。
+   margin-bottom の負値で占有高さを打ち消し、見た目は従来の重ね配置を保つ。 */
 .sheet-x {
-  position: absolute; top: 6px; right: 8px; width: 44px; height: 44px; z-index: 3;
+  position: sticky; top: 6px; z-index: 3;
+  width: 44px; height: 44px; margin: 0 -4px -44px auto;
   display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 22px; background: transparent; color: var(--muted, #8a8378);
+  border: none; border-radius: 22px; background: var(--card, #fff); color: var(--muted, #8a8378);
+  box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,.06));
   font-size: 24px; line-height: 1; font-weight: 400;
 }
 .modal .close-row { padding-top: 2px; padding-bottom: 10px; margin: -6px -8px 0; cursor: grab; }
@@ -1664,6 +1669,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <button class="primary-btn full" id="exoSaveBtn" type="button" disabled>④ この運動を追加する</button>
     <div class="section-label" style="margin-top:12px">追加した運動</div>
     <div id="exoCustomList" class="sync-note">まだありません</div>
+    <!-- 長いフォームなので末尾にも出口を置く（実機指摘 2026-07-24「この画面から戻れない」） -->
+    <button class="secondary-btn full" id="exoCloseBtn" type="button" style="margin-top:12px">閉じる</button>
   </div>
 </div>
 
@@ -5214,6 +5221,9 @@ function initSheetBehaviors() {
     x.textContent = '×';
     x.addEventListener('click', (e) => { e.stopPropagation(); trySheetClose(back.id); });
     modal.insertBefore(x, modal.firstChild);
+    // [fix] 2026-07-24: 暗い背景のタップでも閉じられるようにする（出口を複数持たせる）。
+    // 個別に同等の処理を持つシート（settings/unit/qty 等）と二重でも害はない
+    back.addEventListener('click', (e) => { if (e.target === back) trySheetClose(back.id); });
     // グラバー下スワイプ（touch追従 → 80px超えで閉じる）
     const grip = modal.querySelector('.close-row');
     if (!grip) return;
@@ -5242,9 +5252,13 @@ function initSheetBehaviors() {
 
 // ---------------- ナビゲーション ----------------
 function closeAllSheets() {
-  ['unitBack', 'qtyBack', 'settingsBack', 'recordMenuBack', 'addFoodBack', 'foodFormBack', 'recipeBack', 'myFoodsBack', 'foodDetailBack'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove('show');
+  // [fix] 2026-07-24: id のハードコード列挙だったため、新設シート（exoAddBack）が
+  // タブ切替で閉じず「戻れない」原因の一つになっていた。全 .modal-back を対象にする。
+  // ログインシートは閉じてはいけない（未ログイン時の必須ゲート）ので除外する。
+  const KEEP_OPEN = ['loginBack'];
+  document.querySelectorAll('.modal-back').forEach((el) => {
+    if (KEEP_OPEN.includes(el.id)) return;
+    el.classList.remove('show');
   });
 }
 // SPEC-019 Phase B: タブは「きょう(home)/分析(nutrition)」の2面。
@@ -7416,6 +7430,7 @@ $('#exoSaveBtn').addEventListener('click', async () => {
     showToast('追加できませんでした（通信を確認してもう一度お試しください）', 'error');
   }
 });
+$('#exoCloseBtn').addEventListener('click', () => trySheetClose('exoAddBack'));
 $('#exoCustomList').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-exo-del]');
   if (!b) return;

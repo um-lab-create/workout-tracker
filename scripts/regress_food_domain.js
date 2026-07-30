@@ -494,5 +494,26 @@ ok('過去日: 保存先の日付が見ている日になる（先週末のバ�
   pastDate.savedDate === pastDate.past, JSON.stringify(pastDate));
 ok('過去日: 運動画面の「記録する日」が過去日表示になる', pastDate.rowPast, JSON.stringify(pastDate));
 
+// ---- シートの出口（実機指摘 2026-07-24「この画面から戻れない」）----
+// closeAllSheets が id ハードコードだったため新設シートが閉じ残っていた回帰を防ぐ。
+// ※ DOM スタブは querySelectorAll('.modal-back') を返さないため、HTML と実装の突合で検証する
+const fsMod = require('fs');
+const appHtml = fsMod.readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+const modalIds = [...appHtml.matchAll(/class="modal-back" id="([A-Za-z]+)"/g)].map((m) => m[1]);
+const closeAllSrc = (appHtml.match(/function closeAllSheets\(\)[\s\S]*?\n\}/) || [''])[0];
+ok('シートの出口: closeAllSheets が全 .modal-back を対象にしている（id列挙にしない）',
+  /querySelectorAll\('\.modal-back'\)/.test(closeAllSrc) && /KEEP_OPEN/.test(closeAllSrc),
+  closeAllSrc.slice(0, 120));
+ok('シートの出口: ログインシートだけは閉じない（未ログインの必須ゲート）',
+  /KEEP_OPEN\s*=\s*\['loginBack'\]/.test(closeAllSrc), '');
+ok('シートの出口: 新設シート exoAddBack が .modal-back として存在する',
+  modalIds.includes('exoAddBack'), modalIds.join(','));
+// × が sticky（絶対配置のままだと長いシートでスクロール時に画面外へ消える）
+const sheetXCss = (appHtml.match(/\.sheet-x \{[\s\S]*?\}/) || [''])[0];
+ok('シートの出口: ×ボタンが sticky で常時表示', /position:\s*sticky/.test(sheetXCss), sheetXCss.slice(0, 90));
+// 背景タップでも閉じられる（出口を複数持たせる）
+ok('シートの出口: 背景タップで閉じるハンドラが全シートに付く',
+  /back\.addEventListener\('click',\s*\(e\)\s*=>\s*\{\s*if\s*\(e\.target === back\)\s*trySheetClose/.test(appHtml), '');
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
