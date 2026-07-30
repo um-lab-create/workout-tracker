@@ -447,5 +447,52 @@ ok('見やすさ改修2: renderNutrition が例外なく動く', ntSmoke.ok, ntS
 ok('見やすさ改修2: 要点が #ntPriorities に出る / スコアカードから要点ulを分離',
   ntSmoke.hasPri && ntSmoke.judgeNoUl, JSON.stringify(ntSmoke));
 
+// ---- 過去日の記録（実機指摘 2026-07-24）: 日付を戻しても各タイル・保存先が追従する ----
+const pastDate = vm.runInContext(`(() => {
+  const past = shiftDate(todayStr(), -6);
+  // 過去日に「からだ」と「運動」の記録がある状態を作る
+  lsSet(LS_KEYS.BODY_RECORDS, [{ date: past, weight: 70.2, fat: 17.4 }]);
+  lsSet(LS_KEYS.WT_HISTORY, [{ '日付': past, '種目': 'バスケットボール(3on3)', '時間': 60, _ts: 1 }]);
+  state.workoutDrafts = [];
+  state.date = past;
+  renderHome();
+  const bannerShown = document.querySelector('#pastBanner').style.display !== 'none';
+  const bannerDate = document.querySelector('#pastBannerDate').textContent;
+  const bodyDone = document.querySelector('#tileBody').classList.contains('done');
+  // 過去日を離れると「済み」が外れる（= 日付追従の裏返し）ことも確認する。
+  // ※ .st の文字は DOM スタブが子要素を毎回新規生成するため検証対象にしない
+  state.date = shiftDate(todayStr(), -5);
+  renderHome();
+  const bodyUndoneOtherDay = !document.querySelector('#tileBody').classList.contains('done');
+  state.date = past;
+  renderHome();
+  const wkDone = document.querySelector('#tileWorkout').classList.contains('done');
+  // 保存先が過去日になる（＝先週末のバスケが正しくその日に入る）
+  applyExerciseTypes([{ client_key: 'basketball-3on3', name: 'バスケットボール(3on3)', short: 'バスケ',
+    kanji: '球', kind: 'sport', fields: ['minutes'], mets: 6, load_params: { default_minutes: 60 } }]);
+  state.exoId = 'exo:basketball-3on3';
+  state.exoValues = { minutes: 60 };
+  const savedDate = buildWorkoutRecord()['日付'];
+  // 運動画面の「記録する日」行が過去日表示になる
+  renderWorkoutToday();
+  const rowPast = document.querySelector('#workoutDateRow').classList.contains('is-past');
+  // 後片付け（後続テスト・実行間の汚染防止）
+  applyExerciseTypes([]);
+  lsSet(LS_KEYS.BODY_RECORDS, []); lsSet(LS_KEYS.WT_HISTORY, []);
+  state.date = todayStr();
+  renderHome();
+  const bannerHiddenToday = document.querySelector('#pastBanner').style.display === 'none';
+  return { bannerShown, bannerDate, bodyDone, bodyUndoneOtherDay, wkDone, savedDate, past, rowPast, bannerHiddenToday };
+})()`, context);
+ok('過去日: バナーが出て日付が入る / 今日に戻すと消える',
+  pastDate.bannerShown && pastDate.bannerDate.length > 0 && pastDate.bannerHiddenToday,
+  JSON.stringify(pastDate));
+ok('過去日: からだタイルが見ている日の記録に追従（[fix] 旧実装は過去日で常に未記録）',
+  pastDate.bodyDone && pastDate.bodyUndoneOtherDay, JSON.stringify(pastDate));
+ok('過去日: 運動タイルがその日の記録を拾う', pastDate.wkDone, JSON.stringify(pastDate));
+ok('過去日: 保存先の日付が見ている日になる（先週末のバスケが正しく入る）',
+  pastDate.savedDate === pastDate.past, JSON.stringify(pastDate));
+ok('過去日: 運動画面の「記録する日」が過去日表示になる', pastDate.rowPast, JSON.stringify(pastDate));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
