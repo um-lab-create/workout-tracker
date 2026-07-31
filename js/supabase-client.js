@@ -435,11 +435,15 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
   // ---- 運動種目マスタ（SPEC-024）----
   // 冪等キーは (user_id, client_key)。同じ種目を再登録しても2行に割れない（010 の unique が前提）。
   // ★7: source / name / short への URL は 011 の CHECK が DB 側で拒否する（フロントも事前に弾く）。
+  // [fix] 2026-07-31（privacy-auditor [A-7]）: archived を除外して取得していたため、
+  // 種目をアーカイブすると **過去の筋トレ日が遡って筋トレでなくなる** 状態だった
+  // （サーバーの is_strength_workout は archived を見ないため数字が割れる）。
+  // アーカイブは「一覧に出さない」表示上の操作 ＝ 集計の意味を変えない、に統一。
+  // 取得は archived 込み。種目チップ等の表示側で archived を除外すること。
   async function fetchExerciseTypes() {
     await requireUserId();
     const data = must(await client.from('exercise_types')
       .select('id, client_key, name, short, kanji, kind, fields, mets, load_params, source, verified, archived')
-      .eq('archived', false)
       .order('created_at', { ascending: true }));
     return data || [];
   }

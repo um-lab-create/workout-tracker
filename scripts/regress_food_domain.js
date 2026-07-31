@@ -599,5 +599,37 @@ ok('AI運動: 家トレ等の筋トレが「筋トレ日」に数えられる（
   strengthCount.aiStrength && !strengthCount.aiSport && strengthCount.builtin && !strengthCount.treadmill,
   JSON.stringify(strengthCount));
 
+// アーカイブ: 一覧からは消えるが、過去記録の分類（筋トレ日判定）は変わらない
+// （privacy-auditor [A-7]: サーバーの is_strength_workout は archived を見ないため、
+//  アプリだけ除外すると「アーカイブした瞬間に過去の筋トレ日が減る」不整合になる）
+const archivedCase = vm.runInContext(`(() => {
+  applyExerciseTypes([{ client_key: 'home-curl', name: 'ダンベルカール', short: 'カール',
+    kanji: '腕', kind: 'strength', fields: ['weight','reps','sets'], mets: 3.5,
+    load_params: {}, archived: true }]);
+  renderExoGrid();
+  const grid = document.querySelector('#exoGrid').innerHTML;
+  const r = {
+    stillStrength: isStrengthExercise('ダンベルカール'),   // 集計では筋トレのまま
+    hiddenInGrid: !grid.includes('data-exo="exo:home-curl"') // 一覧には出さない
+  };
+  applyExerciseTypes([]);
+  return r;
+})()`, context);
+ok('アーカイブ: 一覧から消えても過去の筋トレ日判定は変わらない（サーバーと一致）',
+  archivedCase.stillStrength && archivedCase.hiddenInGrid, JSON.stringify(archivedCase));
+
+// 012 の許可リストと app.html の STRENGTH_NAMES が一致しているか（監査 [R-1]）
+const sqlPath = path.join(ROOT, '..', 'health-sambo', 'supabase', 'migrations', '012_weekly_strength_days.sql');
+if (fsMod.existsSync(sqlPath)) {
+  const sql = fsMod.readFileSync(sqlPath, 'utf8');
+  const jsNames = (appHtml.match(/const STRENGTH_NAMES = \[([^\]]+)\]/) || [, ''])[1]
+    .split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  const sqlNames = ((sql.match(/when p_exercise in \(([\s\S]*?)\) then true/) || [, ''])[1] || '')
+    .split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  ok('筋トレ定義: 012(SQL) と app.html の STRENGTH_NAMES が一致（乖離すると数字が矛盾）',
+    jsNames.length > 0 && jsNames.join('|') === sqlNames.join('|'),
+    `js=${jsNames.join(',')} / sql=${sqlNames.join(',')}`);
+}
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

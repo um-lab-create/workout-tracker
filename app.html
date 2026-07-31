@@ -4100,6 +4100,8 @@ function applyExerciseTypes(rows) {
       mets: Number.isFinite(Number(r.mets)) ? Number(r.mets) : null,
       kind: EXO_AI_KIND_VOCAB.includes(r.kind) ? r.kind : 'sport',
       source: r.source || '',
+      // アーカイブ済みも EXERCISES には残す（過去記録の分類に必要）。表示側で除外する
+      archived: Boolean(r.archived),
       isCustom: true
     };
   });
@@ -4261,7 +4263,8 @@ function exoDaysAgoMap() {
 function renderExoGrid() {
   // 間隔が空いた部位を入口で見せる（コーチの「レッグプレス31日空き」を行動に接続。監査 6-1）
   const agoMap = exoDaysAgoMap();
-  $('#exoGrid').innerHTML = EXERCISES.map((e) => {
+  // アーカイブ済みは一覧に出さない（分類には使うため EXERCISES からは消さない）
+  $('#exoGrid').innerHTML = EXERCISES.filter((e) => !e.archived).map((e) => {
     const ago = agoMap[e.id];
     const gap = (ago != null && ago >= 10) ? `<span class="gap">${ago}日</span>` : '';
     return `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}">
@@ -4274,7 +4277,7 @@ function renderExoGrid() {
   const recoEl = $('#exoReco');
   if (recoEl) {
     // 筋トレ種目（重量あり）のうち最も空いているものを1つだけおすすめする
-    const cand = EXERCISES.filter((e) => e.fields.includes('weight') && agoMap[e.id] != null && agoMap[e.id] >= 10)
+    const cand = EXERCISES.filter((e) => !e.archived && e.fields.includes('weight') && agoMap[e.id] != null && agoMap[e.id] >= 10)
       .sort((a, b) => agoMap[b.id] - agoMap[a.id])[0];
     recoEl.innerHTML = (cand && cand.id !== state.exoId)
       ? `<button class="exo-reco" type="button" data-exo-reco="${cand.id}">今日のおすすめ: <b>${cand.kanji} ${cand.name}</b>（${agoMap[cand.id]}日ぶり）→</button>`
@@ -7418,7 +7421,7 @@ function openExoAdd() {
   $('#exoAddBack').classList.add('show');
 }
 function renderExoCustomList() {
-  const custom = EXERCISES.filter((e) => e.isCustom);
+  const custom = EXERCISES.filter((e) => e.isCustom && !e.archived);
   $('#exoCustomList').innerHTML = custom.length
     ? custom.map((e) => `<div class="log-row"><span class="desc"><b>${escapeHtml(e.kanji)} ${escapeHtml(e.name)}</b>　${e.mets ? e.mets + ' METs' : ''}</span>
         <button class="log-del" data-exo-del="${escapeHtml(e.clientKey)}" type="button" aria-label="この運動を削除">×</button></div>`).join('')
