@@ -3599,9 +3599,12 @@ const STRENGTH_NAMES = ['ショルダープレス', 'チェストプレス', '�
  * （家トレのダンベル等 kind='strength'）が筋トレ日として数えられていなかった。
  * ※ スポーツ・有酸素（バスケ/ラン）は筋トレに含めない＝従来どおり。
  */
-function isStrengthExercise(name) {
+function isStrengthExercise(name, key) {
   if (STRENGTH_NAMES.includes(name)) return true;
-  const ex = EXERCISES.find((e) => e.name === name);
+  // [fix] 監査 [B-3]: 名前だけで引くと、種目をリネームした瞬間に過去記録が
+  // 分類できなくなりサーバー（exercise_key 照合）と数字が割れる。key があれば key を優先。
+  const ex = key ? EXERCISES.find((e) => e.clientKey === key)
+                 : EXERCISES.find((e) => e.name === name);
   return Boolean(ex && ex.isCustom && ex.kind === 'strength');
 }
 function weekDatesOf(dateStr) {
@@ -3641,7 +3644,7 @@ function strengthDatesSet() {
   const rows = (typeof workoutAllRows === 'function') ? workoutAllRows()
     : (lsGet(LS_KEYS.WT_HISTORY, []) || []).map((h) => ({ date: h && h['日付'], exercise: h && h['種目'] }));
   rows.forEach((r) => {
-    if (r && r.date && isStrengthExercise(r.exercise)) set[r.date] = true;
+    if (r && r.date && isStrengthExercise(r.exercise, r.exerciseKey)) set[r.date] = true;
   });
   return set;
 }
@@ -3772,7 +3775,7 @@ function currentMealSlot() {
 /** 直近の筋トレ（重量系）から何日空いたか。記録なしは null */
 function daysSinceLastStrength() {
   const dates = workoutAllRows()
-    .filter((r) => isStrengthExercise(r.exercise))
+    .filter((r) => isStrengthExercise(r.exercise, r.exerciseKey))
     .map((r) => r.date);
   if (!dates.length) return null;
   const last = dates.sort().pop();
@@ -3795,7 +3798,7 @@ function renderNextMove(totals, targets, perTiming) {
   if (!move) {
     const gap = daysSinceLastStrength();
     if (gap != null && gap >= 3) {
-      const lastWt = workoutAllRows().filter((r) => isStrengthExercise(r.exercise) && r.weight).pop();
+      const lastWt = workoutAllRows().filter((r) => isStrengthExercise(r.exercise, r.exerciseKey) && r.weight).pop();
       move = { title: `${gap}日空いた。今日は筋トレ日にしない？`,
         sub: lastWt ? `前回: ${lastWt.exercise} ${lastWt.weight}kg` : '',
         cta: '開く', action: 'workout', cls: '' };
@@ -6260,7 +6263,7 @@ function renderStreakHeatmap() {
   // 筋トレ日はサーバー分も含める（iPhoneで記録した分はローカル履歴に無いため）
   const strength = {};
   workoutAllRows().forEach((r) => {
-    if (isStrengthExercise(r.exercise)) strength[r.date] = true;
+    if (isStrengthExercise(r.exercise, r.exerciseKey)) strength[r.date] = true;
   });
   const cols = [];
   for (let w = WEEKS - 1; w >= 0; w--) {
@@ -6365,7 +6368,7 @@ function workoutAllRows() {
   if (_wtAllRowsCache) return _wtAllRowsCache;
   const key = (r) => `${r.date}|${r.exercise}|${r.weight}|${r.reps}|${r.sets}`;
   const server = workoutServerRows().map((r) => ({
-    date: r.performed_on, exercise: r.exercise,
+    date: r.performed_on, exercise: r.exercise, exerciseKey: r.exercise_key || null,
     weight: r.weight_kg != null ? Number(r.weight_kg) : null,
     reps: r.reps != null ? Number(r.reps) : null,
     sets: r.sets != null ? Number(r.sets) : null,
@@ -6374,7 +6377,7 @@ function workoutAllRows() {
   }));
   const seen = new Set(server.map(key));
   const local = (lsGet(LS_KEYS.WT_HISTORY, []) || []).map((h) => ({
-    date: h['日付'], exercise: h['種目'],
+    date: h['日付'], exercise: h['種目'], exerciseKey: h._exerciseKey || null,
     weight: h['重量'] ? Number(h['重量']) : null,
     reps: h['回数'] ? Number(h['回数']) : null,
     sets: h['セット数'] ? Number(h['セット数']) : null,
@@ -6451,9 +6454,9 @@ function renderWorkoutBalance() {
   for (let i = WEEKS - 1; i >= 0; i--) {
     const start = shiftDate(monday, -7 * i);
     const days = Array.from({ length: 7 }, (_, k) => shiftDate(start, k));
-    const vol = all.filter((r) => days.includes(r.date) && isStrengthExercise(r.exercise))
+    const vol = all.filter((r) => days.includes(r.date) && isStrengthExercise(r.exercise, r.exerciseKey))
       .reduce((a, r) => a + (r.weight || 0) * (r.reps || 0) * (r.sets || 0), 0);
-    const dayCount = new Set(all.filter((r) => days.includes(r.date) && isStrengthExercise(r.exercise)).map((r) => r.date)).size;
+    const dayCount = new Set(all.filter((r) => days.includes(r.date) && isStrengthExercise(r.exercise, r.exerciseKey)).map((r) => r.date)).size;
     vols.push({ start, vol, days: dayCount });
   }
   const vMax = Math.max(...vols.map((v) => v.vol), 1) * 1.15;

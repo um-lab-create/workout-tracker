@@ -355,7 +355,8 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
   async function fetchWorkoutHistory(limit = 400) {
     await requireUserId();
     return must(await client.from('workouts')
-      .select('id, performed_on, exercise, weight_kg, reps, sets, minutes, distance_km, intensity')
+      // exercise_key: 種目をリネームしても分類が変わらないようにするための照合キー（SPEC-024）
+      .select('id, performed_on, exercise, exercise_key, weight_kg, reps, sets, minutes, distance_km, intensity')
       .order('performed_on', { ascending: false })
       .limit(limit));
   }

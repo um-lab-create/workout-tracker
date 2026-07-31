@@ -631,5 +631,21 @@ if (fsMod.existsSync(sqlPath)) {
     `js=${jsNames.join(',')} / sql=${sqlNames.join(',')}`);
 }
 
+// リネーム耐性（監査 [B-3]）: 種目名を変えても、key があれば過去記録の分類は変わらない
+const renameCase = vm.runInContext(`(() => {
+  applyExerciseTypes([{ client_key: 'home-curl', name: '腕トレ（改名後）', short: '腕',
+    kanji: '腕', kind: 'strength', fields: ['weight','reps','sets'], mets: 3.5, load_params: {} }]);
+  const r = {
+    byOldNameWithKey: isStrengthExercise('ダンベルカール', 'home-curl'), // 旧名+key → 筋トレのまま
+    byOldNameNoKey: isStrengthExercise('ダンベルカール', null),         // key無しは名前照合で不一致
+    byNewName: isStrengthExercise('腕トレ（改名後）', null)             // 新名なら名前でも一致
+  };
+  applyExerciseTypes([]);
+  return r;
+})()`, context);
+ok('リネーム耐性: key があれば旧名の過去記録も筋トレのまま（サーバーと一致）',
+  renameCase.byOldNameWithKey && renameCase.byNewName && !renameCase.byOldNameNoKey,
+  JSON.stringify(renameCase));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
