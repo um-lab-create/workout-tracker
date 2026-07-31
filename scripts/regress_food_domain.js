@@ -558,5 +558,46 @@ ok('横展開: カレンダーがラベル専用 wrapper 内にある（隣の�
 ok('横展開: 運動追加シートに未保存確認がある',
   /exoAddBack:\s*\(\)\s*=>/.test(spreadHtml), '');
 
+// ---- AI登録運動が分析タブで正しく扱われるか（2026-07-31 横展開で発見）----
+const analysisFix = vm.runInContext(`(() => {
+  applyExerciseTypes([
+    { client_key: 'basketball-3on3', name: 'バスケットボール(3on3)', short: 'バスケ', kanji: '球',
+      kind: 'sport', fields: ['minutes'], mets: 6, load_params: { default_minutes: 60 } },
+    { client_key: 'home-curl', name: 'ダンベルカール', short: 'カール', kanji: '腕',
+      kind: 'strength', fields: ['weight','reps','sets'], mets: 3.5, load_params: {} }
+  ]);
+  const sport = wtMetricFor('バスケットボール(3on3)');
+  const strength = wtMetricFor('ダンベルカール');
+  const builtin = wtMetricFor('ショルダープレス');
+  const sportVol = sport.vol({ minutes: 60 });
+  applyExerciseTypes([]);
+  return { sportKey: sport.key, sportVol, strengthKey: strength.key, builtinKey: builtin.key };
+})()`, context);
+ok('AI運動: スポーツは「時間」を主指標にする（旧: 常に0回のグラフ）',
+  analysisFix.sportKey === 'minutes' && analysisFix.sportVol === 60, JSON.stringify(analysisFix));
+ok('AI運動: 筋力系は従来どおり重量・組み込み種目も不変',
+  analysisFix.strengthKey === 'weight' && analysisFix.builtinKey === 'weight', JSON.stringify(analysisFix));
+
+// AI登録の筋トレが「筋トレ日」に数えられる（旧: 組み込み6種の固定リストのみ）
+const strengthCount = vm.runInContext(`(() => {
+  applyExerciseTypes([
+    { client_key: 'home-curl', name: 'ダンベルカール', short: 'カール', kanji: '腕',
+      kind: 'strength', fields: ['weight','reps','sets'], mets: 3.5, load_params: {} },
+    { client_key: 'basketball-3on3', name: 'バスケットボール(3on3)', short: 'バスケ', kanji: '球',
+      kind: 'sport', fields: ['minutes'], mets: 6, load_params: {} }
+  ]);
+  const r = {
+    aiStrength: isStrengthExercise('ダンベルカール'),      // 数えたい
+    aiSport: isStrengthExercise('バスケットボール(3on3)'), // 筋トレではない
+    builtin: isStrengthExercise('レッグプレス'),           // 従来どおり
+    treadmill: isStrengthExercise('トレッドミル')          // 従来どおり除外
+  };
+  applyExerciseTypes([]);
+  return r;
+})()`, context);
+ok('AI運動: 家トレ等の筋トレが「筋トレ日」に数えられる（スポーツ・有酸素は除外）',
+  strengthCount.aiStrength && !strengthCount.aiSport && strengthCount.builtin && !strengthCount.treadmill,
+  JSON.stringify(strengthCount));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
