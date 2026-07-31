@@ -600,7 +600,10 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
     { name: 'foods', order: ['id'] },
     // 監査#3（2026-07-18）: この2テーブルが漏れており「完全な写し」になっていなかった
     { name: 'meal_templates', order: ['legacy_key'] },
-    { name: 'recipe_items', order: ['recipe_food_id', 'sort_order'] }
+    { name: 'recipe_items', order: ['recipe_food_id', 'sort_order'] },
+    // [fix] 2026-07-31: SPEC-024 の運動種目マスタが漏れていた。AI登録した種目
+    // （METs・入力項目の定義）はここにしか無く、失うと過去の運動記録の意味が復元できない
+    { name: 'exercise_types', order: ['client_key'] }
   ];
 
   /** PostgREST の1000行制限を超えても全件取れるよう range() でページングする。 */
