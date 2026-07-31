@@ -108,10 +108,13 @@ input, textarea { font-family: inherit; font-size: 16px; /* iOSズーム防止 *
 /* 過去日を見ている時は日付をオレンジ帯で強調（「今日ではない」と気づけるように） */
 .date-label.is-today { color: var(--accent-deep); }
 .date-label.is-past { background: var(--accent); color: #fff; box-shadow: none; }
-/* カレンダーは日付ラベルの上に透明で重ねる（iOS標準ピッカーを素で使う） */
+/* カレンダーは日付ラベルにぴったり重ねる（iOS標準ピッカーを素で使う）。
+   [fix] 2026-07-31: date-nav 基準の absolute だと隣の「›」に被って押しにくかったため、
+   ラベルだけを包む wrapper 基準（inset:0）にした */
+.date-label-wrap { position: relative; display: inline-flex; }
 #datePicker {
-  position: absolute; left: 36px; width: 104px; height: 36px;
-  opacity: 0; border: 0; padding: 0; background: transparent;
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; border: 0; padding: 0; margin: 0; background: transparent;
   -webkit-appearance: none; appearance: none;
 }
 .gear-btn { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--muted); }
@@ -305,8 +308,6 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
   height: 48px; padding: 0 20px; border-radius: 14px;
   background: var(--accent); color: #fff; font-size: 14px; font-weight: 800;
 }
-.body-date-line { font-size: 11.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
-.body-date-line b { color: var(--accent-deep); }
 .spark-card { margin-top: 8px; padding: 12px 14px; }
 .spark-head { display: flex; align-items: baseline; gap: 8px; }
 .spark-head .sl { font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -1174,8 +1175,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     <button class="arrow" id="datePrev" aria-label="前の日">‹</button>
     <!-- タップでカレンダー（過去日の記録に到達できないという実機指摘 2026-07-24 への対応）。
          input[type=date] を重ねて iOS 標準のピッカーを出す（自作カレンダーは作らない） -->
-    <button class="date-label" id="dateLabel">今日</button>
-    <input type="date" id="datePicker" aria-label="日付を選ぶ">
+    <span class="date-label-wrap">
+      <button class="date-label" id="dateLabel">今日</button>
+      <input type="date" id="datePicker" aria-label="日付を選ぶ">
+    </span>
     <button class="arrow" id="dateNext" aria-label="次の日">›</button>
   </div>
   <button class="gear-btn" id="gearBtn" aria-label="設定">
@@ -1258,6 +1261,12 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
   <!-- ============ 食事 ============ -->
   <section class="view" id="view-meal">
+    <!-- 横展開 2026-07-31: 3つの記録画面すべてで保存先の日付を同じ形で示す -->
+    <button class="rec-date-row" id="mealDateRow" type="button">
+      <span class="rd-lb">記録する日</span>
+      <span class="rd-val" id="mealDateLabel">今日</span>
+      <span class="rd-cta">変更</span>
+    </button>
     <div class="seg" id="timingSeg"></div>
     <div class="quick-row" id="quickRow"></div>
 
@@ -1358,8 +1367,13 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
   <!-- ============ からだ ============ -->
   <section class="view" id="view-body">
+    <!-- 横展開 2026-07-31: 運動画面と同じ「記録する日」部品に統一（タップでカレンダー） -->
+    <button class="rec-date-row" id="bodyDateRow" type="button">
+      <span class="rd-lb">記録する日</span>
+      <span class="rd-val" id="bodyDateLabel">今日</span>
+      <span class="rd-cta">変更</span>
+    </button>
     <div class="card" style="margin-top:6px">
-      <div class="body-date-line">記録日: <b id="bodyDateLabel">今日</b>（上の日付で変更できます）</div>
       <div class="body-field">
         <span class="bl">体重</span>
         <div class="stepper">
@@ -4346,14 +4360,25 @@ function renderExoCard() {
     </div>`;
   }).join('');
 }
+/**
+ * 記録画面の「記録する日」行を更新する（食事・運動・からだ 共通。横展開 2026-07-31）。
+ * 過去日はオレンジで「今日ではない」と分かるようにする。
+ */
+function renderRecordDateRows() {
+  const isPast = state.date !== todayStr();
+  const text = isPast ? fmtDateLabel(state.date) : `今日（${fmtDateLabel(state.date)}）`;
+  [['#mealDateRow', '#mealDateLabel'], ['#workoutDateRow', '#workoutDateVal'], ['#bodyDateRow', '#bodyDateLabel']]
+    .forEach(([rowSel, valSel]) => {
+      const row = $(rowSel);
+      if (!row) return;
+      row.classList.toggle('is-past', isPast);
+      const val = $(valSel);
+      if (val) val.textContent = text;
+    });
+}
+
 function renderWorkoutToday() {
-  // 保存先の日付を明示（実機指摘 2026-07-24）。過去日はオレンジで「今日ではない」と分かるように
-  const dRow = $('#workoutDateRow');
-  if (dRow) {
-    const isPast = state.date !== todayStr();
-    dRow.classList.toggle('is-past', isPast);
-    $('#workoutDateVal').textContent = isPast ? fmtDateLabel(state.date) : `今日（${fmtDateLabel(state.date)}）`;
-  }
+  renderRecordDateRows();
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
   const logs = history.filter((h) => h['日付'] === state.date);
   const drafts = (state.workoutDrafts || []).filter((h) => h['日付'] === state.date);
@@ -4674,7 +4699,7 @@ function renderBodySpark() {
 
 function renderBodyView() {
   initBodyDefaults();
-  if ($('#bodyDateLabel')) $('#bodyDateLabel').textContent = fmtDateLabel(state.date);
+  renderRecordDateRows();
   renderBodySpark();
   $('#bodyWeight').textContent = state.body.weight.toFixed(1);
   $('#bodyFat').textContent = state.body.fat.toFixed(1);
@@ -5193,7 +5218,10 @@ function ntAddSuggested(foodId) {
 // ================================================================
 const SHEET_DIRTY_CHECKS = {
   recipeBack: () => Boolean((($('#rcName') && $('#rcName').value) || '').trim() || (recipeState.items && recipeState.items.length)),
-  foodFormBack: () => Boolean((($('#ffName') && $('#ffName').value) || '').trim() || ($('#ffKcal') && $('#ffKcal').value))
+  foodFormBack: () => Boolean((($('#ffName') && $('#ffName').value) || '').trim() || ($('#ffKcal') && $('#ffKcal').value)),
+  // 横展開 2026-07-31: 運動追加も入力途中に閉じると消えるため同じ確認を出す
+  exoAddBack: () => Boolean((($('#exoDesc') && $('#exoDesc').value) || '').trim()
+    || (($('#exoResultPaste') && $('#exoResultPaste').value) || '').trim())
 };
 
 /** 未保存確認つきでシートを閉じる。閉じた(または元々閉じていた)ら true。 */
@@ -5285,6 +5313,7 @@ function showView(name) {
   if (name === 'meal') {
     // 他タブで日付が変わっていたら現在日の内容を読み直す
     if (state.mealLoadedFor !== `${state.date}:${state.timing}`) loadMealFor(state.date, state.timing);
+    renderRecordDateRows();
     renderTimingSeg(); renderQuickRow(); renderItems(); renderSearch(); renderHydration(); renderDiningOut();
   }
   if (name === 'workout') { state.exoValues = loadExoValues(exoById(state.exoId)); renderExoGrid(); renderExoCard(); renderWorkoutToday(); }
@@ -5363,8 +5392,11 @@ function mealShortcuts(slot) {
   const items = [];
   const tk = slot || currentMealSlot() || 'lunch';
   const title = TIMINGS[tk].title;
-  const already = findRecord(todayStr(), tk);
-  const usual = usualMealFor(tk, todayStr());
+  // [fix] 2026-07-31 横展開: 全て todayStr() 固定で、過去日を見ていても今日へ飛んでいた。
+  // いま見ている日（state.date）を対象にする（過去日の記録が正式にサポートされたため）
+  const target = state.date;
+  const already = findRecord(target, tk);
+  const usual = usualMealFor(tk, target);
   if (usual && !already) {
     items.push({
       key: 'usual', title: `いつもの${title}`,
@@ -5374,14 +5406,14 @@ function mealShortcuts(slot) {
   }
   // 「前回と同じ」= その時間帯の直近の記録（朝を長押しすれば前回の朝）
   const lastSame = getRecords()
-    .filter((r) => r.timingKey === tk && r.date < todayStr() && r.items && r.items.length)
+    .filter((r) => r.timingKey === tk && r.date < target && r.items && r.items.length)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
   if (lastSame && !already) {
     items.push({
       key: 'repeatSame', title: `前回と同じ${title}`,
       sub: `${fmtDateLabel(lastSame.date)}（${fmtNum(lastSame.kcal || 0)}kcal・${lastSame.items.length}品）`,
       run: () => {
-        setDate(todayStr());
+        setDate(target);
         state.timing = tk;
         loadMealFor(state.date, tk);
         state.items = restoreMealItems(lastSame.items, lastSame.structuredItems);
@@ -5394,12 +5426,12 @@ function mealShortcuts(slot) {
   }
   if (already) {
     items.push({ key: 'edit', title: `${title}を編集`, sub: `記録済み（${fmtNum(already.kcal || 0)}kcal・${(already.items || []).length}品）`,
-      run: () => { state.timing = tk; loadMealFor(todayStr(), tk); showView('meal'); } });
+      run: () => { setDate(target); state.timing = tk; loadMealFor(target, tk); showView('meal'); } });
   }
   items.push({ key: 'recipe', title: '作り置きを登録', sub: '材料と食数を入れると1食分を自動計算',
     run: () => { showView('meal'); setTimeout(() => openRecipeBuilder(), 250); } });
   items.push({ key: 'blank', title: already ? '別の食事を記録' : `${title}をゼロから記録`, sub: '検索して1品ずつ入れる',
-    run: () => { state.timing = tk; loadMealFor(todayStr(), tk); showView('meal'); } });
+    run: () => { setDate(target); state.timing = tk; loadMealFor(target, tk); showView('meal'); } });
   return items;
 }
 /**
@@ -5495,12 +5527,14 @@ function closeSubMenu() {
 function repeatLastMeal() {
   const last = latestRepeatableMeal();
   if (!last) { showToast('繰り返せる食事の記録がまだありません'); return; }
-  setDate(todayStr());
+  // [fix] 2026-07-31 横展開: todayStr() 固定だったため、過去日を見ていても今日へ飛んでいた
+  const target = state.date;
   state.timing = last.timingKey;
-  loadMealFor(state.date, state.timing);
+  loadMealFor(target, state.timing);
   if (state.editingRecordId) {
     showView('meal');
-    showToast(`今日の${last.title || last.timing}は記録済みのため、編集画面を開きました`);
+    const when = target === todayStr() ? '今日' : fmtDateLabel(target);
+    showToast(`${when}の${last.title || last.timing}は記録済みのため、編集画面を開きました`);
     return;
   }
   state.items = restoreMealItems(last.items, last.structuredItems);
@@ -5509,11 +5543,13 @@ function repeatLastMeal() {
   persistDraft();
   showToast(`${fmtDateLabel(last.date)}の内容を入れました。確認して「記録する」`);
 }
-/** 指定スロットの「いつもの」を入れて食事シートを開く */
+/** 指定スロットの「いつもの」を入れて食事シートを開く（いま見ている日が対象） */
 function openUsualMealFor(slot) {
-  const usual = usualMealFor(slot, todayStr());
+  // [fix] 2026-07-31 横展開: todayStr() 固定で、過去日を見ていても今日へ飛んでいた
+  const target = state.date;
+  const usual = usualMealFor(slot, target);
   if (!usual) { showToast('「いつもの」を学習できるだけの記録がまだありません'); return; }
-  setDate(todayStr());
+  setDate(target);
   state.timing = slot;
   loadMealFor(state.date, state.timing);
   state.items = restoreMealItems(usual.record.items, usual.record.structuredItems);
@@ -5606,6 +5642,7 @@ function setDate(dateStr) {
   // カレンダーの選択値を現在の日付に合わせる（未来は選べないよう max も設定）
   const picker = $('#datePicker');
   if (picker) { picker.value = dateStr; picker.max = todayStr(); }
+  renderRecordDateRows();   // 3つの記録画面の「記録する日」を一括更新（横展開 2026-07-31）
   if ($('#scorePop')) $('#scorePop').hidden = true;   // 内訳ポップは日付が変わったら閉じる
   if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderHydration(); }
   if (state.view === 'workout') renderWorkoutToday();
@@ -7338,8 +7375,11 @@ $('#exoFields').addEventListener('click', (e) => {
   if (consumeLongPressClick(b)) return;
   runWorkoutFieldButton(b);
 });
-// 「記録する日」をタップでカレンダーを開く（運動画面から日付を変えられるように）
-$('#workoutDateRow').addEventListener('click', () => $('#dateLabel').click());
+// 「記録する日」をタップでカレンダーを開く（食事・運動・からだ 共通。横展開 2026-07-31）
+['#mealDateRow', '#workoutDateRow', '#bodyDateRow'].forEach((sel) => {
+  const el = $(sel);
+  if (el) el.addEventListener('click', () => $('#dateLabel').click());
+});
 $('#saveWorkoutBtn').addEventListener('click', saveWorkout);
 $('#sendWorkoutBtn').addEventListener('click', sendWorkoutDrafts);
 

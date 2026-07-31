@@ -515,5 +515,48 @@ ok('シートの出口: ×ボタンが sticky で常時表示', /position:\s*sti
 ok('シートの出口: 背景タップで閉じるハンドラが全シートに付く',
   /back\.addEventListener\('click',\s*\(e\)\s*=>\s*\{\s*if\s*\(e\.target === back\)\s*trySheetClose/.test(appHtml), '');
 
+// ---- 横展開（2026-07-31）: 日付まわりが全画面で state.date 基準になっているか ----
+const spread = vm.runInContext(`(() => {
+  const past = shiftDate(todayStr(), -6);
+  // 過去日に昼の記録がある状態を作る（「編集」項目が出る条件）
+  const recs = [{ date: past, timing: '昼', timingKey: 'lunch', kcal: 700,
+    items: [{ name: 'テスト', kcal: 700 }], structuredItems: [], updatedAt: '2026-07-25T12:00:00Z' }];
+  saveRecords(recs);   // getRecords はキャッシュするため専用セッター経由で入れる
+  state.date = past;
+  const past_ = mealShortcuts('lunch');
+  state.date = todayStr();
+  const today_ = mealShortcuts('lunch');
+  saveRecords([]);
+  return {
+    pastHasEdit: past_.some((i) => i.key === 'edit'),   // 過去日の記録を編集として認識
+    todayNoEdit: !today_.some((i) => i.key === 'edit')  // 今日は未記録なので編集は出ない
+  };
+})()`, context);
+ok('横展開: 食事の長押しメニューが「見ている日」を対象にする（旧: 常に今日）',
+  spread.pastHasEdit && spread.todayNoEdit, JSON.stringify(spread));
+
+// 3つの記録画面すべてに「記録する日」行があり、共通関数で更新される
+const dateRows = vm.runInContext(`(() => {
+  state.date = shiftDate(todayStr(), -6);
+  renderRecordDateRows();
+  const past = ['#mealDateRow', '#workoutDateRow', '#bodyDateRow']
+    .every((s) => document.querySelector(s).classList.contains('is-past'));
+  state.date = todayStr();
+  renderRecordDateRows();
+  const today = ['#mealDateRow', '#workoutDateRow', '#bodyDateRow']
+    .every((s) => !document.querySelector(s).classList.contains('is-past'));
+  return { past, today };
+})()`, context);
+ok('横展開: 食事・運動・からだの「記録する日」が3画面とも過去日で強調される',
+  dateRows.past && dateRows.today, JSON.stringify(dateRows));
+
+const spreadHtml = fsMod.readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+ok('横展開: 3つの記録画面に rec-date-row がある',
+  ['mealDateRow', 'workoutDateRow', 'bodyDateRow'].every((id) => spreadHtml.includes(`id="${id}"`)), '');
+ok('横展開: カレンダーがラベル専用 wrapper 内にある（隣の矢印を覆わない）',
+  /<span class="date-label-wrap">[\s\S]*?id="datePicker"[\s\S]*?<\/span>/.test(spreadHtml), '');
+ok('横展開: 運動追加シートに未保存確認がある',
+  /exoAddBack:\s*\(\)\s*=>/.test(spreadHtml), '');
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
