@@ -2775,9 +2775,15 @@ function addKeepingRowStill(foodId, mutate) {
   return result;
 }
 
+/**
+ * 品目の数量を1段変える。
+ * @returns {boolean} false = 品目が消えた/対象が無い（＝一覧が作り直され data-i がズレた）。
+ *   長押しリピートはこれを見てその場で止まる（bindContinuousPress）。止めないと、
+ *   掴んだままの古いボタンの data-i を使って「今その番号にいる別の品目」を減らし続ける。
+ */
 function stepItem(i, dir) {
   const it = state.items[i];
-  if (!it || it.frozen) return;
+  if (!it || it.frozen) return false;
   const food = getFoodById(it.foodId);
   const unit = getUnitsForFood(food).find((u) => u.label === it.unit) || getDefaultUnit(food);
   const step = Math.max(Number(unit && unit.step) || 1, 0.1);
@@ -2786,12 +2792,15 @@ function stepItem(i, dir) {
   if (next < step) {
     // 最小より下げたら削除確認の代わりにそのまま削除
     state.items.splice(i, 1);
-  } else {
-    it.qty = Number(next.toFixed(2));
-    state.items[i] = recalcItem(it);
+    renderItems();
+    persistDraft();
+    return false;   // 一覧が作り直され、以降の data-i は別の品目を指す
   }
+  it.qty = Number(next.toFixed(2));
+  state.items[i] = recalcItem(it);
   renderItems();
   persistDraft();
+  return true;
 }
 
 // 単位切替シート
@@ -6882,12 +6891,16 @@ function consumeLongPressClick(el) {
 // [perf] 監査#19: リピート中は action(el, true) で軽量更新パスを選べるようにし、
 // リピート終了時（pointerup 等）に onRepeatEnd で1回だけフル再描画する。
 // 単発タップ（リピート未発火）は従来どおり click ハンドラ経由のフル再描画。
+// action が false を返したら「一覧が作り直されて、掴んでいるボタンはもう当てにならない」の合図。
+// その場でリピートを打ち切り、続けて飛んでくる click も1回だけ握りつぶす（指を離した時、
+// 消えた行の跡地にせり上がってきた別の行を1回押してしまうのを防ぐ）。
 function bindContinuousPress(root, selector, action, onRepeatEnd) {
   let timer = null;
   let interval = null;
   let startedAt = 0;
   let activeEl = null;
   let fired = false;
+  let swallowNextClick = false;
   const clear = () => {
     clearTimeout(timer);
     clearInterval(interval);
@@ -6902,8 +6915,15 @@ function bindContinuousPress(root, selector, action, onRepeatEnd) {
   };
   const repeat = () => {
     if (!activeEl || activeEl.disabled) return;
-    action(activeEl, true);   // 第2引数 true = リピート中（軽量更新）
+    const keepGoing = action(activeEl, true);   // 第2引数 true = リピート中（軽量更新）
     fired = true;
+    if (keepGoing === false) {
+      // 例: 「−」で数量が最小を割り品目が消えた。掴んでいるボタンも、そこに書かれた
+      // data-i も古いまま。このまま繰り返すと別の品目を減らし続けるので必ず止める。
+      swallowNextClick = true;
+      clear();
+      return;
+    }
     const elapsed = Date.now() - startedAt;
     if (elapsed > 1500 && interval) {
       clearInterval(interval);
@@ -6913,6 +6933,7 @@ function bindContinuousPress(root, selector, action, onRepeatEnd) {
   root.addEventListener('pointerdown', (e) => {
     const el = e.target.closest(selector);
     if (!el || el.disabled) return;
+    swallowNextClick = false;   // 新しい操作の始まり。前回の持ち越しは捨てる
     activeEl = el;
     startedAt = Date.now();
     timer = setTimeout(() => {
@@ -6923,6 +6944,15 @@ function bindContinuousPress(root, selector, action, onRepeatEnd) {
   ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
     root.addEventListener(eventName, clear);
   });
+  // capture で拾って、通常の click ハンドラより先に握りつぶす
+  root.addEventListener('click', (e) => {
+    if (!swallowNextClick) return;
+    swallowNextClick = false;
+    if (e.target.closest && e.target.closest(selector)) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
 }
 function runWorkoutFieldButton(b, repeating) {
   const f = b.dataset.wf, meta = FIELD[f];
