@@ -647,5 +647,45 @@ ok('リネーム耐性: key があれば旧名の過去記録も筋トレのま�
   renameCase.byOldNameWithKey && renameCase.byNewName && !renameCase.byOldNameNoKey,
   JSON.stringify(renameCase));
 
+// ---- 目標の巻き戻り防止（2026-08-05）: 設定を開いた時にサーバーの正を読み直す ----
+ok('目標巻き戻り: 設定を開くとサーバーの目標を読み直す（古い値の保存で上書きしない）',
+  /function openSettings\(\)[\s\S]*?refreshTargetsFromServer\(\)/.test(appHtml)
+  && /async function refreshTargetsFromServer\(\)/.test(appHtml), '');
+ok('目標巻き戻り: 未送信の設定変更がある時は上書きしない（オフライン編集を守る）',
+  /refreshTargetsFromServer[\s\S]*?e\.key === 'settings_save'[\s\S]*?if \(queued\) return;/.test(appHtml), '');
+
+// 判定帯の導出式が pushSettingsToServer と同じ前提（サーバー直し／アプリ保存で値がズレない）
+ok('目標巻き戻り: 帯の式は kcal±10% / P -5%〜+20% / F・C±20%（サーバー投入値と同一）',
+  /target_protein_min: Math\.round\(targets\.protein \* 0\.95\)/.test(
+    fsMod.readFileSync(path.join(ROOT, 'js', 'sync.js'), 'utf8')), '');
+
+// ---- 外食ざっくり記録（2026-08-05）: 外食時に丸ごと未記録になるのを防ぐ1タップ導線 ----
+const diningCase = vm.runInContext(`(() => {
+  const before = allFoods.length;
+  // seed_dining_rough.py が投入する行の形そのままを serverFoodToCatalog に通す
+  // （手作りの近似オブジェクトだと実際の読み取り経路を検証できないため）
+  const mkRow = (key, name, short, kcal) => serverFoodToCatalog({
+    id: 't-' + key, legacy_key: key, name, kind: 'product', mode: 'perUnit',
+    unit_label: '食', per_unit: { energy: kcal, protein: 20, fat: 12, carb: 75, salt: 3 },
+    pending_review: true, archived: false, verified: false,
+    meta: { shortName: short, diningRough: true }
+  });
+  // kcal 順に並ぶか確認するため、あえて重い順で流し込む
+  allFoods.push(mkRow('dining-rough-heavy', '外食 しっかり（丼・カレー・麺）', '外食 しっかり', 1100));
+  allFoods.push(mkRow('dining-rough-light', '外食 軽め（そば・サラダ）', '外食 軽め', 500));
+  const items = diningRoughShortcuts();
+  const order = items.map((i) => i.title);
+  const inPool = suggestionPool().some((f) => f.diningRough);
+  allFoods.length = before;
+  return { n: items.length, order, inPool, firstSub: items[0] ? items[0].sub : '' };
+})()`, context);
+ok('外食ざっくり: 候補が軽い順に並ぶ / kcalが見える',
+  diningCase.n === 2 && diningCase.order[0] === '外食 軽め' && /500 kcal/.test(diningCase.firstSub),
+  JSON.stringify(diningCase));
+ok('外食ざっくり: 概算なので「次の一手」の候補エンジンには出さない',
+  diningCase.inPool === false, JSON.stringify(diningCase));
+ok('外食ざっくり: 食事画面に入口チップがある',
+  /data-quick="dining"/.test(appHtml) && /openSubMenu\('dining'/.test(appHtml), '');
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

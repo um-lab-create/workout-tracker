@@ -115,6 +115,7 @@ function serverFoodToCatalog(row) {
     primaryVariant: meta.primary !== false,           // 八訂の状態バリアント集約（SPEC-018）
     variantTokens: meta.variant_tokens || [],
     staple: meta.staple === true,                     // 定番食品（U2: 候補プールの母集団）
+    diningRough: meta.diningRough === true,           // 外食ざっくり記録の概算エントリ（2026-08-05）
 
     pendingReview: Boolean(row.pending_review),
     source: row.source || '',

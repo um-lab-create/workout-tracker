@@ -2469,6 +2469,11 @@ function renderQuickRow() {
     }, 0);
     chips.push(`<button class="quick-chip" data-quick="preset" data-pi="${i}"><span class="n">${escapeHtml(p.name || 'セット')}</span><span class="d">${fmtNum(kcal)} kcal・${p.items.length}品</span></button>`);
   });
+  // 外食ざっくり（2026-08-05）: 外食時に「入力が面倒で丸ごと未記録」になるのを防ぐ入口。
+  // 常に末尾に置く（＝いつでも逃げ道がある）
+  if ((allFoods || []).some((f) => f && f.diningRough && !f.archived)) {
+    chips.push('<button class="quick-chip" data-quick="dining"><span class="n">外食ざっくり</span><span class="d">1タップ・概算でOK</span></button>');
+  }
   $('#quickRow').innerHTML = chips.join('');
   $('#quickRow').style.display = chips.length ? '' : 'none';
 }
@@ -5511,12 +5516,40 @@ let subMenuItems = [];
  * @param {string} kind 'meal' | 'workout'
  * @param {Element} anchor 押した要素（この直下・画面内に収まる位置へ出す）
  */
+/**
+ * 外食の「ざっくり記録」（2026-08-05 マネージャー談「外食で入力面倒な時とかあるよね」）。
+ *
+ * 設計の意図: 外食を1品ずつ入れるのは現実的でなく、結果として**その日が丸ごと未記録**になり、
+ * 週平均が実態から外れていた（実測: 直近14日で記録3日）。
+ * 「0kcal（未記録）」より「概算800kcal」の方が真実に近い、という考え方に立つ。
+ * 数値は scripts/seed_dining_rough.py で登録した概算食品（pending_review=true）。
+ */
+function diningRoughShortcuts() {
+  const foods = (allFoods || []).filter((f) => f && f.diningRough && !f.archived);
+  if (!foods.length) return [];
+  // 軽い順に並べる（登録順ではなく kcal 順で「だいたいこれ」を選びやすく）
+  const kcalOf = (f) => {
+    const u = getDefaultUnit(f);
+    return calcFoodPortion(f, 1, u.label).kcal;
+  };
+  return foods.slice().sort((a, b) => kcalOf(a) - kcalOf(b)).map((f) => ({
+    key: `dining:${f.id}`,
+    title: (f.shortName || f.name),
+    sub: `${fmtNum(kcalOf(f))} kcal・概算（あとで直せます）`,
+    run: () => {
+      addFoodById(f.id);
+      showToast('ざっくり記録しました。「記録する」で確定できます');
+    }
+  }));
+}
+
 function openSubMenu(kind, anchor, slot) {
   subMenuItems = kind === 'meal' ? mealShortcuts(slot)
     : kind === 'workout' ? workoutShortcuts()
+    : kind === 'dining' ? diningRoughShortcuts()
     : kind === 'mealSheet' ? mealSheetShortcuts() : [];   // mealSheet = 食事シート内「⋯」（監査3-3）
   if (!subMenuItems.length) { showView(kind); return; }
-  const kj = kind === 'workout' ? '運' : '食';
+  const kj = kind === 'workout' ? '運' : kind === 'dining' ? '外' : '食';
   const menu = $('#ctxMenu');
   menu.innerHTML = subMenuItems.map((it, i) =>
     `<button class="ctx-item ${it.accent ? 'accent' : ''}" data-sub="${i}" role="menuitem">
@@ -5729,6 +5762,46 @@ function openSettings() {
   updateSyncUi();
   updateAccountUi();
   $('#settingsBack').classList.add('show');
+  refreshTargetsFromServer();   // [fix] 下記参照
+}
+
+/**
+ * 設定を開いた直後にサーバーの目標値を読み直してフォームへ反映する。
+ *
+ * [fix] 2026-08-05: 2026-07-20 に目標を **サーバー側だけ** で P155/F80/C300 に直したが、
+ * 端末の localStorage は旧値(P115/F70/C350)のままだった。7/24 に設定画面から保存された際、
+ * 画面が旧値を表示していたため **古い目標がサーバーへ書き戻され**、
+ * 「たんぱく質159g が多すぎ判定で不達成」という 7/20 に解消したはずの構造が再発した。
+ * → 編集前に必ずサーバーの正を読み込む（オフライン・未ログイン時は従来どおりローカル値のまま）。
+ *
+ * 未送信の設定変更がキューにある時は上書きしない（オフライン編集の巻き戻り防止・監査#10/#33 と同方針）。
+ */
+async function refreshTargetsFromServer() {
+  try {
+    const queued = (window.HSSbQueue && window.HSSbQueue.load ? window.HSSbQueue.load() : [])
+      .some((e) => e && e.key === 'settings_save');
+    if (queued) return;
+    const sb = await window.HSSupabaseReady;
+    if (!(await sb.getSession())) return;
+    const row = await sb.fetchUserSettings();
+    if (!row) return;
+    const server = userSettingsToTargets(row);
+    const local = baseTargets();
+    lsSet(LS_KEYS.NUTRITION_TARGETS, server);
+    // 画面が開いている間だけ差し替える（閉じた後に書き換えて混乱させない）
+    if ($('#settingsBack').classList.contains('show')) {
+      $('#setTargetEnergy').value = Math.round(server.energy);
+      $('#setTargetProtein').value = Math.round(server.protein);
+      $('#setTargetFat').value = Math.round(server.fat);
+      $('#setTargetCarb').value = Math.round(server.carb);
+    }
+    const changed = ['energy', 'protein', 'fat', 'carb']
+      .some((k) => Math.round(Number(local[k])) !== Math.round(Number(server[k])));
+    if (changed) {
+      renderHome();
+      showToast(`目標をサーバーの最新に更新しました（P${Math.round(server.protein)} / F${Math.round(server.fat)} / C${Math.round(server.carb)}）`);
+    }
+  } catch (e) { /* オフライン等は従来どおりローカル値で編集させる */ }
 }
 async function saveSettings() {
   lsSet(SHOW_HYDRATION_KEY, $('#setShowHydration').checked);
@@ -7082,6 +7155,11 @@ $('#timingSeg').addEventListener('click', (e) => {
 $('#quickRow').addEventListener('click', (e) => {
   const chip = e.target.closest('[data-quick]');
   if (!chip) return;
+  if (chip.dataset.quick === 'dining') {
+    // 外食ざっくり: 軽め/普通/しっかり/がっつり をメニューで選ぶ（既存の追加品目は消さない）
+    openSubMenu('dining', chip);
+    return;
+  }
   if (chip.dataset.quick === 'usual') {
     const usual = usualMealFor(state.timing, state.date);
     if (!usual) return;
