@@ -2761,8 +2761,13 @@ function addKeepingRowStill(foodId, mutate) {
   const result = mutate();
   if (before == null) return result;
   // 再描画された場合に備えて同じ行を探し直す（見つからない＝一覧が消えたので補正不要）
+  //
+  // ここで「同じ id のボタンが見つかった」だけを条件にすると誤補正する（2026-08-06 追加）:
+  // 検索から追加すると clearFoodSearch() が一覧を「よくつかう」に作り直すため、
+  // その食品がよくつかうにも載っていると、まったく別の一覧の中の同じ id が引っかかる。
+  // 無関係な2点の差でスクロールが飛ぶので、「追加前とまったく同じボタン要素か」まで見る。
   const rowAfter = document.querySelector(sel);
-  if (!rowAfter) return result;
+  if (!rowAfter || rowAfter !== rowBefore) return result;
   const delta = rowAfter.getBoundingClientRect().top - before;
   if (!delta) return result;
   if (scroller) scroller.scrollTop += delta;
