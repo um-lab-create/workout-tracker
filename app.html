@@ -7231,8 +7231,17 @@ $('#mealItems').addEventListener('click', (e) => {
   }
   const del = e.target.closest('[data-del]');
   if (del) {
-    state.items.splice(Number(del.dataset.del), 1);
+    // 削除すると一覧が描き直されて下の行がせり上がる。連続タップで意図しない品目を
+    // 消してしまうため「取り消す」を出す（確認ダイアログより、タップ操作では取り消せる方が速い）。
+    const i = Number(del.dataset.del);
+    const removed = state.items[i];
+    if (!removed) return;
+    state.items.splice(i, 1);
     renderItems(); persistDraft(); haptic(8);
+    showUndoToast(`${removed.name || '品目'}を消しました`, '取り消す', () => {
+      state.items.splice(Math.min(i, state.items.length), 0, removed);
+      renderItems(); persistDraft();
+    });
     return;
   }
   const review = e.target.closest('[data-review]');
