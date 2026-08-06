@@ -26,7 +26,13 @@ function makeElement() {
     addEventListener() {}, removeEventListener() {}, dispatchEvent() {},
     appendChild() {}, remove() {}, click() {}, focus() {}, blur() {}, select() {}, closest() { return null; },
     querySelector() { return makeElement(); }, querySelectorAll() { return []; },
-    setAttribute() {}, getBoundingClientRect() { return { width: 0, height: 0 }; }
+    setAttribute() {},
+    // top を持たせる（無いと addKeepingRowStill が毎回「位置が測れない」経路に落ちて
+    // スクロール補正の計算が1度も検証されない）。_rectTop を書き換えれば行が動いた事にできる。
+    _rectTop: 0,
+    getBoundingClientRect() {
+      return { top: this._rectTop, bottom: this._rectTop, left: 0, right: 0, width: 0, height: 0 };
+    }
   };
   return el;
 }
@@ -711,6 +717,57 @@ ok('連続追加: 「よく使う」表示中は再描画しない / 検索中�
   stillCase.skippedWhenEmpty && stillCase.renderedWhenTyped, JSON.stringify(stillCase));
 ok('連続追加: 追加時にスクロール補正を通している',
   /addKeepingRowStill\(id, \(\) => \{[\s\S]*?addFoodById\(id\)/.test(appHtml), '');
+
+// スクロール補正の計算そのものを通す（従来はスタブに top が無く、毎回「測れない」経路で終わっていた）。
+// document.querySelector を差し替えて「押した行」を作り、追加の前後で位置や要素の同一性を変える。
+const scrollFix = vm.runInContext(`(() => {
+  const scroller = { scrollTop: 0 };
+  const mkRow = (top) => ({
+    _top: top,
+    closest: (s) => (s === '.record-view' ? scroller : null),
+    getBoundingClientRect() { return { top: this._top, bottom: this._top, left: 0, right: 0, width: 0, height: 0 }; }
+  });
+  const origQS = document.querySelector;
+  let current = null;
+  document.querySelector = (s) => (String(s).indexOf('data-add=') >= 0 ? current : origQS.call(document, s));
+  const out = {};
+  try {
+    // A) 同じ一覧のまま行が 100 → 140 に下がった → 差の 40 だけスクロールを送って指の下を固定
+    const row = mkRow(100);
+    current = row;
+    scroller.scrollTop = 0;
+    addKeepingRowStill('rice', () => { row._top = 140; });
+    out.sameListCorrected = scroller.scrollTop;
+
+    // B) 一覧が「よくつかう」に作り直され、同じ id の“別の”ボタンになった → 補正してはいけない
+    current = mkRow(100);
+    scroller.scrollTop = 0;
+    addKeepingRowStill('rice', () => { current = mkRow(900); });
+    out.rebuiltListSkipped = scroller.scrollTop;
+
+    // C) 行が消えた（一覧ごと入れ替わった）→ 補正しない
+    current = mkRow(100);
+    scroller.scrollTop = 0;
+    addKeepingRowStill('rice', () => { current = null; });
+    out.rowGoneSkipped = scroller.scrollTop;
+
+    // D) 押した行が最初から無い場合も素通り（戻り値は保つ）
+    current = null;
+    scroller.scrollTop = 0;
+    out.noRowResult = addKeepingRowStill('rice', () => 'OK');
+    out.noRowSkipped = scroller.scrollTop;
+  } finally {
+    document.querySelector = origQS;
+  }
+  return out;
+})()`, context);
+ok('連続追加: 同じ一覧なら伸びた分だけスクロールを送って行を固定する',
+  scrollFix.sameListCorrected === 40, JSON.stringify(scrollFix));
+ok('連続追加: 一覧が作り直されたら（同じidの別ボタン）スクロールを動かさない',
+  scrollFix.rebuiltListSkipped === 0, JSON.stringify(scrollFix));
+ok('連続追加: 行が消えた場合もスクロールを動かさない',
+  scrollFix.rowGoneSkipped === 0 && scrollFix.noRowSkipped === 0 && scrollFix.noRowResult === 'OK',
+  JSON.stringify(scrollFix));
 
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);
