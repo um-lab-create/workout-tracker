@@ -24,7 +24,7 @@ function makeElement() {
     },
     value: '', textContent: '', innerHTML: '', checked: false, disabled: false,
     addEventListener() {}, removeEventListener() {}, dispatchEvent() {},
-    appendChild() {}, remove() {}, click() {}, focus() {}, closest() { return null; },
+    appendChild() {}, remove() {}, click() {}, focus() {}, blur() {}, select() {}, closest() { return null; },
     querySelector() { return makeElement(); }, querySelectorAll() { return []; },
     setAttribute() {}, getBoundingClientRect() { return { width: 0, height: 0 }; }
   };
@@ -686,6 +686,31 @@ ok('外食ざっくり: 概算なので「次の一手」の候補エンジン�
   diningCase.inPool === false, JSON.stringify(diningCase));
 ok('外食ざっくり: 食事画面に入口チップがある',
   /data-quick="dining"/.test(appHtml) && /openSubMenu\('dining'/.test(appHtml), '');
+
+// ---- 連続追加でのズレ防止（実機指摘 2026-08-05）----
+const stillCase = vm.runInContext(`(() => {
+  // ラッパーが mutate の戻り値を潰さないこと（潰すとトーストも「追加しました」も出なくなる）
+  const passthrough = addKeepingRowStill('rice', () => 'RESULT');
+  // 「よく使う」表示中（検索欄が空）は再描画しない＝行が作り直されず指の下が動かない
+  const input = document.querySelector('#foodSearch');
+  input.value = '';
+  let rendered = 0;
+  const orig = renderSearch;
+  globalThis.renderSearch = () => { rendered++; };
+  clearFoodSearch();
+  const skippedWhenEmpty = rendered === 0;
+  input.value = 'なっとう';
+  clearFoodSearch();
+  const renderedWhenTyped = rendered === 1 && input.value === '';
+  globalThis.renderSearch = orig;
+  return { passthrough, skippedWhenEmpty, renderedWhenTyped };
+})()`, context);
+ok('連続追加: ラッパーが追加結果をそのまま返す（トーストが消えない）',
+  stillCase.passthrough === 'RESULT', JSON.stringify(stillCase));
+ok('連続追加: 「よく使う」表示中は再描画しない / 検索中はきちんとクリアされる',
+  stillCase.skippedWhenEmpty && stillCase.renderedWhenTyped, JSON.stringify(stillCase));
+ok('連続追加: 追加時にスクロール補正を通している',
+  /addKeepingRowStill\(id, \(\) => \{[\s\S]*?addFoodById\(id\)/.test(appHtml), '');
 
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

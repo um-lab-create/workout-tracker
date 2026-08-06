@@ -2734,9 +2734,40 @@ function addFoodById(id) {
 function clearFoodSearch() {
   const input = $('#foodSearch');
   if (!input) return;
+  // [fix] 2026-08-05: 検索欄が既に空（=「よく使う」一覧を出している状態）の時まで
+  // 再描画・blur していたため、連続タップのたびに行が作り直されて指の下がズレていた。
+  // 何も変わらない時は触らない。
+  if (input.value === '') return;
   input.value = '';
   input.blur();
   renderSearch();
+}
+
+/**
+ * 一覧から品目を足した時、押した行が画面上で動かないようにスクロールを補正する。
+ *
+ * 実機指摘（2026-08-05）:「よく使うから納豆・豆腐と続けてタップすると、
+ * 押すたびに上の一覧が伸びて画面がちょんとズレる。次を押すのにスクロールし直しで面倒」
+ * → 上のカードが伸びた分だけ、スクロール位置を同じだけ送って相殺する。
+ *
+ * @param {string} foodId 押した行の食品id（再描画されても同じ行を探し直すため）
+ * @param {Function} mutate 実際の追加処理
+ */
+function addKeepingRowStill(foodId, mutate) {
+  const sel = `#searchResults [data-add="${String(foodId).replace(/"/g, '\\"')}"]`;
+  const rowBefore = document.querySelector(sel);
+  const scroller = rowBefore && rowBefore.closest ? rowBefore.closest('.record-view') : null;
+  const before = rowBefore ? rowBefore.getBoundingClientRect().top : null;
+  const result = mutate();
+  if (before == null) return result;
+  // 再描画された場合に備えて同じ行を探し直す（見つからない＝一覧が消えたので補正不要）
+  const rowAfter = document.querySelector(sel);
+  if (!rowAfter) return result;
+  const delta = rowAfter.getBoundingClientRect().top - before;
+  if (!delta) return result;
+  if (scroller) scroller.scrollTop += delta;
+  else if (typeof window.scrollBy === 'function') window.scrollBy(0, delta);
+  return result;
 }
 
 function stepItem(i, dir) {
@@ -7302,11 +7333,14 @@ $('#searchResults').addEventListener('click', (e) => {
   }
   const b = e.target.closest('[data-add]');
   if (b) {
-    const added = addFoodById(b.dataset.add);
-    if (added) {
-      clearFoodSearch();
-      showToast(`${added.name}を追加しました`);
-    }
+    const id = b.dataset.add;
+    // 連続タップでも押した行が動かないようにする（実機指摘 2026-08-05）
+    const added = addKeepingRowStill(id, () => {
+      const food = addFoodById(id);
+      if (food) clearFoodSearch();
+      return food;
+    });
+    if (added) showToast(`${added.name}を追加しました`);
   }
 });
 
