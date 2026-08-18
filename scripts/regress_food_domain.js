@@ -769,5 +769,26 @@ ok('連続追加: 行が消えた場合もスクロールを動かさない',
   scrollFix.rowGoneSkipped === 0 && scrollFix.noRowSkipped === 0 && scrollFix.noRowResult === 'OK',
   JSON.stringify(scrollFix));
 
+
+// ---- 体組成の古さ表示（実機指摘 2026-08-18「体重が更新されてない」）----
+const staleCase = vm.runInContext(`(() => {
+  const past = shiftDate(todayStr(), -23);
+  lsSet(LS_KEYS.BODY_RECORDS, [{ date: past, weight: 68.5, fat: 15.0 }]);
+  localStorage.removeItem('hs:body-server-cache:v1');
+  state.date = todayStr();
+  const last = bodyLastMeasuredDate();
+  renderTodayTiles({ energy: 0 });
+  const stale = document.querySelector('#tileBody').classList.contains('stale');
+  // 当日測っていれば古さ表示は出ない
+  lsSet(LS_KEYS.BODY_RECORDS, [{ date: todayStr(), weight: 68.5, fat: 15.0 }]);
+  renderTodayTiles({ energy: 0 });
+  const freshNotStale = !document.querySelector('#tileBody').classList.contains('stale');
+  lsSet(LS_KEYS.BODY_RECORDS, []);
+  return { last, past, stale, freshNotStale };
+})()`, context);
+ok('体組成の古さ: 最終測定日を拾える', staleCase.last === staleCase.past, JSON.stringify(staleCase));
+ok('体組成の古さ: 4日以上あくと注意表示 / 当日測っていれば出ない',
+  staleCase.stale && staleCase.freshNotStale, JSON.stringify(staleCase));
+
 console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
 process.exit(failed ? 1 : 0);

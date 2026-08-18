@@ -237,6 +237,9 @@ main { width: 100%; padding: 4px 14px calc(var(--tabbar-h) + env(safe-area-inset
 .rec-tile .lb { font-size: 10.5px; color: var(--muted); font-weight: 700; }
 .rec-tile .st { font-size: 11px; font-weight: 800; color: var(--ink); min-height: 13px; font-variant-numeric: tabular-nums; }
 .rec-tile.done .st { color: var(--green); }
+/* 体組成が古い時（4日以上前）は注意色。手動同期が止まっていても気づけるように */
+.rec-tile.stale .st { color: #c98a00; }
+.rec-tile.stale .ic { background: #fff3d6; color: #c98a00; }
 .rec-tile .chk { position: absolute; top: 5px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--green); color: #fff; display: none; place-items: center; font-size: 11px; font-weight: 900; }
 .rec-tile.done .chk { display: grid; }
 
@@ -3997,6 +4000,15 @@ function renderHome() {
   renderTodayTiles(totals);
 }
 
+/** 最後に体組成を測った日（タニタ取込 / 手入力の新しい方）。無ければ null。 */
+function bodyLastMeasuredDate() {
+  const server = (typeof bodyServerRows === 'function' ? bodyServerRows() : [])
+    .map((r) => bodyRowJst(r).date).filter(Boolean).sort().pop() || '';
+  const local = (lsGet(LS_KEYS.BODY_RECORDS, []) || [])
+    .map((r) => String(r && r.date || '')).filter(Boolean).sort().pop() || '';
+  const latest = server > local ? server : local;
+  return latest || null;
+}
 /** いまの時刻から妥当な食事タイミングを1つ選ぶ（食事タイルのタップ先。見やすさ改修）。 */
 function currentTimingByClock() {
   const h = new Date().getHours();
@@ -4033,7 +4045,19 @@ function renderTodayTiles(totals) {
   let bodyStat = '';
   if (serverOnDate && serverOnDate.weight_kg != null) bodyStat = `${Number(serverOnDate.weight_kg).toFixed(1)}`;
   else if (localOnDate) bodyStat = `${localOnDate.weight || ''}`;
+  // [fix] 2026-08-18 実機指摘「体重が更新されてない」: タニタの取込は手動のため、
+  // 気づかないまま3週間止まっていた。未測定の日は「最後に測ってから何日か」を出して
+  // 古さが目に入るようにする（4日以上で警告色）。
+  if (!bodyDone) {
+    const lastDate = bodyLastMeasuredDate();
+    if (lastDate) {
+      const ago = daysBetween(lastDate, viewDate);
+      if (ago >= 4) bodyStat = `${ago}日前`;
+    }
+  }
   setTile('tileBody', bodyDone, bodyStat);
+  const bodyTile = $('#tileBody');
+  if (bodyTile) bodyTile.classList.toggle('stale', !bodyDone && /日前$/.test(bodyStat));
 
   // 水分: 記録があれば済み・リットル表示（水分機能OFFのときはタイル自体を隠す）
   if (typeof showHydration === 'function' && !showHydration()) {
