@@ -43,7 +43,8 @@ window.HSSbQueue = (function initHSSbQueue() {
     }
   }
   function save(queue) {
-    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue || [])); } catch (e) { /* 容量超過等 */ }
+    // [fix] 永続化できていない操作を「未送信に保存済み」と扱わない。
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue || []));
   }
 
   /**
@@ -57,7 +58,10 @@ window.HSSbQueue = (function initHSSbQueue() {
       op,
       key: key || `${op}:${Date.now()}:${Math.random().toString(16).slice(2, 8)}`,
       data: data || {},
-      queuedAt: Date.now()
+      queuedAt: Date.now(),
+      // [fix] 同一ミリ秒の置換も別操作として識別する。
+      revision: window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID() : `${Date.now()}:${Math.random()}`
     };
     const queue = load().filter((e) => e && e.key !== entry.key);
     queue.push(entry);
@@ -66,9 +70,14 @@ window.HSSbQueue = (function initHSSbQueue() {
   }
 
   /** 指定 key のエントリを取り下げる（例: 削除時に同スロットの保存opを消す）。 */
-  function discard(key) {
+  function discard(key, expected) {
     if (!key) return;
-    save(load().filter((e) => e && e.key !== key));
+    save(load().filter((e) => e && (e.key !== key || (expected && !sameEntry(e, expected)))));
+  }
+
+  function sameEntry(a, b) {
+    return a.key === b.key && (a.revision || b.revision
+      ? a.revision === b.revision : a.queuedAt === b.queuedAt);
   }
 
   function count() { return load().length; }
@@ -76,7 +85,7 @@ window.HSSbQueue = (function initHSSbQueue() {
   /** flushQueue が呼ぶ操作ハンドラを登録する（app.html 側で登録）。 */
   function registerHandler(op, fn) { handlers[op] = fn; }
 
-  return { QUEUE_KEY, load, save, enqueue, discard, count, registerHandler, handlers };
+  return { QUEUE_KEY, load, save, enqueue, discard, sameEntry, count, registerHandler, handlers };
 })();
 
 window.HSSupabaseReady = (async function initHSSupabaseClient() {
@@ -287,20 +296,30 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
    */
   async function fetchMealDetails(fromDate, toDate) {
     await requireUserId();
-    const meals = must(await client.from('meals')
-      .select('*')
-      .gte('eaten_on', fromDate)
-      .lte('eaten_on', toDate)
-      .order('eaten_on', { ascending: true }));
+    // [fix] PostgREST の行上限で欠落した食事を「削除済み」と誤認しない。
+    async function pages(makeQuery) {
+      const all = [];
+      for (let offset = 0; ; offset += 1000) {
+        const rows = must(await makeQuery().range(offset, offset + 999));
+        all.push(...rows);
+        if (rows.length < 1000) return all;
+      }
+    }
+    const meals = await pages(() => client.from('meals').select('*')
+      .gte('eaten_on', fromDate).lte('eaten_on', toDate)
+      .order('eaten_on', { ascending: true }).order('id', { ascending: true }));
     const ids = meals.map((m) => m.id);
     if (!ids.length) return { meals, items: [], contexts: [] };
-    const items = must(await client.from('meal_items')
-      .select('*')
-      .in('meal_id', ids)
-      .order('sort_order', { ascending: true, nullsFirst: false }));
-    const contexts = must(await client.from('meal_dining_context')
-      .select('*')
-      .in('meal_id', ids));
+    const items = [];
+    const contexts = [];
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const batch = ids.slice(offset, offset + 100);
+      items.push(...await pages(() => client.from('meal_items').select('*').in('meal_id', batch)
+        .order('meal_id', { ascending: true })
+        .order('sort_order', { ascending: true, nullsFirst: false }).order('id', { ascending: true })));
+      contexts.push(...await pages(() => client.from('meal_dining_context').select('*')
+        .in('meal_id', batch).order('meal_id', { ascending: true })));
+    }
     return { meals, items, contexts };
   }
 
@@ -664,24 +683,27 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
       summary.skipped = true;
       return summary;
     }
-    const session = await getSession().catch(() => null);
-    if (!session) { summary.skipped = true; return summary; }
+    // [fix] 認証待ちの間もロックし、同じ snapshot の二重再送を防ぐ。
     queueFlushing = true;
     try {
+      const session = await getSession().catch(() => null);
+      if (!session) { summary.skipped = true; return summary; }
       const snapshot = window.HSSbQueue.load();
       const processed = [];
       const failedMeta = [];
       for (const entry of snapshot) {
+        if (!window.HSSbQueue.load().some((e) => window.HSSbQueue.sameEntry(e, entry))) continue;
         const handler = window.HSSbQueue.handlers[entry.op];
         if (!handler) continue; // ハンドラ未登録の操作は残す（別ページで積まれた等）
         try {
-          await handler(entry.data || {});
+          // [fix] 再送ハンドラは元エントリを再利用し、revision/失敗回数を維持する。
+          await handler(entry.data || {}, entry);
           processed.push(entry);
           summary.done += 1;
         } catch (e) {
           summary.failed += 1;
           // 監査#11: 恒久失敗（poison）を沈黙させない。試行回数と最後のエラーを残して UI が説明できるようにする
-          failedMeta.push({ key: entry.key, queuedAt: entry.queuedAt,
+          failedMeta.push({ key: entry.key, queuedAt: entry.queuedAt, revision: entry.revision,
             attempts: (entry.attempts || 0) + 1,
             lastError: String(e && e.message ? e.message : e).slice(0, 140) });
         }
@@ -689,9 +711,9 @@ window.HSSupabaseReady = (async function initHSSupabaseClient() {
       if (processed.length || failedMeta.length) {
         // flush 中に enqueue された同一 key の新しいエントリ（queuedAt が進んでいる）は残す
         const remain = window.HSSbQueue.load().filter((e) =>
-          !processed.some((p) => p.key === e.key && p.queuedAt === e.queuedAt));
+          !processed.some((p) => window.HSSbQueue.sameEntry(p, e)));
         remain.forEach((e) => {
-          const meta = failedMeta.find((f) => f.key === e.key && f.queuedAt === e.queuedAt);
+          const meta = failedMeta.find((f) => window.HSSbQueue.sameEntry(f, e));
           if (meta) { e.attempts = meta.attempts; e.lastError = meta.lastError; }
         });
         window.HSSbQueue.save(remain);

@@ -16,7 +16,7 @@ process.on('unhandledRejection', () => {}); // supabase-js CDN import は node �
 // ---- DOM/ブラウザ環境スタブ（セレクタごとに別インスタンスを返す） ----
 function makeElement() {
   const el = {
-    style: {}, dataset: {}, classList: {
+    style: { setProperty(name, value) { this[name] = value; } }, dataset: {}, classList: {
       _s: new Set(),
       add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); },
       toggle(c, f) { (f === undefined ? !this._s.has(c) : f) ? this._s.add(c) : this._s.delete(c); },
@@ -49,6 +49,7 @@ const localStorage = {
 };
 const sandbox = {
   console, setTimeout, clearTimeout, setInterval, clearInterval,
+  ResizeObserver: class { observe() {} disconnect() {} },
   localStorage,
   navigator: { onLine: true, serviceWorker: undefined },
   document: {
@@ -790,5 +791,54 @@ ok('体組成の古さ: 最終測定日を拾える', staleCase.last === staleCa
 ok('体組成の古さ: 4日以上あくと注意表示 / 当日測っていれば出ない',
   staleCase.stale && staleCase.freshNotStale, JSON.stringify(staleCase));
 
-console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
-process.exit(failed ? 1 : 0);
+const customWorkout = vm.runInContext(`(() => {
+  const previous = { exoId: state.exoId, values: state.exoValues };
+  applyExerciseTypes([{client_key:'arm-curl',name:'アームカール',short:'カール',kanji:'腕',kind:'strength',
+    fields:['weight','reps','sets','difficulty'],load_params:{default_weight:0,default_reps:10,default_sets:3,default_difficulty:3}}]);
+  state.exoId='exo:arm-curl'; state.exoValues={weight:5,reps:12,sets:3,difficulty:4};
+  const record=buildWorkoutRecord();
+  const server=sbWorkoutRow(record);
+  loadWorkoutLogIntoForm(record);
+  const restored=state.exoValues.difficulty;
+  applyExerciseTypes([]);state.exoId=previous.exoId;state.exoValues=previous.values;
+  return {local:record['強度'],server:server.intensity,restored};
+})()`, context);
+ok('追加種目: 難度がローカル・サーバー用データ・再読込で保持される',
+  customWorkout.local === 4 && customWorkout.server === 4 && customWorkout.restored === 4,
+  JSON.stringify(customWorkout));
+
+(async () => {
+  const superseded = await vm.runInContext(`(async () => {
+    const originalPush=pushMealToServer;
+    const before=JSON.stringify(window.HSSbQueue.load());
+    try {
+      pushMealToServer=async()=>{throw Object.assign(new Error('superseded'),{code:'MEAL_SUPERSEDED'});};
+      const result=await resendMealRecord({id:'obsolete',date:'2026-10-16',timingKey:'lunch'});
+      return {status:result.status,unchanged:before===JSON.stringify(window.HSSbQueue.load())};
+    } finally { pushMealToServer=originalPush; }
+  })()`, context);
+  ok('食事再送: 置換済みの操作を再キュー化せず新しい削除を保護',
+    superseded.status === 'superseded' && superseded.unchanged, JSON.stringify(superseded));
+  const retry = await vm.runInContext(`(async () => {
+    const originalPush = pushWorkoutToServer, originalEnqueue = window.HSSbQueue.enqueue;
+    const originalDrafts = state.workoutDrafts;
+    let firstId, retryId;
+    try {
+      state.workoutDrafts=[{ '日付':'2026-10-16','種目':'ショルダープレス','重量':5,'回数':10,'セット数':3,_ts:42 }];
+      pushWorkoutToServer=async row=>{firstId=row.id;throw new Error('offline');};
+      window.HSSbQueue.enqueue=()=>{throw new Error('storage full');};
+      await sendWorkoutDrafts();
+      const kept=state.workoutDrafts.length===1 && !document.querySelector('#sendWorkoutBtn').disabled;
+      window.HSSbQueue.enqueue=originalEnqueue;
+      pushWorkoutToServer=async row=>{retryId=row.id;};
+      await sendWorkoutDrafts();
+      return {kept,sameId:firstId===retryId,finished:state.workoutDrafts.length===0};
+    } finally {
+      pushWorkoutToServer=originalPush;window.HSSbQueue.enqueue=originalEnqueue;state.workoutDrafts=originalDrafts;
+    }
+  })()`, context);
+  ok('運動: キュー保存失敗で下書き・再送ボタンを保持し、再試行も同一ID',
+    retry.kept && retry.sameId && retry.finished, JSON.stringify(retry));
+  console.log(failed ? `\n判定: FAIL（${failed}件）` : '\n判定: PASS（食品ドメイン回帰 全項目合格）');
+  process.exit(failed ? 1 : 0);
+})().catch((error) => { console.error(error); process.exit(1); });

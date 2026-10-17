@@ -119,23 +119,101 @@ function sbMealPayload(record) {
   };
 }
 
+// [fix] 同じ食事枠の保存/削除を直列化し、取得中の変更も識別する。
+const mealWrites = new Map();
+const mealSlotRevisions = new Map();
+function scheduleMealWrite(date, timingKey, task) {
+  const slot = `${date}:${timingKey}`;
+  mealSlotRevisions.set(slot, (mealSlotRevisions.get(slot) || 0) + 1);
+  const previous = mealWrites.get(slot) || Promise.resolve();
+  const next = previous.catch(() => {}).then(task);
+  mealWrites.set(slot, next);
+  next.finally(() => { if (mealWrites.get(slot) === next) mealWrites.delete(slot); }).catch(() => {});
+  return next;
+}
+
+function latestMealInSlot(date, timingKey) {
+  return getRecords().filter((r) => r && r.date === date && r.timingKey === timingKey).pop();
+}
+function mealWriteVersion(record) {
+  return record ? JSON.stringify([record.updatedAt || '', sbMealPayload(record)]) : null;
+}
+function mealSupersededError() {
+  const error = new Error('送信中に食事が更新または削除されました。最新の操作を優先します');
+  error.code = 'MEAL_SUPERSEDED';
+  return error;
+}
+function mealQueueEntry(op, key, data, retryEntry) {
+  const q = window.HSSbQueue;
+  if (!retryEntry) return q.enqueue(op, key, data);
+  // [fix] 再送の度に enqueue すると失敗メタデータの revision が一致しなくなる。
+  if (!q.load().some((entry) => q.sameEntry(entry, retryEntry))) throw mealSupersededError();
+  return retryEntry;
+}
+
 /** 食事1件を Supabase に保存する。失敗は例外。 */
-async function pushMealToServer(record) {
-  const sb = await window.HSSupabaseReady;
-  await sb.saveMealRecord(sbMealPayload(record));
-  window.HSSbQueue.discard(`meal_delete:${record.date}:${record.timingKey}`);
+async function pushMealToServer(record, retryEntry) {
+  // [fix] 呼出元は record.id を送信済みにするため、別ID/別版を代わりに送らない。
+  const expectedVersion = mealWriteVersion(record);
+  if (mealWriteVersion(latestMealInSlot(record.date, record.timingKey)) !== expectedVersion) {
+    throw mealSupersededError();
+  }
+  const q = window.HSSbQueue;
+  const key = `meal_save:${record.date}:${record.timingKey}`;
+  const entry = mealQueueEntry('meal_save', key, { date: record.date, timingKey: record.timingKey }, retryEntry);
+  q.discard(`meal_delete:${record.date}:${record.timingKey}`);
+  return scheduleMealWrite(record.date, record.timingKey, async () => {
+    const sb = await window.HSSupabaseReady;
+    const current = latestMealInSlot(record.date, record.timingKey);
+    if (mealWriteVersion(current) !== expectedVersion) throw mealSupersededError();
+    const payload = sbMealPayload(current);
+    try {
+      await sb.saveMealRecord(payload);
+    } catch (error) {
+      if (mealWriteVersion(latestMealInSlot(record.date, record.timingKey)) !== expectedVersion) {
+        throw mealSupersededError();
+      }
+      throw error;
+    }
+    // [fix] 消失/別IDへの置換も成功扱いにせず、古い呼出元の markMealSynced を止める。
+    const latest = latestMealInSlot(record.date, record.timingKey);
+    if (mealWriteVersion(latest) !== expectedVersion) throw mealSupersededError();
+    q.discard(key, entry);
+  });
 }
 
 /** 食事1件を Supabase から削除する。失敗は例外。 */
-async function pushMealDeleteToServer({ date, timingKey, recordId }) {
-  const sb = await window.HSSupabaseReady;
-  const timingLabel = (TIMINGS[timingKey] && TIMINGS[timingKey].label) || timingKey;
-  await sb.deleteMealRecord(date, timingLabel);
-  window.HSSbQueue.discard(`meal_save:${date}:${timingKey}`);
+async function pushMealDeleteToServer({ date, timingKey, recordId }, retryEntry) {
+  const q = window.HSSbQueue;
+  // [fix] Undo/再保存後に古い削除の再送で新しい食事を消さない。
+  if (getRecords().some((r) => r && r.date === date && r.timingKey === timingKey)) {
+    q.discard(`meal_delete:${date}:${timingKey}`, retryEntry);
+    return;
+  }
+  const key = `meal_delete:${date}:${timingKey}`;
+  const entry = mealQueueEntry('meal_delete', key, { date, timingKey, recordId }, retryEntry);
+  q.discard(`meal_save:${date}:${timingKey}`);
+  return scheduleMealWrite(date, timingKey, async () => {
+    const sb = await window.HSSupabaseReady;
+    if (getRecords().some((r) => r && r.date === date && r.timingKey === timingKey)) {
+      q.discard(key, entry);
+      return;
+    }
+    const timingLabel = (TIMINGS[timingKey] && TIMINGS[timingKey].label) || timingKey;
+    try {
+      await sb.deleteMealRecord(date, timingLabel);
+    } catch (error) {
+      if (latestMealInSlot(date, timingKey)) throw mealSupersededError();
+      throw error;
+    }
+    q.discard(key, entry);
+  });
 }
 
 /** 送信失敗の共通ハンドリング: 操作をキューに積み、状況に応じたトーストを出す。 */
 function queueWithToast(op, key, data, label, err) {
+  // [fix] 過去の失敗コールバックから最新操作を再登録/取消ししない。
+  if (err && err.code === 'MEAL_SUPERSEDED') { renderSyncStatus(); return; }
   window.HSSbQueue.enqueue(op, key, data);
   if (err && err.code === 'AUTH_REQUIRED') showToast(`${label}: 未ログインのため未送信に保存しました（ログイン後に自動送信）`);
   else if (!navigator.onLine) showToast(`${label}: オフラインのため未送信に保存しました（復帰後に自動送信）`);
@@ -221,14 +299,14 @@ async function pushSettingsToServer() {
 // ---- キュー操作ハンドラ登録（再送時は localStorage の最新状態から同期し直す） ----
 function registerSbOpHandlers() {
   const q = window.HSSbQueue;
-  q.registerHandler('meal_save', async ({ date, timingKey }) => {
-    const rec = getRecords().find((r) => r && r.date === date && r.timingKey === timingKey);
+  q.registerHandler('meal_save', async ({ date, timingKey }, entry) => {
+    const rec = latestMealInSlot(date, timingKey);
     if (!rec) return; // その後ローカルで削除された等 → 送るものが無い
-    await pushMealToServer(rec);
+    await pushMealToServer(rec, entry);
     markMealSynced(rec.id, true);
   });
-  q.registerHandler('meal_delete', async (data) => {
-    await pushMealDeleteToServer(data);
+  q.registerHandler('meal_delete', async (data, entry) => {
+    await pushMealDeleteToServer(data, entry);
   });
   q.registerHandler('workout_save', async ({ row }) => {
     await pushWorkoutToServer(row);
@@ -395,6 +473,7 @@ function serverRowsToAppRecords(rows) {
       title: (TIMINGS[timingKey] && TIMINGS[timingKey].title) || timing,
       // 監査#9: 旧実装は note:'' 固定でサーバー往復のたびメモが消えていた。memo 末尾の「メモ: …」から復元する
       note: (String(rowValue(row, ['メモ', 'memo']) || '').match(/(?:^| \/ )メモ: ([\s\S]*)$/) || [, ''])[1],
+      _mealTotals: row._mealTotals || null,
       items: [],
       structuredItems: [],
       diningOut: false,
@@ -408,6 +487,7 @@ function serverRowsToAppRecords(rows) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+    if (row._mealOnly) return;
     const item = itemFromServerRow(row);
     grouped[recordId].items.push({
       foodId: item.foodId,
@@ -434,13 +514,14 @@ function serverRowsToAppRecords(rows) {
       acc.carb += Number(n.carb) || 0;
       return acc;
     }, { kcal: 0, protein: 0, fat: 0, carb: 0 });
+    const { _mealTotals, ...stored } = record;
     return {
-      ...record,
+      ...stored,
       memo: summarizeItems(restoreMealItems(record.items, record.structuredItems)),
-      kcal: Math.round(totals.kcal),
-      protein: Math.round(totals.protein),
-      fat: Math.round(totals.fat),
-      carb: Math.round(totals.carb),
+      kcal: Math.round(_mealTotals?.kcal ?? totals.kcal),
+      protein: Math.round(_mealTotals?.protein ?? totals.protein),
+      fat: Math.round(_mealTotals?.fat ?? totals.fat),
+      carb: Math.round(_mealTotals?.carb ?? totals.carb),
       reviewCount: (record.structuredItems || []).filter((item) => item && item.pendingReview).length
     };
   });
@@ -450,8 +531,9 @@ function serverRowsToAppRecords(rows) {
 // 実際に変わった時だけ「更新」と数える。
 function mealRecordSignature(record) {
   return JSON.stringify({
-    items: (record.structuredItems || []).map((s) => [s.foodId, s.qty, s.unit, Boolean(s.pendingReview)]),
-    kcal: Math.round(Number(record.kcal) || 0),
+    items: record.structuredItems || [],
+    note: record.note || '',
+    totals: [record.kcal, record.protein, record.fat, record.carb],
     dining: [Boolean(record.diningOut), record.restaurantName || '', record.diningText || '']
   });
 }
@@ -486,8 +568,21 @@ function mergeServerMealRecords(serverRecords, options = {}) {
   let merged = local.slice();
   const counts = { added: 0, updated: 0, unchanged: 0, protected: 0, deleted: 0 };
   const slotOf = (record) => `${record.date}:${record.timingKey}`;
+  const pending = new Set((window.HSSbQueue.load() || [])
+    .filter((e) => e && (e.op === 'meal_save' || e.op === 'meal_delete'))
+    .map((e) => `${e.data.date}:${e.data.timingKey}`));
+  const protectedSlot = (record) => pending.has(slotOf(record))
+    || (options.revisions && (mealSlotRevisions.get(slotOf(record)) || 0) !== (options.revisions.get(slotOf(record)) || 0))
+    || (options.startedAt && Date.parse(record.updatedAt || '') >= options.startedAt);
   const serverSlots = new Set((serverRecords || []).map(slotOf));
   (serverRecords || []).forEach((serverRecord) => {
+    // [fix] 削除待ちの空スロットも保護し、古いフェッチから復活させない。
+    const slot = slotOf(serverRecord);
+    if (pending.has(slot) || (options.revisions
+      && (mealSlotRevisions.get(slot) || 0) !== (options.revisions.get(slot) || 0))) {
+      counts.protected += 1;
+      return;
+    }
     const matches = merged.filter((record) => record
       && record.date === serverRecord.date && record.timingKey === serverRecord.timingKey);
     if (!matches.length) {
@@ -495,7 +590,7 @@ function mergeServerMealRecords(serverRecords, options = {}) {
       counts.added += 1;
       return;
     }
-    if (matches.some((record) => record.synced === false)) {
+    if (matches.some((record) => record.synced === false || protectedSlot(record))) {
       counts.protected += 1;
       return;
     }
@@ -528,6 +623,7 @@ function mergeServerMealRecords(serverRecords, options = {}) {
       if (!record) return false;
       if (String(record.date || '') < options.from || String(record.date || '') > options.to) return true;
       if (record.synced === false) return true;
+      if (protectedSlot(record)) return true;
       if (serverSlots.has(slotOf(record))) return true;
       if (startedAt && Date.parse(record.updatedAt || '') >= startedAt) return true;
       counts.deleted += 1;
@@ -594,8 +690,13 @@ function sbRowsFromMealDetails(data) {
       '区分': meal.timing,
       '区分キー': timingKey,
       'メモ': meal.memo || '',   // 監査#9: note 復元用（「… / メモ: 本文」形式）
+      _mealTotals: { kcal: meal.kcal, protein: meal.protein_g, fat: meal.fat_g, carb: meal.carb_g },
       recordId: meal.legacy_record_id || meal.id
     };
+    // [fix] 明細も外食メモも無い有効な親行を、削除済みとして扱わない。
+    if (!(itemsByMeal[meal.id] || []).length && !ctxByMeal[meal.id]) {
+      rows.push({ ...base, _mealOnly: true });
+    }
     (itemsByMeal[meal.id] || []).forEach((it) => {
       rows.push({
         ...base,
@@ -644,6 +745,7 @@ function updateSyncUi() {
 }
 async function syncFromServer(options = {}) {
   const manual = Boolean(options.manual);
+  if (state.serverSyncing) return { skipped: true, reason: 'syncing' };
   if (!navigator.onLine) {
     if (manual) showToast('オフラインのため同期できません');
     return { skipped: true, reason: 'offline' };
@@ -676,10 +778,11 @@ async function syncFromServer(options = {}) {
     // 監査#5: 削除伝播は fetchMealDetails が正常応答した時のみ（窓を渡した時のみ実行される）。
     // 取得失敗時はこの先に到達しないため、部分データでの大量削除は起きない。
     const syncStartedAt = Date.now();
+    const revisions = new Map(mealSlotRevisions);
     const details = await sb.fetchMealDetails(from, to);
     const serverRecords = serverRowsToAppRecords(sbRowsFromMealDetails(details));
     lsSet(LS_KEYS.DAY_SERVER_RECORDS, serverRecords);
-    const counts = mergeServerMealRecords(serverRecords, { from, to, startedAt: syncStartedAt });
+    const counts = mergeServerMealRecords(serverRecords, { from, to, startedAt: syncStartedAt, revisions });
     // テンプレート（普段の食事セット）: サーバー → localStorage へ反映（SPEC-014）
     try {
       const templates = await sb.fetchMealTemplates();

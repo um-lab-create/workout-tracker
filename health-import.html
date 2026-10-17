@@ -555,8 +555,8 @@ input[type="file"] {
     <div class="brand-row">
       <button class="subtle-nav" type="button" aria-label="Cockpitに戻る" onclick="backToCockpit()">‹</button>
       <div>
-        <div class="brand-main">Health Import</div>
-        <div class="brand-sub">Apple Health zip → ヘルスケアログ <span id="buildTag"></span></div>
+        <div class="brand-main">ヘルスケア取込</div>
+        <div class="brand-sub">Appleヘルスケア <span id="buildTag"></span></div>
       </div>
     </div>
     <div class="header-tools">
@@ -566,8 +566,8 @@ input[type="file"] {
   </header>
 
   <section class="hero">
-    <h1>iPhoneだけで<br>ヘルスケアを同期</h1>
-    <p>ヘルスケアアプリの「書き出したデータ.zip」をこの画面で選ぶと、Safari の中だけで必要な日次データに集計して Supabase に保存します（要ログイン。app.html と共通）。</p>
+    <h1>測定データを取り込む</h1>
+    <p>ヘルスケアから書き出したzipを選び、内容を確認して保存します。</p>
     <div class="steps">
       <div class="step">
         <div class="step-num">STEP 1</div>
@@ -608,7 +608,7 @@ input[type="file"] {
     <div class="metrics">
       <div class="metric">
         <div class="metric-value" id="recordCount">0</div>
-        <div class="metric-label">対象Record</div>
+        <div class="metric-label">測定件数</div>
       </div>
       <div class="metric">
         <div class="metric-value" id="dayCount">0</div>
@@ -631,8 +631,8 @@ input[type="file"] {
     </div>
     <div class="row-list" id="rowList"></div>
     <div style="height:12px"></div>
-    <button class="action" id="sendBtn" type="button">Supabaseへ送信</button>
-    <p class="note">同じ日×同じ指標は上書き保存（upsert）なので、同じzipを二度送っても重複しません。未ログインの場合は先に app.html でログインしてください（このページと共通のログインです）。</p>
+    <button class="action" id="sendBtn" type="button">データを保存</button>
+    <p class="note">同じデータを再送しても重複しません。保存には<a href="app.html">アプリでのログイン</a>が必要です。</p>
   </section>
 </main>
 
@@ -643,7 +643,7 @@ input[type="file"] {
 
 // 送信は Supabase 直書き（SPEC-012）。旧GAS（WEBHOOK/PIN）系は 2026-07-10 の退役で削除済み。
 const ZIP_ENTRY = 'apple_health_export/export.xml';
-const BUILD_LABEL = 'build 2026-07-10.1';
+const BUILD_LABEL = 'build 2026-10-17.1';
 
 const HEALTH_COLUMNS = [
   '日付', '手首温度(℃)', 'VO2Max', 'アクティブエネルギー(kJ)', 'ステップ数',
@@ -732,15 +732,22 @@ const state = {
   file: null,
   rows: [],
   recordCount: 0,
-  parsedBytes: 0
+  parsedBytes: 0,
+  parsing: false,
+  sending: false,
+  sent: false
 };
 
+function updateImportControls() {
+  const busy = state.parsing || state.sending;
+  $('#zipInput').disabled = busy;
+  $('#resetBtn').disabled = busy;
+  $('#parseBtn').disabled = busy || !state.file;
+  $('#sendBtn').disabled = busy || state.sent || state.rows.length === 0;
+}
+
 function backToCockpit() {
-  if (document.referrer && document.referrer.includes(location.host) && window.history.length > 1) {
-    window.history.back();
-    return;
-  }
-  window.location.href = 'index.html';
+  window.location.href = 'app.html';
 }
 
 boot();
@@ -752,6 +759,7 @@ function boot() {
   window.addEventListener('offline', renderNetwork);
 
   $('#zipInput').addEventListener('change', event => {
+    if (state.parsing || state.sending) return;
     const file = event.target.files && event.target.files[0];
     state.file = file || null;
     $('#selectedFile').textContent = file ? `${file.name} / ${formatBytes(file.size)}` : '未選択';
@@ -763,6 +771,7 @@ function boot() {
   $('#sendBtn').addEventListener('click', sendRows);
   $('#sendBtn').disabled = true;
   $('#resetBtn').addEventListener('click', () => {
+    if (state.parsing || state.sending) return;
     $('#zipInput').value = '';
     state.file = null;
     $('#selectedFile').textContent = '未選択';
@@ -777,15 +786,15 @@ function renderNetwork() {
 }
 
 async function parseSelectedZip() {
-  if (!state.file) return;
+  if (!state.file || state.parsing || state.sending) return;
   if (!window.JSZip) {
     showToast('JSZipを読み込めませんでした。通信状況を確認してください。', 'bad');
     return;
   }
 
-  $('#parseBtn').disabled = true;
-  $('#sendBtn').disabled = true;
+  state.parsing = true;
   resetResult();
+  updateImportControls();
   setProgress(2, 'zipを開いています', 'Apple Health の export.xml を探しています。');
 
   try {
@@ -807,20 +816,21 @@ async function parseSelectedZip() {
     setProgress(0, '解析エラー', error.message || String(error));
     showToast(`解析できませんでした: ${error.message || error}`, 'bad');
   } finally {
-    $('#parseBtn').disabled = !state.file;
-    $('#sendBtn').disabled = state.rows.length === 0;
+    state.parsing = false;
+    updateImportControls();
   }
 }
 
 function resetResult() {
   state.rows = [];
+  state.sent = false;
   state.recordCount = 0;
   state.parsedBytes = 0;
   $('#recordCount').textContent = '0';
   $('#dayCount').textContent = '0';
   $('#sendCount').textContent = '0';
   $('#sendBtn').disabled = true;
-  $('#sendBtn').textContent = 'Supabaseへ送信';
+  $('#sendBtn').textContent = 'データを保存';
   $('#preview').classList.remove('show');
   $('#rowList').innerHTML = '';
 }
@@ -830,13 +840,16 @@ async function streamExportXml(entry, aggregate) {
   const total = entry._data && entry._data.uncompressedSize ? entry._data.uncompressedSize : 0;
   const stream = entry.internalStream('uint8array');
   let buffer = '';
+  let xmlTail = '';
   let lastPaint = 0;
 
   return new Promise((resolve, reject) => {
     stream.on('data', chunk => {
       try {
         state.parsedBytes += chunk.length;
-        buffer += decoder.decode(chunk, { stream: true });
+        const text = decoder.decode(chunk, { stream: true });
+        buffer += text;
+        xmlTail = (xmlTail + text).slice(-2048);
         buffer = processRecordBuffer(buffer, aggregate);
 
         const now = performance.now();
@@ -852,8 +865,13 @@ async function streamExportXml(entry, aggregate) {
     });
     stream.on('end', () => {
       try {
-        buffer += decoder.decode();
+        const text = decoder.decode();
+        buffer += text;
+        xmlTail = (xmlTail + text).slice(-2048);
         processRecordBuffer(buffer, aggregate, true);
+        if (!/<\/HealthData>\s*$/.test(xmlTail)) {
+          throw new Error('XMLが途中で切れています。ヘルスケアから書き出し直してください。');
+        }
         resolve();
       } catch (error) {
         reject(error);
@@ -876,7 +894,8 @@ function processRecordBuffer(input, aggregate, flush = false) {
 
     const tagEnd = buffer.indexOf('>');
     if (tagEnd < 0) {
-      return flush ? '' : buffer;
+      if (flush) throw new Error('測定データが途中で切れています。書き出し直してください。');
+      return buffer;
     }
 
     const openingTag = buffer.slice(0, tagEnd + 1);
@@ -888,7 +907,8 @@ function processRecordBuffer(input, aggregate, flush = false) {
     } else {
       const fullClose = buffer.indexOf('</Record>');
       if (fullClose < 0) {
-        return flush ? '' : buffer;
+        if (flush) throw new Error('測定データが途中で切れています。書き出し直してください。');
+        return buffer;
       }
       end = fullClose + '</Record>'.length;
     }
@@ -922,7 +942,12 @@ function ingestRecordTag(tag, aggregate) {
   recordDebug(aggregate, metric, sourceKey, date, attrs.sourceName || '');
   if (!sourceKey) return;
 
-  const numericValue = metric === 'activeEnergy' ? value * 4.184 : value;
+  let numericValue = value;
+  if (metric === 'activeEnergy') {
+    const factor = { kcal: 4.184, kJ: 1, J: 0.001, cal: 0.004184 }[attrs.unit];
+    if (factor == null) throw new Error('消費エネルギーの単位を読み取れません。書き出し設定を確認してください。');
+    numericValue *= factor;
+  }
   const day = ensureDay(aggregate, date);
   addMetricValue(day, metric, sourceKey, numericValue);
   state.recordCount++;
@@ -944,9 +969,10 @@ function ingestSleep(attrs, aggregate) {
 
   const day = ensureDay(aggregate, date);
   if (!day.sleep[sourceKey]) {
-    day.sleep[sourceKey] = { _core: 0, _deep: 0, _rem: 0, _unspec: 0, _awake: 0, _inbed: 0 };
+    day.sleep[sourceKey] = { _core: 0, _deep: 0, _rem: 0, _unspec: 0, _awake: 0, _inbed: 0, _present: {} };
   }
   day.sleep[sourceKey][stage] += seconds;
+  day.sleep[sourceKey]._present[stage] = true;
   state.recordCount++;
 }
 
@@ -1063,19 +1089,22 @@ function buildRow(date, day) {
 
   const sleep = selectedSleep(day);
   if (sleep) {
-    const core = secondsToHours(sleep._core + sleep._unspec);
+    const core = secondsToHours(sleep._core);
     const deep = secondsToHours(sleep._deep);
     const rem = secondsToHours(sleep._rem);
     const awake = secondsToHours(sleep._awake);
-    const asleep = round(core + deep + rem, 2);
-
-    row['睡眠合計(hr)'] = asleep;
-    row['睡眠中(hr)'] = 0;
-    row['ベッド時間(hr)'] = 0;
-    row['コア睡眠(hr)'] = core;
-    row['深い睡眠(hr)'] = deep;
-    row['REM睡眠(hr)'] = rem;
-    row['覚醒時間(hr)'] = awake;
+    const present = sleep._present || {};
+    const hasStages = present._core || present._deep || present._rem;
+    // 未計測は空欄のままにし、再取込で既存値をゼロへ巻き戻さない。
+    if (hasStages || present._unspec) {
+      row['睡眠合計(hr)'] = round(core + deep + rem + secondsToHours(sleep._unspec), 2);
+    }
+    if (present._unspec) row['睡眠中(hr)'] = secondsToHours(sleep._unspec);
+    if (present._inbed) row['ベッド時間(hr)'] = secondsToHours(sleep._inbed);
+    if (present._core) row['コア睡眠(hr)'] = core;
+    if (present._deep) row['深い睡眠(hr)'] = deep;
+    if (present._rem) row['REM睡眠(hr)'] = rem;
+    if (present._awake) row['覚醒時間(hr)'] = awake;
   }
 
   return row;
@@ -1217,29 +1246,35 @@ function buildMetricRows(rows) {
 }
 
 async function sendRows() {
-  if (state.rows.length === 0) return;
+  if (state.rows.length === 0 || state.parsing || state.sending || state.sent) return;
 
-  $('#sendBtn').disabled = true;
+  state.sending = true;
+  updateImportControls();
+  const rows = state.rows.slice();
   $('#sendBtn').textContent = '送信中...';
   try {
     const sb = await window.HSSupabaseReady;
     const session = await sb.getSession();
     if (!session) {
-      showToast('未ログインです。先に app.html でログインしてください（このページと共通）。', 'warn');
+      showToast('アプリでログインしてから保存してください。', 'warn');
       $('#sendBtn').disabled = false;
-      $('#sendBtn').textContent = 'Supabaseへ送信';
+      $('#sendBtn').textContent = 'データを保存';
       return;
     }
-    const metricRows = buildMetricRows(state.rows);
+    const metricRows = buildMetricRows(rows);
     const result = await sb.upsertHealthMetrics(metricRows);
-    showToast(`保存しました ✓ ${state.rows.length}日分・${result.total}指標行（同じ日×指標は上書き）`, 'ok');
+    state.sent = true;
+    showToast(`保存しました ✓ ${rows.length}日分・${result.total}指標行（同じ日×指標は上書き）`, 'ok');
     $('#sendBtn').textContent = '送信済み ✓';
   } catch (error) {
     console.error(error);
     showToast(`送信できませんでした: ${error && error.message ? error.message : error}`, 'bad');
     $('#sendBtn').disabled = false;
-    $('#sendBtn').textContent = 'Supabaseへ送信';
+    $('#sendBtn').textContent = 'データを保存';
     return;
+  } finally {
+    state.sending = false;
+    updateImportControls();
   }
 }
 

@@ -1166,6 +1166,53 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   body.ctx-open { overflow: hidden; }
   body.ctx-open > *:not(.ctx-back) { pointer-events: none; }   /* 背景（ホーム・シート）を触れなくする */
   body.ctx-open .ctx-back { pointer-events: auto; }
+
+/* [fix] スマホの記録導線: 操作領域を重ねず、入力と保存の場所を揃える。 */
+:root { --record-top: calc(60px + env(safe-area-inset-top)); }
+.date-nav .arrow, .date-label, .gear-btn { height: 44px; }
+.date-nav .arrow, .gear-btn { width: 44px; flex: none; }
+.date-nav .arrow::after, .mini-chip::after,
+.stepper button::after, .del-btn::after, .log-del::after { display: none; }
+.brand { overflow: hidden; text-overflow: ellipsis; }
+.brand .logo { flex: none; }
+.sync-pill { flex: none; }
+body.record-open { overflow: hidden; }
+.view.record-view.active { top: var(--record-top); animation: none; overscroll-behavior-y: contain; }
+.record-head { padding-bottom: 8px; }
+.rec-date-row { position: relative; min-height: 48px; cursor: pointer; }
+.record-date-picker { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; }
+.rec-date-row:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mini-chip, .stepper button, .field-row .stepper button, .body-field .stepper button,
+.del-btn, .log-del, .result-row .add { min-width: 44px; min-height: 44px; }
+.exo-grid { display: flex; overflow-x: auto; gap: 8px; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
+.exo-chip { flex: 0 0 76px; min-height: 72px; scroll-snap-align: start; }
+.exo-chip .sn { font-size: 10px; }
+.exo-chip.active { background: var(--accent-soft); }
+.workout-footer, .meal-footer {
+  position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  z-index: 45; max-width: 560px; margin: 0 auto; padding: 10px 14px;
+  background: var(--frost); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line); gap: 10px;
+}
+.workout-footer { display: flex; }
+.workout-footer .primary-btn { flex: 1; }
+.workout-footer .secondary-btn { flex: 0 0 110px; }
+.workout-footer button:disabled { opacity: .4; cursor: default; }
+.meal-footer { flex-wrap: wrap; }
+.meal-footer .dirty-chip { order: -1; width: 100%; justify-content: center; padding: 3px 8px; }
+.meal-footer .primary-btn { flex: none; padding: 0 20px; }
+.meal-footer .totals .pfc { overflow-wrap: anywhere; }
+body.keyboard-open .tabbar { display: none; }
+body.keyboard-open .meal-footer, body.keyboard-open .workout-footer { bottom: var(--keyboard-inset); }
+body.keyboard-open .view.record-view.active { bottom: var(--keyboard-inset); }
+body.keyboard-open .modal-back { bottom: var(--keyboard-inset); padding-bottom: 0; }
+body.keyboard-open .modal { max-height: calc(var(--visible-height) - 20px); }
+@media (max-width: 430px) {
+  .topbar { gap: 2px; padding-left: 10px; padding-right: 10px; }
+  .brand { font-size: 0; gap: 0; }
+  .brand .logo { font-size: 13px; }
+  .date-label { min-width: 90px; }
+}
 </style>
 </head>
 <body>
@@ -1265,11 +1312,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   <!-- ============ 食事 ============ -->
   <section class="view" id="view-meal">
     <!-- 横展開 2026-07-31: 3つの記録画面すべてで保存先の日付を同じ形で示す -->
-    <button class="rec-date-row" id="mealDateRow" type="button">
+    <label class="rec-date-row" id="mealDateRow">
       <span class="rd-lb">記録する日</span>
       <span class="rd-val" id="mealDateLabel">今日</span>
       <span class="rd-cta">変更</span>
-    </button>
+    </label>
     <div class="seg" id="timingSeg"></div>
     <div class="quick-row" id="quickRow"></div>
 
@@ -1329,7 +1376,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
         <b id="totKcal">0</b><span class="u"> kcal</span>
         <span class="pfc" id="totPfc">P0 / F0 / C0</span>
       </div>
-      <span class="dirty-chip" id="mealDirtyChip">未送信の変更</span>
+      <span class="dirty-chip" id="mealDirtyChip">下書き</span>
       <button class="primary-btn" id="saveMealBtn">記録する</button>
     </footer>
   </section>
@@ -1337,11 +1384,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   <!-- ============ 運動 ============ -->
   <section class="view" id="view-workout">
     <!-- 保存先の日付を明示（実機指摘 2026-07-24: いつの記録になるか分からない）。タップで日付変更 -->
-    <button class="rec-date-row" id="workoutDateRow" type="button">
+    <label class="rec-date-row" id="workoutDateRow">
       <span class="rd-lb">記録する日</span>
       <span class="rd-val" id="workoutDateVal">今日</span>
       <span class="rd-cta">変更</span>
-    </button>
+    </label>
     <!-- 筋トレ日トグル（Phase D-1 でホームから移設。炭水化物+Cの目標調整はこのまま） -->
     <div class="train-row">
       <button class="train-chip" id="trainToggle" type="button"><span class="dot"></span><span id="trainLabel">筋トレ日として記録する</span></button>
@@ -1356,9 +1403,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
       <div id="exoFields"></div>
       <!-- SPEC-024: 消費kcalの目安（METs登録済み種目のみ・参考表示） -->
       <div class="sync-note" id="exoKcalNote" style="margin-top:2px"></div>
-      <div class="action-row">
-        <button class="secondary-btn" id="saveWorkoutBtn">追加</button>
-        <button class="primary-btn" id="sendWorkoutBtn">送信 <span class="draft-badge" id="workoutDraftCount">0</span></button>
+      <div class="workout-footer">
+        <button class="secondary-btn" id="sendWorkoutBtn" disabled>送信 <span class="draft-badge" id="workoutDraftCount">0</span></button>
+        <button class="primary-btn" id="saveWorkoutBtn">記録する</button>
       </div>
     </div>
     <div class="section-label">この日の記録</div>
@@ -1371,11 +1418,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   <!-- ============ からだ ============ -->
   <section class="view" id="view-body">
     <!-- 横展開 2026-07-31: 運動画面と同じ「記録する日」部品に統一（タップでカレンダー） -->
-    <button class="rec-date-row" id="bodyDateRow" type="button">
+    <label class="rec-date-row" id="bodyDateRow">
       <span class="rd-lb">記録する日</span>
       <span class="rd-val" id="bodyDateLabel">今日</span>
       <span class="rd-cta">変更</span>
-    </button>
+    </label>
     <div class="card" style="margin-top:6px">
       <div class="body-field">
         <span class="bl">体重</span>
@@ -2520,28 +2567,26 @@ function savedStoredItemsSignature(record) {
   return JSON.stringify((record && record.items) || []);
 }
 function hasUnsavedMealChanges() {
-  if (!state.editingRecordId) return false;
   const saved = getRecords().find((r) => r.id === state.editingRecordId);
-  if (!saved) return false;
-  return currentStoredItemsSignature() !== savedStoredItemsSignature(saved);
+  const dining = normalizeDiningOut(state.diningOut);
+  if (!saved) return Boolean(state.items.length || $('#mealNote').value.trim() || dining.enabled);
+  return currentStoredItemsSignature() !== savedStoredItemsSignature(saved)
+    || $('#mealNote').value.trim() !== String(saved.note || '').trim()
+    || JSON.stringify(dining) !== JSON.stringify(normalizeDiningOut(saved));
 }
 function renderMealDirtyState() {
   const chip = $('#mealDirtyChip');
   if (!chip) return;
-  chip.classList.toggle('show', hasUnsavedMealChanges());
+  const dirty = hasUnsavedMealChanges();
+  const saved = findRecord(state.date, state.timing);
+  chip.textContent = dirty ? '下書き・記録前' : (saved && saved.synced === false ? '端末に保存済み・未送信' : '');
+  chip.classList.toggle('show', Boolean(chip.textContent));
 }
-function warnMealDirtyOnce() {
-  if (!hasUnsavedMealChanges()) return;
-  const key = `${state.date}:${state.timing}:${state.editingRecordId}`;
-  if (state.mealDirtyWarned[key]) return;
-  state.mealDirtyWarned[key] = true;
-  showToast('変更が未送信です（食事タブで更新する）');
-}
-
 // 送信状態は confirmed（Supabase 書込成功）/ queued（オフライン・未ログイン）の2状態
 // （旧 requested は no-cors 固有のため消滅。SPEC-012 実装方針4）
 function writeStatusText(result) {
   if (!result) return '送信済み ✓';
+  if (result.status === 'superseded') return '最新の変更を優先しました';
   if (result.status === 'queued') return '未送信（あとで再送）';
   return '送信済み ✓';
 }
@@ -2552,6 +2597,7 @@ async function resendMealRecord(record) {
     markMealSynced(record.id, true);
     return { status: 'confirmed' };
   } catch (err) {
+    if (err && err.code === 'MEAL_SUPERSEDED') return { status: 'superseded' };
     window.HSSbQueue.enqueue('meal_save', `meal_save:${record.date}:${record.timingKey}`,
       { date: record.date, timingKey: record.timingKey });
     renderSyncStatus();
@@ -2575,7 +2621,7 @@ function restoreDeletedMeal(record, draftSnapshot) {
   renderItems();
   renderHome();
   resendMealRecord(restored)
-    .then((result) => showToast(`復元しました: ${writeStatusText(result)}`))
+    .then((result) => showToast(result.status === 'superseded' ? writeStatusText(result) : `復元しました: ${writeStatusText(result)}`))
     .catch(() => showToast('復元はローカル保存しました（あとで自動再送）'));
 }
 
@@ -2612,6 +2658,7 @@ async function deleteCurrentMealRecord() {
   try {
     await pushMealDeleteToServer({ date: record.date, timingKey: record.timingKey, recordId });
   } catch (err) {
+    if (err && err.code === 'MEAL_SUPERSEDED') { renderSyncStatus(); return; }
     // オフライン・未ログイン時は削除操作をキューへ（同スロットの保存opは取り下げる）
     window.HSSbQueue.discard(`meal_save:${record.date}:${record.timingKey}`);
     window.HSSbQueue.enqueue('meal_delete', `meal_delete:${record.date}:${record.timingKey}`,
@@ -2907,9 +2954,19 @@ async function saveMeal() {
     } catch (e) {}
     showToast(`${timing.title}: ${writeStatusText(writeResult)}${scoreNote}`);
   } catch (err) {
-    writeResult = { status: 'queued' };
-    queueWithToast('meal_save', `meal_save:${record.date}:${record.timingKey}`,
-      { date: record.date, timingKey: record.timingKey }, timing.title, err);
+    if (err && err.code === 'MEAL_SUPERSEDED') {
+      writeResult = { status: 'superseded' };
+      showToast(writeStatusText(writeResult));
+    } else {
+      writeResult = { status: 'queued' };
+      try {
+        queueWithToast('meal_save', `meal_save:${record.date}:${record.timingKey}`,
+          { date: record.date, timingKey: record.timingKey }, timing.title, err);
+      } catch (storageError) {
+        writeResult = { status: 'failed' };
+        showToast('未送信データを保存できませんでした。空き容量を確認して、もう一度記録してください', 'error');
+      }
+    }
   }
   haptic([8, 24, 8]);
 
@@ -2919,7 +2976,7 @@ async function saveMeal() {
   renderHome();
   // 保存完了でシートを閉じてきょうへ戻す（2026-07-12 テスト運用の改善A。トーストが完了を伝える。
   // 保存直後なので dirty 警告は不要 → showView 直呼び）
-  if (RECORD_VIEWS.includes(state.view)) {
+  if (writeResult.status !== 'failed' && RECORD_VIEWS.includes(state.view)) {
     setTimeout(() => showView(state.baseTab || 'home'), 400);
   }
 }
@@ -3439,6 +3496,7 @@ function syncDiningFromInputs() {
   });
   renderDiningOut(false);
   persistDraftSafe();
+  renderMealDirtyState();
 }
 function renderDiningOut(writeInputs = true) {
   const dining = normalizeDiningOut(state.diningOut);
@@ -4344,13 +4402,16 @@ function renderExoGrid() {
   $('#exoGrid').innerHTML = EXERCISES.filter((e) => !e.archived).map((e) => {
     const ago = agoMap[e.id];
     const gap = (ago != null && ago >= 10) ? `<span class="gap">${ago}日</span>` : '';
-    return `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}">
+    return `<button class="exo-chip ${e.id === state.exoId ? 'active' : ''}" data-exo="${e.id}" aria-label="${escapeHtml(e.name)}" aria-pressed="${e.id === state.exoId}">
       <span class="kj" style="background:${e.color}">${escapeHtml(e.kanji)}</span><span class="sn">${escapeHtml(e.short)}</span>${gap}
     </button>`;
   // SPEC-024: 末尾に「＋運動を追加」（種目を探している場所で目に入るのが自然・マネージャー選択）
   }).join('') + `<button class="exo-chip exo-add" data-exo-add="1" type="button">
       <span class="kj" style="background:#7d8ba1">＋</span><span class="sn">運動を追加</span>
     </button>`;
+  // [fix] 動的種目を含め、再描画後も選択中の種目を横スクロール内で見失わない。
+  const selected = $('#exoGrid .exo-chip.active');
+  if (selected) $('#exoGrid').scrollLeft = Math.max(0, selected.offsetLeft - $('#exoGrid').offsetLeft - 8);
   const recoEl = $('#exoReco');
   if (recoEl) {
     // 筋トレ種目（重量あり）のうち最も空いているものを1つだけおすすめする
@@ -4465,6 +4526,8 @@ function renderRecordDateRows() {
       row.classList.toggle('is-past', isPast);
       const val = $(valSel);
       if (val) val.textContent = text;
+      const picker = row.querySelector('input');
+      if (picker) { picker.value = state.date; picker.max = todayStr(); }
     });
 }
 
@@ -4475,7 +4538,13 @@ function renderWorkoutToday() {
   const drafts = (state.workoutDrafts || []).filter((h) => h['日付'] === state.date);
   $('#workoutEmpty').style.display = (logs.length || drafts.length) ? 'none' : '';
   $('#workoutDraftCount').textContent = String((state.workoutDrafts || []).length);
+  $('#sendWorkoutBtn').disabled = isSendingWorkout || !(state.workoutDrafts || []).length;
+  // [fix] 履歴に移った記録も、再送キューに残る間は送信済みと誤認させない。
+  const queuedIds = new Set((window.HSSbQueue ? window.HSSbQueue.load() : [])
+    .filter((entry) => entry.op === 'workout_save' && entry.data && entry.data.row)
+    .map((entry) => entry.data.row.id));
   const renderRow = (h, draft = false) => {
+    const unsent = draft || queuedIds.has(h._serverId) || (!h._serverId && h._queued);
     const exo = EXERCISES.find((e) => e.name === h['種目']) || { kanji: '運', color: '#b9ae97' };
     const parts = [];
     if (h['重量']) parts.push(`${h['重量']}kg`);
@@ -4491,7 +4560,7 @@ function renderWorkoutToday() {
     return `<div class="log-row">
       <span class="kj2" style="background:${exo.color}">${exo.kanji}</span>
       <span class="desc" data-log-load="${h._ts || ''}"><b>${escapeHtml(h['種目'] || '')}</b>　${parts.join(' ')}${draft ? ' / 送信予定' : ''}</span>
-      <span class="tm">${draft ? '未送信' : time}</span>
+      <span class="tm"${unsent ? ' style="color:var(--red);font-weight:800"' : ''}>${unsent ? '未送信' : time}</span>
       <button class="log-del" data-log-del="${h._ts || ''}" data-log-draft="${draft ? '1' : ''}" type="button" aria-label="この記録を削除">×</button>
     </div>`;
   };
@@ -4511,8 +4580,9 @@ function buildWorkoutRecord() {
     時間: v.minutes ?? '',
     距離: v.distance ?? '',
     速さ: exo.id === 'run' ? calculateSpeed(v) : '',
-    強度: exo.id === 'run' ? (v.intensity ?? '') : exo.id === 'abs' ? (v.difficulty ?? '') : '',
-    傾斜: exo.id === 'run' ? (v.incline ?? 0) : '',
+    // [fix] 追加種目もフィールド定義に従って保存し、再同期で難度・傾斜を失わない。
+    強度: exo.fields.includes('intensity') ? (v.intensity ?? '') : exo.fields.includes('difficulty') ? (v.difficulty ?? '') : '',
+    傾斜: exo.fields.includes('incline') ? (v.incline ?? 0) : '',
     負荷: exo.id === 'run' ? calculateRunLoad(v) : exo.id === 'abs' ? calculateAbsLoad(v) : '',
     _ts: Date.now(),
     _exerciseId: exo.id,
@@ -4524,7 +4594,7 @@ function buildWorkoutRecord() {
   };
 }
 
-/** 記録行の値を入力欄へ読み込む（修正フロー: 読み込み→直して追加→間違い行を×で削除） */
+/** 記録行の値を入力欄へ読み込む（修正フロー: 読み込み→直して記録→間違い行を×で削除） */
 function loadWorkoutLogIntoForm(h) {
   const exo = EXERCISES.find((e) => e.name === h['種目']);
   if (!exo) return;
@@ -4542,7 +4612,7 @@ function loadWorkoutLogIntoForm(h) {
   state.exoValues = v;
   renderExoGrid();
   renderExoCard();
-  showToast('値を入力欄に読み込みました。直して「追加」→ 間違った行は × で削除');
+  showToast('値を入力欄に読み込みました。直して「記録する」→ 間違った行は × で削除');
   haptic(6);
 }
 
@@ -4619,49 +4689,69 @@ function flashSuccess(btn, doneText) {
 async function saveWorkout() {
   const exo = exoById(state.exoId);
   const btn = $('#saveWorkoutBtn');
+  if (btn.disabled || isSendingWorkout) return;
   btn.disabled = true;
-  state.workoutDrafts.push({ ...buildWorkoutRecord(), _draft: true });
-  lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
-  const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
-  last[exo.id] = { ...state.exoValues };
-  lsSet(LS_KEYS.WT_LAST, last);
-  haptic([8, 24, 8]);
-  // 監査#13: 「追加」で即送信に一本化（送信忘れで「未送信n件」が残る構造をなくす）。
-  // 失敗時は sendWorkoutDrafts 内で従来どおりキュー退避されるため、オフライン安全性は同等。
-  try { await sendWorkoutDrafts(); } catch (e) {}
-  btn.disabled = false;
-  renderWorkoutToday();
-  renderHome();
+  try {
+    state.workoutDrafts.push({ ...buildWorkoutRecord(), _draft: true });
+    lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
+    const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
+    last[exo.id] = { ...state.exoValues };
+    lsSet(LS_KEYS.WT_LAST, last);
+    haptic([8, 24, 8]);
+    // 監査#13: 「記録する」は即送信。失敗時はキュー、キュー保存も失敗なら下書きに残す。
+    await sendWorkoutDrafts();
+  } catch (err) {
+    showToast('運動を保存できませんでした。下書きと空き容量を確認してください', 'error');
+  } finally {
+    btn.disabled = false;
+    renderWorkoutToday();
+    renderHome();
+  }
 }
 
+let isSendingWorkout = false;
 async function sendWorkoutDrafts() {
+  if (isSendingWorkout) return;
   if (!state.workoutDrafts.length) { showToast('送信予定がありません'); return; }
+  isSendingWorkout = true;
   const btn = $('#sendWorkoutBtn');
   btn.disabled = true;
   const drafts = state.workoutDrafts.slice();
   const sent = [];
   let queuedCount = 0;
-  for (const item of drafts) {
-    // Supabase 本線（クライアント生成 uuid で再送冪等。旧GASミラーは退役済み）
-    const row = sbWorkoutRow(item);
-    try {
-      await pushWorkoutToServer(row);
-      sent.push({ ...item, _draft: false, _queued: false, _writeStatus: 'confirmed', _ts: Date.now(), _serverId: row.id });
-    } catch (err) {
-      window.HSSbQueue.enqueue('workout_save', null, { row });
-      sent.push({ ...item, _draft: false, _queued: true, _writeStatus: 'queued', _ts: Date.now(), _serverId: row.id });
-      queuedCount += 1;
+  try {
+    for (const item of drafts) {
+      // [fix] キュー保存失敗後の再試行も同じuuidを使い、二重送信を防ぐ。
+      const row = sbWorkoutRow(item);
+      row.id = item._serverId || row.id;
+      item._serverId = row.id;
+      lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
+      let queued = false;
+      try {
+        await pushWorkoutToServer(row);
+      } catch (err) {
+        window.HSSbQueue.enqueue('workout_save', `workout_save:${row.id}`, { row });
+        queued = true;
+      }
+      const record = { ...item, _draft: false, _queued: queued, _writeStatus: queued ? 'queued' : 'confirmed', _serverId: row.id };
+      rememberWorkout(record);
+      sent.push(record);
+      if (queued) queuedCount += 1;
+      // [fix] 途中で失敗しても成功分だけを除き、未保存分は下書きに保持する。
+      state.workoutDrafts = state.workoutDrafts.filter((draft) => draft !== item);
+      lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
     }
+    const confirmed = sent.filter((item) => item._writeStatus === 'confirmed').length;
+    showToast(queuedCount ? `${queuedCount}件を未送信に保存しました（あとで自動送信）` : `送信済み ✓ ${confirmed}件`);
+  } catch (err) {
+    showToast('未送信の保存に失敗しました。下書きを残しました。空き容量を確認して再送してください', 'error');
+  } finally {
+    isSendingWorkout = false;
+    renderSyncStatus();
+    renderWorkoutToday();
+    btn.disabled = !state.workoutDrafts.length;
+    renderHome();
   }
-  sent.forEach(rememberWorkout);
-  state.workoutDrafts = [];
-  lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
-  const confirmed = sent.filter((item) => item._writeStatus === 'confirmed').length;
-  showToast(queuedCount ? `${queuedCount}件を未送信に保存しました（あとで自動送信）` : `送信済み ✓ ${confirmed}件`);
-  btn.disabled = false;
-  renderSyncStatus();
-  renderWorkoutToday();
-  renderHome();
 }
 
 // ---------------- からだビュー（旧 body.html と同一契約） ----------------
@@ -5385,16 +5475,20 @@ function closeAllSheets() {
 const RECORD_VIEWS = ['meal', 'workout', 'body'];
 function showView(name) {
   const previous = state.view;
-  if (previous === 'meal' && name !== 'meal') warnMealDirtyOnce();
+  // [fix] 戻る・タブ切替でも食品以外のメモや外食の下書きを確実に残す。
+  if (previous === 'meal' && name !== 'meal') persistDraftSafe();
   closeAllSheets();
   state.view = name;
   const isRecord = RECORD_VIEWS.includes(name);
   if (!isRecord) state.baseTab = name;
   const baseTab = state.baseTab || 'home';
+  document.body.classList.toggle('record-open', isRecord);
   document.querySelectorAll('.view').forEach((v) => {
     const vn = v.id.replace('view-', '');
     if (RECORD_VIEWS.includes(vn)) v.classList.toggle('active', isRecord && vn === name);
     else v.classList.toggle('active', vn === baseTab);
+    // 背景のホームは見た目を維持しつつ、読み上げ・フォーカス対象から外す。
+    v.inert = isRecord && !RECORD_VIEWS.includes(vn);
   });
   const scrim = $('#recordScrim');
   if (scrim) scrim.classList.toggle('show', isRecord);
@@ -5421,13 +5515,12 @@ function showView(name) {
 /** 記録ビュー（食事/筋トレ/からだ）を閉じて元のタブへ戻る。 */
 function closeRecordView() {
   if (!RECORD_VIEWS.includes(state.view)) return;
-  if (state.view === 'meal') warnMealDirtyOnce();
   showView(state.baseTab || 'home');
 }
 
 /** 記録ビューにシートヘッダー（グラバー・タイトル・閉じる）を注入し、スワイプdismissを付ける。 */
 function initRecordViews() {
-  const titles = { meal: '食事を記録', workout: '筋トレを記録', body: 'からだを記録' };
+  const titles = { meal: '食事を記録', workout: '運動を記録', body: 'からだを記録' };
   RECORD_VIEWS.forEach((name) => {
     const view = document.getElementById(`view-${name}`);
     if (!view || view.querySelector('.record-head')) return;
@@ -5435,7 +5528,7 @@ function initRecordViews() {
     const head = document.createElement('div');
     head.className = 'record-head';
     head.innerHTML = `<div class="rh-grip-row"><div class="grip"></div></div>
-      <button type="button" class="rh-close">閉じる</button>
+      <button type="button" class="rh-close">‹ 戻る</button>
       <span class="rh-title">${titles[name]}</span><span class="rh-spacer"></span>`;
     head.querySelector('.rh-close').addEventListener('click', closeRecordView);
     let startY = null, delta = 0;
@@ -5451,10 +5544,31 @@ function initRecordViews() {
       startY = null; delta = 0;
       if (shouldClose) closeRecordView();
     });
+    head.addEventListener('touchcancel', () => { startY = null; delta = 0; view.style.transform = ''; });
     view.insertBefore(head, view.firstChild);
   });
   const scrim = $('#recordScrim');
   if (scrim) scrim.addEventListener('click', closeRecordView);
+  // [fix] ヘッダーの高さはsafe-area・文字拡大・同期表示で変わる。
+  const topbar = $('.topbar');
+  const resize = () => document.documentElement.style.setProperty('--record-top', `${topbar.getBoundingClientRect().bottom}px`);
+  new ResizeObserver(resize).observe(topbar);
+  window.addEventListener('resize', resize);
+  resize();
+  if (window.visualViewport) {
+    const updateKeyboard = () => {
+      const viewport = window.visualViewport;
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      const editing = document.activeElement && document.activeElement.matches('input:not([type="date"]), textarea');
+      document.body.classList.toggle('keyboard-open', Boolean(editing && inset > 120));
+      document.documentElement.style.setProperty('--keyboard-inset', `${inset}px`);
+      document.documentElement.style.setProperty('--visible-height', `${viewport.height}px`);
+    };
+    window.visualViewport.addEventListener('resize', updateKeyboard);
+    window.visualViewport.addEventListener('scroll', updateKeyboard);
+    document.addEventListener('focusin', updateKeyboard);
+    document.addEventListener('focusout', () => requestAnimationFrame(updateKeyboard));
+  }
 }
 
 // ---- 記録メニュー（中央＋記録） ----
@@ -5750,7 +5864,12 @@ function bindLongPress(el, onLongPress) {
   el.addEventListener('mouseleave', cancel);
 }
 function setDate(dateStr) {
-  if (dateStr > todayStr()) { showToast('未来の日付には記録できません'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !Number.isFinite(Date.parse(`${dateStr}T12:00:00`))) return;
+  if (dateStr > todayStr()) {
+    $('#datePicker').value = state.date;
+    renderRecordDateRows();
+    showToast('未来の日付には記録できません'); return;
+  }
   persistDraftSafe();
   state.date = dateStr;
   const lbl = $('#dateLabel');
@@ -5758,12 +5877,13 @@ function setDate(dateStr) {
   lbl.classList.toggle('is-today', dateStr === todayStr());
   lbl.classList.toggle('is-past', dateStr !== todayStr());
   $('#dateNext').classList.toggle('disabled', dateStr === todayStr());
+  $('#dateNext').disabled = dateStr === todayStr();
   // カレンダーの選択値を現在の日付に合わせる（未来は選べないよう max も設定）
   const picker = $('#datePicker');
   if (picker) { picker.value = dateStr; picker.max = todayStr(); }
   renderRecordDateRows();   // 3つの記録画面の「記録する日」を一括更新（横展開 2026-07-31）
   if ($('#scorePop')) $('#scorePop').hidden = true;   // 内訳ポップは日付が変わったら閉じる
-  if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderHydration(); }
+  if (state.view === 'meal') { loadMealFor(state.date, state.timing); renderQuickRow(); renderItems(); renderSearch(); renderHydration(); }
   if (state.view === 'workout') renderWorkoutToday();
   if (state.view === 'body') renderBodyView();
   if (state.view === 'nutrition') renderNutrition();
@@ -7520,7 +7640,7 @@ $('#myFoodsBack').addEventListener('click', (e) => {
   const arch = e.target.closest('[data-mf-arch]');
   if (arch) archiveMyFood(arch.dataset.mfArch);
 });
-$('#mealNote').addEventListener('input', () => persistDraft());
+$('#mealNote').addEventListener('input', () => { persistDraft(); renderMealDirtyState(); });
 $('#diningToggleBtn').addEventListener('click', () => {
   state.diningOut.enabled = !state.diningOut.enabled;
   renderDiningOut();
@@ -7587,7 +7707,14 @@ $('#exoFields').addEventListener('click', (e) => {
 // 「記録する日」をタップでカレンダーを開く（食事・運動・からだ 共通。横展開 2026-07-31）
 ['#mealDateRow', '#workoutDateRow', '#bodyDateRow'].forEach((sel) => {
   const el = $(sel);
-  if (el) el.addEventListener('click', () => $('#dateLabel').click());
+  if (!el) return;
+  // [fix] iOSはプログラム経由の別入力のclickでピッカーを開けないことがある。
+  const picker = document.createElement('input');
+  picker.type = 'date';
+  picker.className = 'record-date-picker';
+  picker.setAttribute('aria-label', '記録する日を変更');
+  picker.addEventListener('change', () => { if (picker.value) setDate(picker.value); });
+  el.appendChild(picker);
 });
 $('#saveWorkoutBtn').addEventListener('click', saveWorkout);
 $('#sendWorkoutBtn').addEventListener('click', sendWorkoutDrafts);
