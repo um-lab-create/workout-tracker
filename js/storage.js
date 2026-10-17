@@ -72,6 +72,99 @@ function lsSet(key, value) {
   }
 }
 
+function _storageSaveError(cause, code = 'STORAGE_WRITE_FAILED') {
+  const quota = cause && (cause.name === 'QuotaExceededError' ||
+    cause.name === 'NS_ERROR_DOM_QUOTA_REACHED' || cause.code === 22 || cause.code === 1014);
+  if (code === 'STORAGE_WRITE_FAILED' && quota) code = 'STORAGE_QUOTA_EXCEEDED';
+  const messages = {
+    STORAGE_QUOTA_EXCEEDED: '端末の保存容量が不足しているため保存できませんでした。入力を残したまま空き容量を確認し、再試行してください。',
+    STORAGE_WRITE_FAILED: '端末に保存できませんでした。入力を残したまま、ブラウザの保存設定と空き容量を確認して再試行してください。',
+    STORAGE_SERIALIZE_FAILED: '保存するデータを変換できませんでした。入力を残したまま、内容を確認してください。',
+    STORAGE_READ_FAILED: '端末の保存済みデータを確認できないため保存を中止しました。ブラウザの保存設定を確認してください。',
+    STORAGE_ROLLBACK_FAILED: '保存に失敗し、保存前の状態に完全には戻せませんでした。入力を残したまま、保存済みデータを確認してください。'
+  };
+  const error = new Error(messages[code]);
+  error.code = code;
+  error.cause = cause;
+  return error;
+}
+
+function _storageStringify(value) {
+  try {
+    const raw = JSON.stringify(value);
+    // [fix] undefined/functions/symbols must not overwrite old data with "undefined".
+    if (raw === undefined) throw new TypeError('Value has no JSON representation');
+    return raw;
+  } catch (cause) {
+    throw _storageSaveError(cause, 'STORAGE_SERIALIZE_FAILED');
+  }
+}
+
+/**
+ * Required save: throws a user-facing Error (code/cause) on failure.
+ * Keep lsSet for disposable caches; update UI/in-memory state only after this returns.
+ * @returns {boolean} true only after setItem succeeds
+ */
+function lsSetRequired(key, value) {
+  const raw = _storageStringify(value);
+  try {
+    localStorage.setItem(key, raw);
+  } catch (cause) {
+    throw _storageSaveError(cause);
+  }
+  return true;
+}
+
+/**
+ * Required multi-key save: lsSetManyRequired([[key, value], ...]).
+ * Serializes and snapshots every key before writing; restores exact old strings on failure.
+ * NOT a localStorage transaction: other tabs can observe partial writes, and a crash or
+ * rollback failure can leave partial data. No cross-tab isolation or crash recovery.
+ * Rollback failures are exposed as error.rollbackErrors; never claim success in that case.
+ * @param {Array<[string, *]>} entries Unique string keys, in write order.
+ * @returns {boolean} true only after every setItem succeeds
+ */
+function lsSetManyRequired(entries) {
+  if (!Array.isArray(entries)) throw new TypeError('Expected an array of [key, value] pairs');
+  const keys = new Set();
+  for (const entry of entries) {
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || keys.has(entry[0])) {
+      throw new TypeError('Expected [key, value] pairs with unique string keys');
+    }
+    keys.add(entry[0]);
+  }
+  const pending = entries.map(([key, value]) => ({ key, raw: _storageStringify(value) }));
+  let storage;
+  try {
+    storage = localStorage;
+    for (const entry of pending) entry.oldRaw = storage.getItem(entry.key);
+  } catch (cause) {
+    throw _storageSaveError(cause, 'STORAGE_READ_FAILED');
+  }
+  const written = [];
+  try {
+    for (const entry of pending) {
+      storage.setItem(entry.key, entry.raw);
+      written.push(entry);
+    }
+  } catch (cause) {
+    const rollbackErrors = [];
+    // Failed setItem leaves its own key unchanged under the Web Storage contract.
+    for (const entry of written.reverse()) {
+      try {
+        if (entry.oldRaw === null) storage.removeItem(entry.key);
+        else storage.setItem(entry.key, entry.oldRaw);
+      } catch (error) {
+        rollbackErrors.push({ key: entry.key, error });
+      }
+    }
+    const error = _storageSaveError(cause, rollbackErrors.length ? 'STORAGE_ROLLBACK_FAILED' : undefined);
+    error.rollbackErrors = rollbackErrors;
+    throw error;
+  }
+  return true;
+}
+
 /**
  * localStorage から指定キーを削除する。
  * @param {string} key

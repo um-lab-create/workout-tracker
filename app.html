@@ -2198,7 +2198,10 @@ function getRecords() {
   if (_recordsCache === null) _recordsCache = lsGet(LS_KEYS.MEAL_RECORDS, []) || [];
   return _recordsCache;
 }
-function saveRecords(records) { lsSet(LS_KEYS.MEAL_RECORDS, records); _recordsCache = null; }
+function saveRecords(records) {
+  try { lsSetRequired(LS_KEYS.MEAL_RECORDS, records); }
+  finally { _recordsCache = null; }
+}
 // 別タブ・別ウィンドウからの書込に追従（storage イベントは他ドキュメントの書込時のみ発火する）
 window.addEventListener('storage', (e) => {
   if (!e || !e.key) return;
@@ -2252,7 +2255,7 @@ function restoreMealItems(rawItems, rawStructured) {
   }).filter(Boolean);
 }
 
-function persistDraft() {
+function persistDraft(required = false) {
   const drafts = loadDrafts();
   drafts[draftKey(state.date, state.timing)] = {
     items: toStoredMealItems(state.items),
@@ -2264,7 +2267,8 @@ function persistDraft() {
     defaultPresetId: '',
     autoDefault: false
   };
-  lsSet(LS_KEYS.MEAL_DRAFT, drafts);
+  if (required) lsSetRequired(LS_KEYS.MEAL_DRAFT, drafts);
+  else lsSet(LS_KEYS.MEAL_DRAFT, drafts);
 }
 
 function loadMealFor(dateStr, timingKey) {
@@ -2889,7 +2893,7 @@ async function saveMeal() {
   isSavingMeal = true;
   const btn = $('#saveMealBtn');
   btn.disabled = true;
-
+  try {
   const totals = mealTotalsFor(state.items);
   const timing = TIMINGS[state.timing];
   const saved = findRecord(state.date, state.timing);
@@ -2928,13 +2932,13 @@ async function saveMeal() {
   };
 
   // ローカル保存（既存レコードは置換）
-  const records = getRecords();
+  const records = getRecords().slice();
   const idx = records.findIndex((r) => r.id === record.id);
   if (idx >= 0) records[idx] = record; else records.push(record);
   saveRecords(records);
   updateFoodUsageFromRecord(record);
   state.editingRecordId = record.id;
-  persistDraft();
+  persistDraft(true);
 
   // サーバー送信（Supabase 本線。旧GASミラーは2026-07-10退役済み）
   let writeResult = null;
@@ -2978,6 +2982,12 @@ async function saveMeal() {
   // 保存直後なので dirty 警告は不要 → showView 直呼び）
   if (writeResult.status !== 'failed' && RECORD_VIEWS.includes(state.view)) {
     setTimeout(() => showView(state.baseTab || 'home'), 400);
+  }
+  } catch (err) {
+    showToast('食事を端末に保存できませんでした。入力を残しています。空き容量を確認してください', 'error');
+  } finally {
+    isSavingMeal = false;
+    btn.disabled = false;
   }
 }
 
@@ -4673,8 +4683,10 @@ function rememberWorkout(record) {
   last[record._exerciseId] = { ...(record._values || state.exoValues) };
   lsSet(LS_KEYS.WT_LAST, last);
   const history = lsGet(LS_KEYS.WT_HISTORY, []) || [];
+  const existing = history.findIndex((item) => record._serverId && item._serverId === record._serverId);
+  if (existing >= 0) history.splice(existing, 1);
   history.unshift(record);
-  lsSet(LS_KEYS.WT_HISTORY, history.slice(0, 80));
+  lsSetRequired(LS_KEYS.WT_HISTORY, history.slice(0, 80));
   invalidateWorkoutRowsCache();   // [perf] 監査#18
   lsSet(LS_KEYS.WT_SELECTED, state.exoId);
 }
@@ -4692,8 +4704,9 @@ async function saveWorkout() {
   if (btn.disabled || isSendingWorkout) return;
   btn.disabled = true;
   try {
-    state.workoutDrafts.push({ ...buildWorkoutRecord(), _draft: true });
-    lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
+    const drafts = [...state.workoutDrafts, { ...buildWorkoutRecord(), _draft: true }];
+    lsSetRequired(LS_KEYS.WT_DRAFTS, drafts);
+    state.workoutDrafts = drafts;
     const last = lsGet(LS_KEYS.WT_LAST, {}) || {};
     last[exo.id] = { ...state.exoValues };
     lsSet(LS_KEYS.WT_LAST, last);
@@ -4725,7 +4738,7 @@ async function sendWorkoutDrafts() {
       const row = sbWorkoutRow(item);
       row.id = item._serverId || row.id;
       item._serverId = row.id;
-      lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
+      lsSetRequired(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
       let queued = false;
       try {
         await pushWorkoutToServer(row);
@@ -4738,8 +4751,9 @@ async function sendWorkoutDrafts() {
       sent.push(record);
       if (queued) queuedCount += 1;
       // [fix] 途中で失敗しても成功分だけを除き、未保存分は下書きに保持する。
-      state.workoutDrafts = state.workoutDrafts.filter((draft) => draft !== item);
-      lsSet(LS_KEYS.WT_DRAFTS, state.workoutDrafts);
+      const remaining = state.workoutDrafts.filter((draft) => draft !== item);
+      lsSetRequired(LS_KEYS.WT_DRAFTS, remaining);
+      state.workoutDrafts = remaining;
     }
     const confirmed = sent.filter((item) => item._writeStatus === 'confirmed').length;
     showToast(queuedCount ? `${queuedCount}件を未送信に保存しました（あとで自動送信）` : `送信済み ✓ ${confirmed}件`);
@@ -4953,6 +4967,10 @@ async function deleteBodyRecord(ts) {
 }
 
 async function saveBody() {
+  const btn = $('#saveBodyBtn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
   const record = {
     date: state.date,
     weight: Number(state.body.weight.toFixed(1)),
@@ -4965,10 +4983,7 @@ async function saveBody() {
   record._serverId = row.id;           // 削除時のサーバー行特定用（監査#30）
   const recs = lsGet(LS_KEYS.BODY_RECORDS, []) || [];
   recs.push(record);
-  lsSet(LS_KEYS.BODY_RECORDS, recs);
-
-  const btn = $('#saveBodyBtn');
-  btn.disabled = true;
+  lsSetRequired(LS_KEYS.BODY_RECORDS, recs);
   try {
     await pushBodyToServer(row);
     flashSuccess(btn, '✓ 記録しました');
@@ -4984,6 +4999,11 @@ async function saveBody() {
   // 保存完了でシートを閉じる（改善A。筋トレは複数種目を連続入力するため閉じない）
   if (RECORD_VIEWS.includes(state.view)) {
     setTimeout(() => showView(state.baseTab || 'home'), 400);
+  }
+  } catch (err) {
+    showToast('記録の保存が完了していません。入力を残しています。空き容量を確認して再試行してください', 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -5476,7 +5496,7 @@ const RECORD_VIEWS = ['meal', 'workout', 'body'];
 function showView(name) {
   const previous = state.view;
   // [fix] 戻る・タブ切替でも食品以外のメモや外食の下書きを確実に残す。
-  if (previous === 'meal' && name !== 'meal') persistDraftSafe();
+  if (previous === 'meal' && name !== 'meal' && !persistDraftSafe()) return;
   closeAllSheets();
   state.view = name;
   const isRecord = RECORD_VIEWS.includes(name);
@@ -5870,7 +5890,7 @@ function setDate(dateStr) {
     renderRecordDateRows();
     showToast('未来の日付には記録できません'); return;
   }
-  persistDraftSafe();
+  if (!persistDraftSafe()) { renderRecordDateRows(); return; }
   state.date = dateStr;
   const lbl = $('#dateLabel');
   lbl.textContent = fmtDateLabel(dateStr);
@@ -5891,10 +5911,17 @@ function setDate(dateStr) {
 }
 function persistDraftSafe() {
   // 食事ビューで編集中なら下書きを確定してから移動
-  if (state.view === 'meal') { try { persistDraft(); } catch (e) {} }
+  if (state.view === 'meal') {
+    try { persistDraft(true); }
+    catch (e) {
+      showToast('下書きを保存できません。入力を残しています。空き容量を確認してください', 'error');
+      return false;
+    }
+  }
+  return true;
 }
 function setTiming(tk) {
-  persistDraftSafe();
+  if (!persistDraftSafe()) return;
   state.timing = tk;
   loadMealFor(state.date, tk);
   renderTimingSeg();

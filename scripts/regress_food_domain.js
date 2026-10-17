@@ -808,6 +808,54 @@ ok('追加種目: 難度がローカル・サーバー用データ・再読込�
   JSON.stringify(customWorkout));
 
 (async () => {
+  const storageFailure = await vm.runInContext(`(async () => {
+    const originalSet=localStorage.setItem, originalMeal=pushMealToServer, originalBody=pushBodyToServer;
+    const originalWorkout=pushWorkoutToServer, originalDrafts=state.workoutDrafts;
+    let calls=0;
+    try {
+      state.items=[]; document.querySelector('#mealNote').value='storage-test';
+      document.querySelector('#bodyMemo').value='storage-test';
+      state.diningOut=blankDiningOut();
+      const beforeMeals=JSON.stringify(getRecords()), beforeDrafts=JSON.stringify(state.workoutDrafts);
+      pushMealToServer=pushBodyToServer=pushWorkoutToServer=async()=>{calls++;};
+      localStorage.setItem=()=>{throw new Error('quota exceeded');};
+      await saveMeal(); await saveBody(); await saveWorkout();
+      return {calls,mealsPreserved:beforeMeals===JSON.stringify(getRecords()),
+        draftsPreserved:beforeDrafts===JSON.stringify(state.workoutDrafts),
+        mealEnabled:!document.querySelector('#saveMealBtn').disabled,
+        bodyEnabled:!document.querySelector('#saveBodyBtn').disabled,
+        workoutEnabled:!document.querySelector('#saveWorkoutBtn').disabled,
+        noteKept:document.querySelector('#bodyMemo').value==='storage-test', unlocked:!isSavingMeal};
+    } finally {
+      localStorage.setItem=originalSet;pushMealToServer=originalMeal;pushBodyToServer=originalBody;
+      pushWorkoutToServer=originalWorkout;state.workoutDrafts=originalDrafts;
+    }
+  })()`, context);
+  ok('容量不足: 食事・体組成・運動を送信せず、既存記録と入力と再試行を保護',
+    storageFailure.calls===0 && storageFailure.mealsPreserved && storageFailure.draftsPreserved &&
+    storageFailure.mealEnabled && storageFailure.bodyEnabled && storageFailure.workoutEnabled &&
+    storageFailure.noteKept && storageFailure.unlocked, JSON.stringify(storageFailure));
+  const navigation = vm.runInContext(`(() => {
+    const originalSet=localStorage.setItem, previousView=state.view;
+    const date=state.date, timing=state.timing;
+    try {
+      state.view='meal';
+      localStorage.setItem=()=>{throw new Error('quota exceeded');};
+      setTiming(timing==='lunch'?'dinner':'lunch');
+      setDate(shiftDate(date,-1)); showView('home');
+      return state.view==='meal' && state.date===date && state.timing===timing;
+    } finally {localStorage.setItem=originalSet;state.view=previousView;}
+  })()`, context);
+  ok('容量不足: 食事の区分・日付・戻る操作で未保存の入力を失わない', navigation);
+  const uniqueHistory = vm.runInContext(`(() => {
+    const before=lsGet(LS_KEYS.WT_HISTORY,[]);
+    try {
+      const record={_serverId:'qa-stable-id',_exerciseId:state.exoId,_values:state.exoValues};
+      rememberWorkout(record);rememberWorkout(record);
+      return lsGet(LS_KEYS.WT_HISTORY,[]).filter(r=>r._serverId==='qa-stable-id').length===1;
+    } finally {lsSet(LS_KEYS.WT_HISTORY,before);}
+  })()`, context);
+  ok('運動: 下書き削除失敗後の再送でも同じサーバーIDの履歴を重複させない', uniqueHistory);
   const superseded = await vm.runInContext(`(async () => {
     const originalPush=pushMealToServer;
     const before=JSON.stringify(window.HSSbQueue.load());
