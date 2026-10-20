@@ -807,6 +807,45 @@ ok('追加種目: 難度がローカル・サーバー用データ・再読込�
   customWorkout.local === 4 && customWorkout.server === 4 && customWorkout.restored === 4,
   JSON.stringify(customWorkout));
 
+const photoRoundTrip = vm.runInContext(`(() => {
+  const item=window.HSPhotoMeal.toItem(window.HSPhotoMeal.parse(JSON.stringify({version:1,items:[
+    {name:'キーマカレー',portion:'1皿',kcal:600,protein_g:30,fat_g:20,carb_g:75}
+  ]}))[0],0.5,'photo:qa-roundtrip');
+  const structured=buildStructuredItem(item);
+  const restored=restoreMealItems(toStoredMealItems([item]),[structured]);
+  const again=buildStructuredItem(restored[0]);
+  const payload=sbMealPayload({timingKey:'lunch',date:'2026-10-20',structuredItems:[again]});
+  return {first:structured.nutrients.energy,again:again.nutrients.energy,
+    estimate:restored[0].pendingReview,server:payload.items[0].estKcal,
+    knownId:payload.items[0].foodId};
+})()`, context);
+ok('写真推定: 保存→再読込→再保存→サーバー送信用でも半量の栄養が維持される',
+  photoRoundTrip.first===300 && photoRoundTrip.again===300 && photoRoundTrip.server===300 && photoRoundTrip.estimate,
+  JSON.stringify(photoRoundTrip));
+const photoEdits = vm.runInContext(`(() => {
+  const originalItems=state.items,originalId=state.editingRecordId;
+  const originalRecords=getRecords().slice(),originalDrafts=loadDrafts();
+  const note=document.querySelector('#mealNote').value;
+  try {
+    const item=window.HSPhotoMeal.toItem({name:'写真料理',portion:'1皿',kcal:400,p:20,f:10,c:50},1,'photo:dirty-test');
+    const record={id:'photo-record',date:state.date,timingKey:state.timing,note:'',
+      items:toStoredMealItems([item]),structuredItems:[buildStructuredItem(item)]};
+    saveRecords([record]);state.items=[item];state.editingRecordId=record.id;
+    document.querySelector('#mealNote').value='';state.diningOut=blankDiningOut();
+    const clean=!hasUnsavedMealChanges();
+    state.items=[{...item,name:'修正料理',kcal:450,nutrients:{...item.nutrients,energy:450}}];
+    persistDraft(true);
+    const dirty=hasUnsavedMealChanges();
+    const kept=!dropDraftIfMirrorsRecord(record) && !!loadDrafts()[draftKey(state.date,state.timing)];
+    return {clean,dirty,kept};
+  } finally {
+    saveRecords(originalRecords);lsSet(LS_KEYS.MEAL_DRAFT,originalDrafts);
+    state.items=originalItems;state.editingRecordId=originalId;document.querySelector('#mealNote').value=note;
+  }
+})()`, context);
+ok('写真修正: 名称/PFCだけの変更も未保存として検出し、同期時に下書きを消さない',
+  photoEdits.clean && photoEdits.dirty && photoEdits.kept, JSON.stringify(photoEdits));
+
 (async () => {
   const storageFailure = await vm.runInContext(`(async () => {
     const originalSet=localStorage.setItem, originalMeal=pushMealToServer, originalBody=pushBodyToServer;

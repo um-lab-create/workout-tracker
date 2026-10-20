@@ -1213,6 +1213,13 @@ body.keyboard-open .modal { max-height: calc(var(--visible-height) - 20px); }
   .brand .logo { font-size: 13px; }
   .date-label { min-width: 90px; }
 }
+.photo-dish { border:1px solid var(--line); border-radius:16px; padding:14px; margin:12px 0; display:grid; gap:10px; }
+.photo-dish label { display:block; font-size:14px; }
+.photo-dish input:not([type="checkbox"]) { display:block; width:100%; margin-top:5px; min-height:44px; }
+.photo-macros { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+#photoMealBack textarea { width:100%; min-height:130px; font-size:16px; }
+#photoMealRows summary { min-height:44px; padding-top:12px; }
+#photoMealOpen { margin-bottom:12px; }
 </style>
 </head>
 <body>
@@ -1319,6 +1326,7 @@ body.keyboard-open .modal { max-height: calc(var(--visible-height) - 20px); }
     </label>
     <div class="seg" id="timingSeg"></div>
     <div class="quick-row" id="quickRow"></div>
+    <button class="secondary-btn full" id="photoMealOpen" type="button">写真から記録</button>
 
     <section class="hydration-card" id="hydrationCard">
       <div class="mini-head"><b>水分</b><span id="waterLabel">0.0 / 1.2L</span></div>
@@ -1649,6 +1657,30 @@ body.keyboard-open .modal { max-height: calc(var(--visible-height) - 20px); }
   </div>
 </div>
 
+<!-- 写真判定: 写真はAIアプリに直接添付。結果の確認後にのみ食事へ追加。 -->
+<div class="modal-back" id="photoMealBack">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="photoMealTitle">
+    <h3 id="photoMealTitle">写真から記録</h3>
+    <div id="photoMealInput">
+      <p class="sync-note">写真はAIアプリへ直接添付。ここでは写真を保存・送信しません。API不使用。</p>
+      <button class="primary-btn full" id="photoMealCopy" type="button">1. 依頼文をコピー</button>
+      <p class="sync-note">AIに依頼文と写真を送り、回答を下に貼り付けます。写真の位置情報や人物の写り込みは送信前に確認してください。</p>
+      <details id="photoPromptFallback"><summary>依頼文を表示</summary><textarea id="photoMealPrompt" readonly aria-label="AIへの依頼文"></textarea></details>
+      <label for="photoMealResult">2. AIの回答</label>
+      <textarea id="photoMealResult" placeholder='{"version":1,"items":[…]}'></textarea>
+      <button class="secondary-btn full" id="photoMealParse" type="button">内容を確認</button>
+    </div>
+    <div id="photoMealReview" hidden>
+      <p class="sync-note">すべて推定値です。量・料理を確認してください。追加後も「修正」から変更できます。</p>
+      <div id="photoMealRows"></div>
+      <p id="photoMealTotal" aria-live="polite"></p>
+      <button class="primary-btn full" id="photoMealAdd" type="button">食事に追加</button>
+      <button class="secondary-btn full" id="photoMealBackBtn" type="button">回答を貼り直す</button>
+    </div>
+    <p id="photoMealError" role="alert" style="color:var(--red)"></p>
+  </div>
+</div>
+
 <!-- 市販品/食材フォーム（SPEC-014 §3-2 最小フォーム） -->
 <div class="modal-back" id="foodFormBack">
   <div class="modal">
@@ -1831,6 +1863,7 @@ body.keyboard-open .modal { max-height: calc(var(--visible-height) - 20px); }
 
 <script src="nutrition-db.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/photo-meal.js"></script>
 <script src="js/nutrition-calc.js"></script>
 <script src="js/food-catalog.js"></script>
 <script src="js/search-alias.js"></script>
@@ -2217,7 +2250,8 @@ function loadDrafts() { return lsGet(LS_KEYS.MEAL_DRAFT, {}) || {}; }
 function blankDiningOut() { return { enabled: false, restaurantName: '', googleMapUrl: '', diningText: '' }; }
 
 function toStoredMealItems(items) {
-  return (items || []).map((it) => ({ foodId: it.foodId, qty: Number(it.qty) || 0, unit: it.unit, pendingReview: Boolean(it.pendingReview) }));
+  return (items || []).map((it) => ({ foodId: it.foodId, qty: Number(it.qty) || 0, unit: it.unit, pendingReview: Boolean(it.pendingReview),
+    ...(String(it.foodId).startsWith('photo:') ? { photo: { name: it.name, kcal: it.kcal, p: it.p, f: it.f, c: it.c } } : {}) }));
 }
 function buildStructuredItem(item) {
   if (NUTRITION_DB && NUTRITION_DB.structureItem) {
@@ -2250,6 +2284,7 @@ function restoreMealItems(rawItems, rawStructured) {
       qty: Number(it.qty) || 1, unit: it.unit || '個',
       grams: st.grams == null ? null : st.grams,
       kcal: st.nutrients.energy || 0, p: st.nutrients.protein || 0, f: st.nutrients.fat || 0, c: st.nutrients.carb || 0,
+      nutrients: st.nutrients, source: st.source || 'external-estimate', coverage: st.coverage || 'macro-only',
       pendingReview: Boolean(it.pendingReview), sourceType: 'food', brand: '', frozen: true // frozen=数量変更で再計算不可
     };
   }).filter(Boolean);
@@ -2551,12 +2586,13 @@ function renderItems() {
         <div class="item-name">${escapeHtml(it.name)}</div>
         <div class="item-kcal">${fmtNum(it.kcal)} kcal　P${it.p.toFixed(1)} F${it.f.toFixed(1)} C${it.c.toFixed(1)}</div>
       </div>
-      ${it.pendingReview ? `<button class="review-chip on" data-review="${i}">概算</button>` : ''}
-      <div class="stepper">
+      ${String(it.foodId).startsWith('photo:') ? '<span class="review-chip on">写真・推定</span>' : it.pendingReview ? `<button class="review-chip on" data-review="${i}">概算</button>` : ''}
+      ${String(it.foodId).startsWith('photo:') ? `<button class="secondary-btn" data-photo-edit="${i}" type="button">修正</button>` : ''}
+      ${String(it.foodId).startsWith('photo:') ? `<span class="sync-note">${Math.round(it.qty * 100)}%</span>` : `<div class="stepper">
         <button data-step="-1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>−</button>
         <span class="qty-box">${qtyHtml}${unitHtml}</span>
         <button data-step="1" data-i="${i}" ${it.frozen ? 'disabled' : ''}>＋</button>
-      </div>
+      </div>`}
       <button class="del-btn" data-del="${i}">✕</button>
     </div>`;
   }).join('');
@@ -2568,6 +2604,9 @@ function currentStoredItemsSignature() {
   return JSON.stringify(toStoredMealItems(state.items));
 }
 function savedStoredItemsSignature(record) {
+  if ((record?.items || []).some(it => String(it.foodId).startsWith('photo:'))) {
+    return JSON.stringify(toStoredMealItems(restoreMealItems(record.items, record.structuredItems)));
+  }
   return JSON.stringify((record && record.items) || []);
 }
 function hasUnsavedMealChanges() {
@@ -3002,6 +3041,96 @@ function markMealSynced(recordId, synced) {
 let foodFormState = { kind: 'product', editingId: null };
 let recipeState = { editingId: null, items: [] };
 let myFoodsFilter = 'all';
+
+let photoMealState = { rows: [], editingId: null, target: '' };
+function openPhotoMeal(editIndex = null) {
+  photoMealState = { rows: [], editingId: null, target: draftKey(state.date, state.timing) };
+  $('#photoMealError').textContent = '';
+  $('#photoMealPrompt').value = window.HSPhotoMeal.prompt();
+  $('#photoMealInput').hidden = false;
+  $('#photoMealReview').hidden = true;
+  if (editIndex !== null) {
+    const item = state.items[editIndex];
+    if (!item || !String(item.foodId).startsWith('photo:')) return;
+    photoMealState.editingId = item.id;
+    const ratio = Number(item.qty) || 1;
+    photoMealState.rows = [{ name: item.name, portion: '写真に写った料理の全量',
+      kcal: item.kcal / ratio, p: item.p / ratio, f: item.f / ratio, c: item.c / ratio,
+      assumptions: '', ratio, included: true }];
+    renderPhotoMealReview();
+  }
+  $('#photoMealBack').classList.add('show');
+  $('#photoMealBack').querySelector('.sheet-x')?.focus();
+}
+function renderPhotoMealReview() {
+  $('#photoMealInput').hidden = true;
+  $('#photoMealReview').hidden = false;
+  $('#photoMealAdd').textContent = photoMealState.editingId ? '変更を反映' : '食事に追加';
+  $('#photoMealRows').innerHTML = photoMealState.rows.map((row, i) => `
+    <section class="photo-dish" data-photo-row="${i}">
+      <label><input type="checkbox" data-photo-field="included" ${row.included ? 'checked' : ''}> この料理を含める</label>
+      <label>料理名<input class="text-input" data-photo-field="name" value="${escapeHtml(row.name)}" maxlength="80"></label>
+      <div class="sync-note">${escapeHtml(row.portion)}</div>
+      ${row.assumptions ? `<div class="sync-note">推定: ${escapeHtml(row.assumptions)}</div>` : ''}
+      <label>食べた量（写真の全量 = 100%）<input class="text-input" data-photo-field="ratio" type="number" inputmode="decimal" min="1" max="500" value="${Math.round(row.ratio * 100)}"> %</label>
+      <details><summary>カロリー・PFCを修正</summary><div class="photo-macros">
+        ${[['kcal','kcal'],['p','P (g)'],['f','F (g)'],['c','C (g)']].map(([k,label]) => `<label>${label}<input class="text-input" data-photo-field="${k}" type="number" inputmode="decimal" min="0" step="any" value="${row[k]}"></label>`).join('')}
+      </div><small>写真に写った全量の値。食べた割合は自動計算します。</small></details>
+    </section>`).join('');
+  updatePhotoMealTotal();
+}
+function photoMealItems() {
+  return photoMealState.rows.filter((row) => row.included).map((row, i) =>
+    window.HSPhotoMeal.toItem(row, row.ratio, photoMealState.editingId || `photo:${crypto.randomUUID()}:${i}`));
+}
+function updatePhotoMealTotal() {
+  try {
+    const items = photoMealItems();
+    $('#photoMealTotal').textContent = `${items.length}品・${Math.round(items.reduce((sum, it) => sum + it.kcal, 0))} kcal（推定）`;
+    $('#photoMealError').textContent = '';
+  } catch (err) { $('#photoMealError').textContent = err.message; }
+}
+$('#photoMealOpen').addEventListener('click', () => openPhotoMeal());
+$('#photoMealCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(window.HSPhotoMeal.prompt()); showToast('依頼文をコピーしました。AIアプリで写真と一緒に送ってください'); }
+  catch (_) { $('#photoPromptFallback').open = true; $('#photoMealPrompt').focus(); $('#photoMealPrompt').select(); }
+});
+$('#photoMealParse').addEventListener('click', () => {
+  try {
+    const rows = window.HSPhotoMeal.parse($('#photoMealResult').value);
+    if (photoMealState.editingId && rows.length !== 1) throw new Error('修正時は1品の回答を貼り付けてください。複数の追加は「写真から記録」から行えます');
+    photoMealState.rows = rows.map(row => ({ ...row, ratio: 1, included: true }));
+    renderPhotoMealReview();
+  } catch (err) { $('#photoMealError').textContent = err.message; }
+});
+$('#photoMealBackBtn').addEventListener('click', () => {
+  $('#photoMealInput').hidden = false; $('#photoMealReview').hidden = true; $('#photoMealError').textContent = '';
+});
+$('#photoMealRows').addEventListener('input', (e) => {
+  const field = e.target.dataset.photoField, parent = e.target.closest('[data-photo-row]');
+  if (!field || !parent) return;
+  const row = photoMealState.rows[Number(parent.dataset.photoRow)];
+  row[field] = field === 'included' ? e.target.checked : field === 'name' ? e.target.value
+    : e.target.value.trim() === '' ? NaN : Number(e.target.value) / (field === 'ratio' ? 100 : 1);
+  updatePhotoMealTotal();
+});
+$('#photoMealAdd').addEventListener('click', () => {
+  try {
+    if (photoMealState.target !== draftKey(state.date, state.timing)) throw new Error('記録先が変わりました。開き直してください');
+    const items = photoMealItems();
+    if (!items.length) throw new Error('追加する料理を選んでください');
+    if (photoMealState.editingId && items.length !== 1) throw new Error('修正対象は1品です');
+    const before = state.items;
+    const index = before.findIndex(it => it.id === photoMealState.editingId);
+    if (photoMealState.editingId && index < 0) throw new Error('修正対象の料理が見つかりません');
+    state.items = index < 0 ? [...before, ...items] : before.map((it, i) => i === index ? { ...items[0], foodId: it.foodId } : it);
+    try { persistDraft(true); } catch (err) { state.items = before; throw err; }
+    $('#photoMealBack').classList.remove('show');
+    $('#photoMealResult').value = '';
+    photoMealState.rows = [];
+    renderItems(); showToast('推定値を反映しました。最後に「記録する」で保存してください');
+  } catch (err) { $('#photoMealError').textContent = err.message; }
+});
 
 function openAddFoodSheet(prefillName) {
   state.pendingFoodName = String(prefillName || '').trim();
@@ -7424,6 +7553,8 @@ $('#quickRow').addEventListener('click', (e) => {
   persistDraft();
 });
 $('#mealItems').addEventListener('click', (e) => {
+  const photoEdit = e.target.closest('[data-photo-edit]');
+  if (photoEdit) { openPhotoMeal(Number(photoEdit.dataset.photoEdit)); return; }
   const step = e.target.closest('[data-step]');
   if (step) {
     if (consumeLongPressClick(step)) return;
